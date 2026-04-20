@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet add *)",
+      "Bash(dotnet build *)",
+      "Bash(dotnet ef *)",
+      "Bash(dotnet tool *)",
+      "Bash(docker run *)",
+      "Bash(dotnet run *)",
+      "Bash(curl -s http://localhost:5000/api/playerrecords)",
+      "Bash(curl -s http://localhost:5001/api/playerrecords)",
+      "Bash(curl -s http://localhost:5058/api/playerrecords)",
+      "Bash(curl -s -X POST http://localhost:5058/api/playerrecords -H 'Content-Type: application/json' -d '{\"nickname\":\"TestRunner\",\"playTime\":123.5,\"score\":9999}')",
+      "Bash(curl -s http://localhost:5058/api/playerrecords/1)"
+    ]
+  }
+}
