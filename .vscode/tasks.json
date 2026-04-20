@@ -1,0 +1,19 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build-api",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["build", "${workspaceFolder}/Framework/Framework.Api"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build-admin",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["build", "${workspaceFolder}/Framework/Framework.Admin"],
+      "problemMatcher": "$msCompile"
+    }
+  ]
+}

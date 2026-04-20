@@ -1,0 +1,29 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Framework.Api",
+      "type": "dotnet",
+      "request": "launch",
+      "projectPath": "${workspaceFolder}/Framework/Framework.Api/Framework.Api.csproj",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    {
+      "name": "Framework.Admin",
+      "type": "dotnet",
+      "request": "launch",
+      "projectPath": "${workspaceFolder}/Framework/Framework.Admin/Framework.Admin.csproj",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Api + Admin",
+      "configurations": ["Framework.Api", "Framework.Admin"]
+    }
+  ]
+}

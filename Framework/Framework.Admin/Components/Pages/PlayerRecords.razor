@@ -1,0 +1,173 @@
+@page "/players"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>플레이어 기록</PageTitle>
+
+<h2>플레이어 기록 관리</h2>
+
+<!-- 전체 목록 -->
+<section class="mb-5">
+    <h4>전체 목록</h4>
+    @if (allRecords == null)
+    {
+        <p>불러오는 중...</p>
+    }
+    else if (!allRecords.Any())
+    {
+        <p>등록된 기록이 없습니다.</p>
+    }
+    else
+    {
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>닉네임</th>
+                    <th>플레이 시간(초)</th>
+                    <th>점수</th>
+                    <th>등록일시</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in allRecords)
+                {
+                    <tr>
+                        <td>@r.Id</td>
+                        <td>@r.Nickname</td>
+                        <td>@r.PlayTime</td>
+                        <td>@r.Score</td>
+                        <td>@r.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+<!-- ID 조회 -->
+<section class="mb-5">
+    <h4>ID로 조회</h4>
+    <div class="d-flex gap-2 mb-2">
+        <input type="number" class="form-control w-auto" placeholder="ID 입력" @bind="searchId" />
+        <button class="btn btn-secondary" @onclick="SearchById">조회</button>
+    </div>
+    @if (searchResult != null)
+    {
+        <table class="table table-bordered w-auto">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>닉네임</th>
+                    <th>플레이 시간(초)</th>
+                    <th>점수</th>
+                    <th>등록일시</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>@searchResult.Id</td>
+                    <td>@searchResult.Nickname</td>
+                    <td>@searchResult.PlayTime</td>
+                    <td>@searchResult.Score</td>
+                    <td>@searchResult.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                </tr>
+            </tbody>
+        </table>
+    }
+    @if (searchError != null)
+    {
+        <p class="text-danger">@searchError</p>
+    }
+</section>
+
+<!-- 신규 입력 -->
+<section class="mb-5">
+    <h4>신규 입력</h4>
+    <div class="d-flex flex-column gap-2" style="max-width: 320px;">
+        <input type="text" class="form-control" placeholder="닉네임" @bind="newNickname" />
+        <input type="number" class="form-control" placeholder="플레이 시간(초)" @bind="newPlayTime" step="0.1" />
+        <input type="number" class="form-control" placeholder="점수" @bind="newScore" />
+        <button class="btn btn-primary" @onclick="CreateRecord">등록</button>
+    </div>
+    @if (createMessage != null)
+    {
+        <p class="mt-2 @(createSuccess ? "text-success" : "text-danger")">@createMessage</p>
+    }
+</section>
+
+@code {
+    // 전체 목록
+    private List<PlayerRecordDto>? allRecords;
+
+    // ID 조회
+    private int searchId;
+    private PlayerRecordDto? searchResult;
+    private string? searchError;
+
+    // 신규 입력
+    private string newNickname = "";
+    private float newPlayTime;
+    private int newScore;
+    private string? createMessage;
+    private bool createSuccess;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAll();
+    }
+
+    private async Task LoadAll()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        allRecords = await client.GetFromJsonAsync<List<PlayerRecordDto>>("api/playerrecords");
+    }
+
+    private async Task SearchById()
+    {
+        searchResult = null;
+        searchError = null;
+
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var response = await client.GetAsync($"api/playerrecords/{searchId}");
+
+        if (response.IsSuccessStatusCode)
+            searchResult = await response.Content.ReadFromJsonAsync<PlayerRecordDto>();
+        else
+            searchError = $"ID {searchId}에 해당하는 기록을 찾을 수 없습니다.";
+    }
+
+    private async Task CreateRecord()
+    {
+        createMessage = null;
+
+        if (string.IsNullOrWhiteSpace(newNickname))
+        {
+            createMessage = "닉네임을 입력해주세요.";
+            createSuccess = false;
+            return;
+        }
+
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var payload = new { Nickname = newNickname, PlayTime = newPlayTime, Score = newScore };
+        var response = await client.PostAsJsonAsync("api/playerrecords", payload);
+
+        if (response.IsSuccessStatusCode)
+        {
+            createMessage = "등록되었습니다.";
+            createSuccess = true;
+            newNickname = "";
+            newPlayTime = 0;
+            newScore = 0;
+            await LoadAll(); // 목록 갱신
+        }
+        else
+        {
+            createMessage = "등록에 실패했습니다.";
+            createSuccess = false;
+        }
+    }
+
+    // API 응답 매핑용 로컬 DTO
+    private record PlayerRecordDto(int Id, string Nickname, float PlayTime, int Score, DateTime CreatedAt);
+}
