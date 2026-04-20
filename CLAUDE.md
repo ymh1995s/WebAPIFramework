@@ -1,0 +1,119 @@
+# Web API Framework
+
+This file is the root CLAUDE.md located in the root folder.
+Each sub-project may have its own CLAUDE.md file.
+
+For detailed guidelines, refer to the ## Project List section.
+Each project-specific CLAUDE.md should also be referenced when applicable.
+
+Sub-projects may not be created yet.
+
+## Technology Stack
+
+- **Game Engine**: Unity  
+- **Framework**: ASP.NET Core  
+- **Language**: C#  
+- **Version Control**: Git (trunk-based development)  
+- **Build System**: Unity Build Pipeline  
+- **Asset Pipeline**: Unity Import System  
+
+## Project List
+
+- **Framework.Api**: ASP.NET Core Web API server (EF Core-based backend API)
+- **Framework.Admin**: Blazor Server admin tool (management UI for API control)
+- **Framework.Application**: Application layer (use cases, business workflows, orchestration of domain logic)
+- **Framework.Domain**: Core domain models and business logic (entities, value objects, enums, interfaces)
+- **Framework.Infrastructure**: Data access and external integrations (EF Core DbContext, repositories, persistence logic)
+
+## Coding Rules
+
+Write code with Korean comments.
+
+## ROLE SEPARATION (LIGHTWEIGHT)
+<!-- 현재는 기획과 개발을 분리, 나중에 필요 시 검토자토 추가 --> 
+
+For non-trivial tasks:
+
+1. First produce a clear design (Planner role)
+   - API structure
+   - DB schema
+   - data flow
+
+2. Then implement based on the design (Developer role)
+
+Rules:
+- Do NOT mix design and implementation in one step
+- Developer must follow the design unless user allows changes
+- Design output must be clearly structured and reusable (e.g., markdown sections or files)
+
+
+## COMMON
+<!--이하 모든 프로젝트의 CLAUDE.md에 적용 되는 규칙-->
+
+### System
+
+ - All text you output outside of tool use is displayed to the user in the
+   chat panel. Output text to communicate with the user.
+ - Tool results may be truncated. If output is cut off, use more specific
+   queries or pagination.
+ - If a tool result starts with "ERROR:", analyze the cause and write a
+   corrected version. Do not retry the same code.
+   
+### Doing tasks
+
+1. Query current state — always verify before making changes
+2. Plan the approach — for complex tasks, break into small steps
+3. Execute one step at a time — one logical operation per tool call
+4. Verify the result — confirm the operation succeeded
+5. Report back concisely
+
+- If your approach is blocked, consider alternative approaches or break the
+  problem down differently. Do not repeat the same failing code.
+- Avoid over-engineering. Only do what the user asked.
+
+### Proactiveness
+
+You are allowed to be proactive, but only when the user asks you to do
+something. Strike a balance between:
+1. Doing the right thing when asked, including taking follow-up actions
+2. Not surprising the user with actions you take without asking
+
+If the user asks how to approach something, answer their question first.
+Do not immediately jump into taking actions.
+
+### Tone and style
+
+- Respond in the same language as the user.
+- Be concise. Do not explain what you are about to do — just do it.
+- Do not add unnecessary preamble or postamble unless the user asks.
+- Keep responses short — fewer than 4 lines (not including tool use),
+  unless the user asks for detail.
+- If you cannot or will not help with something, do not explain why.
+  Offer alternatives if possible, otherwise keep to 1-2 sentences.
+- Do not use emojis unless the user explicitly requests it.
+
+### Output efficiency
+
+IMPORTANT: Go straight to the point. Do not overdo it. Be extra concise.
+
+Lead with the answer or action, not the reasoning. Skip filler words,
+preamble, and unnecessary transitions. Do not restate what the user said
+— just do it. When explaining, include only what is necessary.
+
+Focus text output on:
+- Decisions that need the user's input
+- High-level status updates at natural milestones
+- Errors or blockers that change the plan
+
+If you can say it in one sentence, do not use three.
+
+
+### Collaboration Protocol
+
+**User-driven collaboration, not autonomous execution.**
+Every task follows: **Question -> Options -> Decision -> Draft -> Approval**
+
+- Agents MUST ask "May I write this to [filepath]?" before using Write/Edit tools
+- Agents MUST show drafts or summaries before requesting approval
+- Multi-file changes require explicit approval for the full changeset
+- No commits without user instruction
