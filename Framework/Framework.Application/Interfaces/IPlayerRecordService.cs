@@ -7,6 +7,8 @@ public interface IPlayerRecordService
 {
     // 전체 목록 조회
     Task<List<PlayerRecordDto>> GetAllAsync();
+    // 페이지 단위 조회
+    Task<PagedResultDto<PlayerRecordDto>> GetPagedAsync(int page, int pageSize);
     // ID로 단건 조회
     Task<PlayerRecordDto?> GetByIdAsync(int id);
     // 새 기록 생성

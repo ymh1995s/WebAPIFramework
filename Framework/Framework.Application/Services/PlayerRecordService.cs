@@ -22,6 +22,15 @@ public class PlayerRecordService : IPlayerRecordService
         return records.Select(r => new PlayerRecordDto(r.Id, r.Nickname, r.PlayTime, r.Score, r.CreatedAt)).ToList();
     }
 
+    // 페이지 단위 조회
+    public async Task<PagedResultDto<PlayerRecordDto>> GetPagedAsync(int page, int pageSize)
+    {
+        var records = await _repository.GetPagedAsync(page, pageSize);
+        var total = await _repository.GetCountAsync();
+        var items = records.Select(r => new PlayerRecordDto(r.Id, r.Nickname, r.PlayTime, r.Score, r.CreatedAt)).ToList();
+        return new PagedResultDto<PlayerRecordDto>(items, total, page, pageSize);
+    }
+
     // ID로 단건 조회, 없으면 null 반환
     public async Task<PlayerRecordDto?> GetByIdAsync(int id)
     {

@@ -19,6 +19,18 @@ public class PlayerRecordRepository : IPlayerRecordRepository
     public async Task<List<PlayerRecord>> GetAllAsync()
         => await _context.PlayerRecords.ToListAsync();
 
+    // 페이지 단위 조회
+    public async Task<List<PlayerRecord>> GetPagedAsync(int page, int pageSize)
+        => await _context.PlayerRecords
+            .OrderByDescending(r => r.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+    // 전체 개수 조회
+    public async Task<int> GetCountAsync()
+        => await _context.PlayerRecords.CountAsync();
+
     // ID로 단건 조회
     public async Task<PlayerRecord?> GetByIdAsync(int id)
         => await _context.PlayerRecords.FindAsync(id);

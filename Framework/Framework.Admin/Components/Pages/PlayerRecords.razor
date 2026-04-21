@@ -9,11 +9,29 @@
 <!-- 전체 목록 -->
 <section class="mb-5">
     <h4>전체 목록</h4>
-    @if (allRecords == null)
+    @if (isLoading)
     {
-        <p>불러오는 중...</p>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th><th>닉네임</th><th>플레이 시간(초)</th><th>점수</th><th>등록일시</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (int i = 0; i < pageSize; i++)
+                {
+                    <tr class="skeleton-row">
+                        <td><span class="skeleton-cell"></span></td>
+                        <td><span class="skeleton-cell"></span></td>
+                        <td><span class="skeleton-cell"></span></td>
+                        <td><span class="skeleton-cell"></span></td>
+                        <td><span class="skeleton-cell"></span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
     }
-    else if (!allRecords.Any())
+    else if (pagedResult == null || !pagedResult.Items.Any())
     {
         <p>등록된 기록이 없습니다.</p>
     }
@@ -30,7 +48,7 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach (var r in allRecords)
+                @foreach (var r in pagedResult.Items)
                 {
                     <tr>
                         <td>@r.Id</td>
@@ -42,6 +60,13 @@
                 }
             </tbody>
         </table>
+
+        <!-- 페이지네이션 -->
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-outline-secondary btn-sm" @onclick="PrevPage" disabled="@(currentPage <= 1)">이전</button>
+            <span>@currentPage / @pagedResult.TotalPages 페이지 (총 @pagedResult.TotalCount 건)</span>
+            <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@(currentPage >= pagedResult.TotalPages)">다음</button>
+        </div>
     }
 </section>
 
@@ -96,9 +121,28 @@
     }
 </section>
 
+<style>
+    .skeleton-cell {
+        display: inline-block;
+        width: 80%;
+        height: 1rem;
+        background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.2s infinite;
+        border-radius: 4px;
+    }
+    @@keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+</style>
+
 @code {
-    // 전체 목록
-    private List<PlayerRecordDto>? allRecords;
+    // 전체 목록 (페이지네이션)
+    private PagedResultDto? pagedResult;
+    private int currentPage = 1;
+    private const int pageSize = 20;
+    private bool isLoading = true;
 
     // ID 조회
     private int searchId;
@@ -112,15 +156,37 @@
     private string? createMessage;
     private bool createSuccess;
 
-    protected override async Task OnInitializedAsync()
+    // ★ 개선 전: OnInitializedAsync에서 전체 데이터를 한 번에 로드 → 데이터 많을수록 페이지 진입 블로킹
+    //   protected override async Task OnInitializedAsync() { await LoadAll(); }
+    //   private async Task LoadAll() { allRecords = await client.GetFromJsonAsync<List<PlayerRecordDto>>("api/playerrecords"); }
+    //
+    // ★ 개선 후: OnAfterRenderAsync(firstRender)로 페이지 먼저 렌더링 → 스켈레톤 표시 → 데이터 로드 후 StateHasChanged()
+    //   OnInitializedAsync에서 await하면 렌더링 자체가 블로킹되어 스켈레톤이 보이지 않음
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await LoadAll();
+        if (firstRender)
+        {
+            await LoadPaged();
+            StateHasChanged();
+        }
     }
 
-    private async Task LoadAll()
+    private async Task LoadPaged()
     {
+        isLoading = true;
         var client = HttpClientFactory.CreateClient("ApiClient");
-        allRecords = await client.GetFromJsonAsync<List<PlayerRecordDto>>("api/playerrecords");
+        pagedResult = await client.GetFromJsonAsync<PagedResultDto>($"api/playerrecords?page={currentPage}&pageSize={pageSize}");
+        isLoading = false;
+    }
+
+    private async Task PrevPage()
+    {
+        if (currentPage > 1) { currentPage--; await LoadPaged(); }
+    }
+
+    private async Task NextPage()
+    {
+        if (pagedResult != null && currentPage < pagedResult.TotalPages) { currentPage++; await LoadPaged(); }
     }
 
     private async Task SearchById()
@@ -159,7 +225,7 @@
             newNickname = "";
             newPlayTime = 0;
             newScore = 0;
-            await LoadAll(); // 목록 갱신
+            await LoadPaged(); // 목록 갱신
         }
         else
         {
@@ -169,5 +235,20 @@
     }
 
     // API 응답 매핑용 로컬 DTO
+    // record 미사용 시 아래와 동일:
+    /* private class PlayerRecordDto
+    {
+        public int Id { get; init; }
+        public string Nickname { get; init; } = "";
+        public float PlayTime { get; init; }
+        public int Score { get; init; }
+        public DateTime CreatedAt { get; init; }
+    } */
     private record PlayerRecordDto(int Id, string Nickname, float PlayTime, int Score, DateTime CreatedAt);
+
+    // 페이지네이션 응답 매핑용 로컬 DTO
+    private record PagedResultDto(List<PlayerRecordDto> Items, int TotalCount, int Page, int PageSize)
+    {
+        public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
+    }
 }

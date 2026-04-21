@@ -16,10 +16,10 @@ public class PlayerRecordsController : ControllerBase
         _service = service;
     }
 
-    // 전체 기록 조회
+    // 전체 기록 조회 (페이지네이션)
     [HttpGet]
-    public async Task<IActionResult> GetAll()
-        => Ok(await _service.GetAllAsync());
+    public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        => Ok(await _service.GetPagedAsync(page, pageSize));
 
     // ID로 단건 조회
     [HttpGet("{id}")]
