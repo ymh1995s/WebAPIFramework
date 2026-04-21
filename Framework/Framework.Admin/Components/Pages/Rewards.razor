@@ -1,0 +1,153 @@
+@page "/rewards"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>보상 관리</PageTitle>
+
+<h2>보상 관리</h2>
+
+<!-- 자동 발송 토글 -->
+<section class="mb-5">
+    <h4>일일 로그인 보상 자동 발송</h4>
+    @if (toggleLoading)
+    {
+        <p>불러오는 중...</p>
+    }
+    else
+    {
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="dailyRewardToggle"
+                   checked="@dailyRewardEnabled" @onchange="ToggleDailyReward" />
+            <label class="form-check-label" for="dailyRewardToggle">
+                @(dailyRewardEnabled ? "활성화됨 (매일 00:00 자동 발송)" : "비활성화됨")
+            </label>
+        </div>
+        @if (toggleMessage != null)
+        {
+            <p class="mt-1 text-success">@toggleMessage</p>
+        }
+    }
+</section>
+
+<!-- 수동 보상 발송 -->
+<section class="mb-5">
+    <h4>수동 보상 발송</h4>
+
+    <div class="mb-3">
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="sendType" id="single" checked="@(sendMode == "single")"
+                   @onchange='() => sendMode = "single"' />
+            <label class="form-check-label" for="single">특정 플레이어</label>
+        </div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="sendType" id="bulk" checked="@(sendMode == "bulk")"
+                   @onchange='() => sendMode = "bulk"' />
+            <label class="form-check-label" for="bulk">전체 플레이어</label>
+        </div>
+    </div>
+
+    <div class="d-flex flex-column gap-2" style="max-width: 400px;">
+        @if (sendMode == "single")
+        {
+            <input type="number" class="form-control" placeholder="플레이어 ID" @bind="targetPlayerId" />
+        }
+        <input type="text" class="form-control" placeholder="제목" @bind="mailTitle" />
+        <input type="text" class="form-control" placeholder="내용" @bind="mailBody" />
+        <input type="number" class="form-control" placeholder="아이템 ID (선택)" @bind="mailItemId" />
+        <input type="number" class="form-control" placeholder="아이템 수량" @bind="mailItemCount" />
+        <input type="number" class="form-control" placeholder="만료일 (일)" @bind="mailExpiresInDays" />
+        <button class="btn btn-primary" @onclick="SendMail">발송</button>
+    </div>
+    @if (sendMessage != null)
+    {
+        <p class="mt-2 @(sendSuccess ? "text-success" : "text-danger")">@sendMessage</p>
+    }
+</section>
+
+@code {
+    // 자동 발송 토글
+    private bool dailyRewardEnabled;
+    private bool toggleLoading = true;
+    private string? toggleMessage;
+
+    // 수동 발송
+    private string sendMode = "single";
+    private int targetPlayerId;
+    private string mailTitle = "";
+    private string mailBody = "";
+    private int? mailItemId;
+    private int mailItemCount = 1;
+    private int mailExpiresInDays = 30;
+    private string? sendMessage;
+    private bool sendSuccess;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadToggleState();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadToggleState()
+    {
+        toggleLoading = true;
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var result = await client.GetFromJsonAsync<DailyRewardEnabledDto>("api/systemconfig/daily-reward-enabled");
+        dailyRewardEnabled = result?.Enabled ?? false;
+        toggleLoading = false;
+    }
+
+    private async Task ToggleDailyReward(ChangeEventArgs e)
+    {
+        toggleMessage = null;
+        dailyRewardEnabled = (bool)(e.Value ?? false);
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        await client.PutAsJsonAsync("api/systemconfig/daily-reward-enabled", dailyRewardEnabled);
+        toggleMessage = dailyRewardEnabled ? "자동 발송이 활성화되었습니다." : "자동 발송이 비활성화되었습니다.";
+    }
+
+    private async Task SendMail()
+    {
+        sendMessage = null;
+
+        if (string.IsNullOrWhiteSpace(mailTitle))
+        {
+            sendMessage = "제목을 입력해주세요.";
+            sendSuccess = false;
+            return;
+        }
+
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        System.Net.Http.HttpResponseMessage response;
+
+        if (sendMode == "single")
+        {
+            var payload = new { PlayerId = targetPlayerId, Title = mailTitle, Body = mailBody, ItemId = mailItemId, ItemCount = mailItemCount, ExpiresInDays = mailExpiresInDays };
+            response = await client.PostAsJsonAsync("api/mails", payload);
+        }
+        else
+        {
+            var payload = new { Title = mailTitle, Body = mailBody, ItemId = mailItemId, ItemCount = mailItemCount, ExpiresInDays = mailExpiresInDays };
+            response = await client.PostAsJsonAsync("api/mails/bulk", payload);
+        }
+
+        if (response.IsSuccessStatusCode)
+        {
+            sendMessage = sendMode == "single" ? "발송되었습니다." : "전체 플레이어에게 발송되었습니다.";
+            sendSuccess = true;
+            mailTitle = "";
+            mailBody = "";
+            mailItemId = null;
+            mailItemCount = 1;
+        }
+        else
+        {
+            sendMessage = "발송에 실패했습니다.";
+            sendSuccess = false;
+        }
+    }
+
+    private record DailyRewardEnabledDto(bool Enabled);
+}

@@ -27,7 +27,12 @@ Sub-projects may not be created yet.
 
 ## Coding Rules
 
-Write code with Korean comments.
+- All code must include comments written in Korean.
+- Comments should explain the purpose of variables, functions, and main logic flow.
+- Avoid leaving complex logic or business rules uncommented.
+- Korean comments are required even if the code is simple (at least one meaningful comment per file or function).
+- English comments are not preferred unless referring to external library names or APIs.
+- Code without Korean comments is considered incomplete in this project context.
 
 ## ROLE SEPARATION (LIGHTWEIGHT)
 <!-- 현재는 기획과 개발을 분리, 나중에 필요 시 검토자토 추가 --> 
