@@ -1,9 +1,11 @@
 using Framework.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Framework.Api.Controllers;
 
-// 시스템 설정 API 컨트롤러
+// 시스템 설정 API 컨트롤러 - 인증된 사용자만 접근 가능
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class SystemConfigController : ControllerBase

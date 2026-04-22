@@ -1,9 +1,11 @@
 using Framework.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Framework.Api.Controllers;
 
-// 플레이어 인벤토리 API 컨트롤러
+// 플레이어 인벤토리 API 컨트롤러 - 인증된 사용자만 접근 가능
+[Authorize]
 [ApiController]
 [Route("api/players/{playerId}/items")]
 public class PlayerItemsController : ControllerBase

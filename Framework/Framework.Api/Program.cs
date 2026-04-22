@@ -40,6 +40,19 @@ app.UseHttpsRedirection();
 
 // 인증 → 인가 순서 중요
 app.UseAuthentication();
+
+#if DEBUG
+// 디버그 빌드 전용 - 릴리즈 빌드에서는 이 코드가 컴파일되지 않음
+// PlayerId = 1 로 고정된 가짜 인증을 주입하여 토큰 없이 API 테스트 가능
+app.Use(async (context, next) =>
+{
+    var claims = new[] { new System.Security.Claims.Claim("playerId", "1") };
+    var identity = new System.Security.Claims.ClaimsIdentity(claims, "DebugBypass");
+    context.User = new System.Security.Claims.ClaimsPrincipal(identity);
+    await next();
+});
+#endif
+
 app.UseAuthorization();
 
 app.MapControllers();
