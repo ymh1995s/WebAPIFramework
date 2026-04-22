@@ -55,6 +55,7 @@ public static class ServiceExtensions
         services.AddScoped<IPlayerItemService, PlayerItemService>();
         services.AddScoped<ISystemConfigService, SystemConfigService>();
         services.AddScoped<IRankingService, RankingService>();
+        services.AddScoped<IItemMasterService, ItemMasterService>();
         return services;
     }
 

@@ -68,13 +68,12 @@ Any temporary values or placeholders must be explicitly listed here and updated 
 
 ### [필수] Framework.Admin/appsettings.json 교체값
 - `ApiBaseUrl` — 현재 `http://localhost:5058`. 운영 서버 도메인으로 교체 필요
-- `Admin:Password` — 현재 `change-this-admin-password-in-production`. 운영 전 강력한 비밀번호로 교체 필요
+- `Admin:Password` — 현재 `admin`. 운영 전 강력한 비밀번호로 교체 필요
 - `Admin:ApiKey` — 현재 `change-this-admin-key-in-production`. Framework.Api의 `Admin:ApiKey`와 동일한 값으로 설정 필요
 
 ### [주의] 코드 내 임시 처리
 - `Framework.Api/Program.cs` `#if DEBUG` 블록 — 디버그 빌드 전용 인증 우회 코드 (PlayerId=1 고정). Release 빌드에서는 컴파일 제외되므로 운영에 영향 없음
-- `Framework.Api/Filters/AdminApiKeyAttribute.cs` — Admin 키 검증 임시 구현. 현재는 X-Admin-Key 헤더 방식 유지
-- `Framework.Admin/Program.cs` IsDevelopment() 블록 — 개발 환경에서 로그인 없이 Admin 전 페이지 접근 가능. Production에서는 Cookie 인증 필수
+- `Framework.Admin/Program.cs` `#if DEBUG` 블록 — 디버그 빌드 전용 Admin 자동 로그인. Release 빌드에서는 컴파일 제외되므로 운영에 영향 없음
 
 ### [성능] DB 인덱스 미적용 항목
 현재 적용된 인덱스는 데이터 무결성(유니크 제약) 목적의 필수 인덱스만 존재합니다.
@@ -88,6 +87,8 @@ Any temporary values or placeholders must be explicitly listed here and updated 
 | `Mails` | `ExpiresAt` | 만료 우편 정리 | 만료 처리 속도 개선 |
 
 ### [미구현] 추가 개발 필요 항목
+- **감사 로그(Audit Log)** — 아이템 증감, 데이터 변경 이력 추적. 애플리케이션 레벨 구현 필요 (DB 백업으로는 변경 원인 추적 불가)
+- **백업 정책** — DB 백업은 애플리케이션 관할 아님. Docker로 운영 중인 PostgreSQL 컨테이너/볼륨 레벨에서 별도 설정 필요 (pg_dump, 볼륨 스냅샷 등). 최소 1일 1회 백업, 30일 보관 권장
 - **광고 보상 서버사이드 검증(SSV)** — 광고 시청 보상 지급 시 클라이언트 조작 방지를 위해 구글/애플 서버 검증 필요
 - **인앱 결제 영수증 검증** — Google Play / Apple IAP 결제 후 서버에서 영수증 진위 검증 필요
 
