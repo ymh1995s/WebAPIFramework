@@ -4,12 +4,16 @@ namespace Framework.Domain.Entities;
 public class PlayerItem
 {
     public int Id { get; set; }
+
+    // 플레이어 계정 FK
     public int PlayerId { get; set; }
+
     public int ItemId { get; set; }
+
     // 동일 아이템은 행을 추가하지 않고 수량만 증가
     public int Quantity { get; set; }
 
-    // EF Core 네비게이션 프로퍼티 (null!: EF가 채워주므로 null 경고 억제)
-    public PlayerRecord Player { get; set; } = null!;
+    // 플레이어 네비게이션 프로퍼티
+    public Player Player { get; set; } = null!;
     public Item Item { get; set; } = null!;
 }

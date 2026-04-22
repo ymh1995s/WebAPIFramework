@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Framework.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260421031816_AddRewardSystem")]
-    partial class AddRewardSystem
+    [Migration("20260421135440_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -141,6 +141,42 @@ namespace Framework.Infrastructure.Migrations
                     b.ToTable("Mails");
                 });
 
+            modelBuilder.Entity("Framework.Domain.Entities.Player", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeviceId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("GoogleId")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("LastLoginAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Nickname")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeviceId")
+                        .IsUnique();
+
+                    b.HasIndex("GoogleId")
+                        .IsUnique();
+
+                    b.ToTable("Players");
+                });
+
             modelBuilder.Entity("Framework.Domain.Entities.PlayerItem", b =>
                 {
                     b.Property<int>("Id")
@@ -167,6 +203,40 @@ namespace Framework.Infrastructure.Migrations
                     b.ToTable("PlayerItems");
                 });
 
+            modelBuilder.Entity("Framework.Domain.Entities.PlayerProfile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Exp")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Gems")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Gold")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Level")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlayerId")
+                        .IsUnique();
+
+                    b.ToTable("PlayerProfiles");
+                });
+
             modelBuilder.Entity("Framework.Domain.Entities.PlayerRecord", b =>
                 {
                     b.Property<int>("Id")
@@ -178,19 +248,51 @@ namespace Framework.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Nickname")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<float>("PlayTime")
                         .HasColumnType("real");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("integer");
 
                     b.Property<int>("Score")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("PlayerId");
+
                     b.ToTable("PlayerRecords");
+                });
+
+            modelBuilder.Entity("Framework.Domain.Entities.RefreshToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlayerId");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.SystemConfig", b =>
@@ -209,8 +311,8 @@ namespace Framework.Infrastructure.Migrations
 
             modelBuilder.Entity("Framework.Domain.Entities.DailyLoginLog", b =>
                 {
-                    b.HasOne("Framework.Domain.Entities.PlayerRecord", "Player")
-                        .WithMany()
+                    b.HasOne("Framework.Domain.Entities.Player", "Player")
+                        .WithMany("LoginLogs")
                         .HasForeignKey("PlayerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -235,8 +337,8 @@ namespace Framework.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("ItemId");
 
-                    b.HasOne("Framework.Domain.Entities.PlayerRecord", "Player")
-                        .WithMany()
+                    b.HasOne("Framework.Domain.Entities.Player", "Player")
+                        .WithMany("Mails")
                         .HasForeignKey("PlayerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -254,8 +356,8 @@ namespace Framework.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Framework.Domain.Entities.PlayerRecord", "Player")
-                        .WithMany()
+                    b.HasOne("Framework.Domain.Entities.Player", "Player")
+                        .WithMany("Items")
                         .HasForeignKey("PlayerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -263,6 +365,54 @@ namespace Framework.Infrastructure.Migrations
                     b.Navigation("Item");
 
                     b.Navigation("Player");
+                });
+
+            modelBuilder.Entity("Framework.Domain.Entities.PlayerProfile", b =>
+                {
+                    b.HasOne("Framework.Domain.Entities.Player", "Player")
+                        .WithOne("Profile")
+                        .HasForeignKey("Framework.Domain.Entities.PlayerProfile", "PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Player");
+                });
+
+            modelBuilder.Entity("Framework.Domain.Entities.PlayerRecord", b =>
+                {
+                    b.HasOne("Framework.Domain.Entities.Player", "Player")
+                        .WithMany("Records")
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Player");
+                });
+
+            modelBuilder.Entity("Framework.Domain.Entities.RefreshToken", b =>
+                {
+                    b.HasOne("Framework.Domain.Entities.Player", "Player")
+                        .WithMany("RefreshTokens")
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Player");
+                });
+
+            modelBuilder.Entity("Framework.Domain.Entities.Player", b =>
+                {
+                    b.Navigation("Items");
+
+                    b.Navigation("LoginLogs");
+
+                    b.Navigation("Mails");
+
+                    b.Navigation("Profile");
+
+                    b.Navigation("Records");
+
+                    b.Navigation("RefreshTokens");
                 });
 #pragma warning restore 612, 618
         }

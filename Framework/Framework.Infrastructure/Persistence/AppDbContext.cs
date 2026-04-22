@@ -8,28 +8,78 @@ public class AppDbContext : DbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
-    // 플레이어 기록 테이블
+    // 인증 관련 테이블
+    public DbSet<Player> Players { get; set; }
+    public DbSet<RefreshToken> RefreshTokens { get; set; }
+
+    // 인게임 데이터 테이블
+    public DbSet<PlayerProfile> PlayerProfiles { get; set; }
     public DbSet<PlayerRecord> PlayerRecords { get; set; }
-    // 아이템 마스터 테이블
-    public DbSet<Item> Items { get; set; }
-    // 플레이어 인벤토리 테이블
     public DbSet<PlayerItem> PlayerItems { get; set; }
-    // 우편 테이블
     public DbSet<Mail> Mails { get; set; }
-    // 일일 로그인 기록 테이블
     public DbSet<DailyLoginLog> DailyLoginLogs { get; set; }
-    // 일일 보상 설정 테이블
     public DbSet<DailyRewardConfig> DailyRewardConfigs { get; set; }
-    // 시스템 설정 테이블
+
+    // 공통 마스터 테이블
+    public DbSet<Item> Items { get; set; }
     public DbSet<SystemConfig> SystemConfigs { get; set; }
 
-    // EF Core가 DB 스키마를 생성할 때 호출되는 훅 - PK/인덱스/관계 등 FluentAPI 설정을 여기서 정의
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // SystemConfig: Key를 PK로 사용
         modelBuilder.Entity<SystemConfig>().HasKey(c => c.Key);
 
-        // DailyLoginLog: 플레이어+날짜 조합 중복 방지
+        // Player: DeviceId 유니크 인덱스
+        modelBuilder.Entity<Player>()
+            .HasIndex(p => p.DeviceId)
+            .IsUnique();
+
+        // Player: GoogleId 유니크 인덱스 (null 허용)
+        modelBuilder.Entity<Player>()
+            .HasIndex(p => p.GoogleId)
+            .IsUnique();
+
+        // RefreshToken: Token 유니크 인덱스
+        modelBuilder.Entity<RefreshToken>()
+            .HasIndex(r => r.Token)
+            .IsUnique();
+
+        // RefreshToken → Player (N:1)
+        modelBuilder.Entity<RefreshToken>()
+            .HasOne(r => r.Player)
+            .WithMany(p => p.RefreshTokens)
+            .HasForeignKey(r => r.PlayerId);
+
+        // PlayerProfile → Player (1:1)
+        modelBuilder.Entity<PlayerProfile>()
+            .HasOne(pp => pp.Player)
+            .WithOne(p => p.Profile)
+            .HasForeignKey<PlayerProfile>(pp => pp.PlayerId);
+
+        // PlayerRecord → Player (N:1)
+        modelBuilder.Entity<PlayerRecord>()
+            .HasOne(r => r.Player)
+            .WithMany(p => p.Records)
+            .HasForeignKey(r => r.PlayerId);
+
+        // PlayerItem → Player (N:1)
+        modelBuilder.Entity<PlayerItem>()
+            .HasOne(pi => pi.Player)
+            .WithMany(p => p.Items)
+            .HasForeignKey(pi => pi.PlayerId);
+
+        // Mail → Player (N:1)
+        modelBuilder.Entity<Mail>()
+            .HasOne(m => m.Player)
+            .WithMany(p => p.Mails)
+            .HasForeignKey(m => m.PlayerId);
+
+        // DailyLoginLog → Player (N:1), 플레이어+날짜 중복 방지
+        modelBuilder.Entity<DailyLoginLog>()
+            .HasOne(l => l.Player)
+            .WithMany(p => p.LoginLogs)
+            .HasForeignKey(l => l.PlayerId);
+
         modelBuilder.Entity<DailyLoginLog>()
             .HasIndex(l => new { l.PlayerId, l.LoginDate })
             .IsUnique();

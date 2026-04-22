@@ -19,7 +19,7 @@ public class PlayerRecordService : IPlayerRecordService
     public async Task<List<PlayerRecordDto>> GetAllAsync()
     {
         var records = await _repository.GetAllAsync();
-        return records.Select(r => new PlayerRecordDto(r.Id, r.Nickname, r.PlayTime, r.Score, r.CreatedAt)).ToList();
+        return records.Select(r => new PlayerRecordDto(r.Id, r.PlayerId, r.PlayTime, r.Score, r.CreatedAt)).ToList();
     }
 
     // 페이지 단위 조회
@@ -27,7 +27,7 @@ public class PlayerRecordService : IPlayerRecordService
     {
         var records = await _repository.GetPagedAsync(page, pageSize);
         var total = await _repository.GetCountAsync();
-        var items = records.Select(r => new PlayerRecordDto(r.Id, r.Nickname, r.PlayTime, r.Score, r.CreatedAt)).ToList();
+        var items = records.Select(r => new PlayerRecordDto(r.Id, r.PlayerId, r.PlayTime, r.Score, r.CreatedAt)).ToList();
         return new PagedResultDto<PlayerRecordDto>(items, total, page, pageSize);
     }
 
@@ -36,7 +36,7 @@ public class PlayerRecordService : IPlayerRecordService
     {
         var record = await _repository.GetByIdAsync(id);
         if (record is null) return null;
-        return new PlayerRecordDto(record.Id, record.Nickname, record.PlayTime, record.Score, record.CreatedAt);
+        return new PlayerRecordDto(record.Id, record.PlayerId, record.PlayTime, record.Score, record.CreatedAt);
     }
 
     // DTO를 엔티티로 변환 후 저장
@@ -44,7 +44,7 @@ public class PlayerRecordService : IPlayerRecordService
     {
         var record = new PlayerRecord
         {
-            Nickname = dto.Nickname,
+            PlayerId = dto.PlayerId,
             PlayTime = dto.PlayTime,
             Score = dto.Score
         };

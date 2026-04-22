@@ -1,47 +1,28 @@
-using Framework.Application.Interfaces;
-using Framework.Application.Options;
-using Framework.Application.Services;
-using Framework.Domain.Interfaces;
-using Framework.Infrastructure.Persistence;
-using Framework.Infrastructure.Repositories;
+using Framework.Api.Extensions;
 using Framework.Api.Hubs;
-using Framework.Api.Notifications;
-using Framework.Api.Services;
+using Framework.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// DI 서비스 등록
+// DB 컨텍스트 등록
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
 // 저장소 등록
-builder.Services.AddScoped<IPlayerRecordRepository, PlayerRecordRepository>();
-builder.Services.AddScoped<IItemRepository, ItemRepository>();
-builder.Services.AddScoped<IPlayerItemRepository, PlayerItemRepository>();
-builder.Services.AddScoped<IMailRepository, MailRepository>();
-builder.Services.AddScoped<IDailyLoginLogRepository, DailyLoginLogRepository>();
-builder.Services.AddScoped<IDailyRewardConfigRepository, DailyRewardConfigRepository>();
-builder.Services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
+builder.Services.AddAuthRepositories();
+builder.Services.AddGameRepositories();
 
 // 서비스 등록
-builder.Services.AddScoped<IPlayerRecordService, PlayerRecordService>();
-builder.Services.AddScoped<IMailService, MailService>();
-builder.Services.AddScoped<IDailyLoginService, DailyLoginService>();
-builder.Services.AddScoped<IPlayerItemService, PlayerItemService>();
-builder.Services.AddScoped<ISystemConfigService, SystemConfigService>();
+builder.Services.AddAuthServices();
+builder.Services.AddGameServices();
+builder.Services.AddMatchMakingServices(builder.Configuration);
+
+// JWT 인증 설정
+builder.Services.AddJwtAuthentication(builder.Configuration);
 
 // 스케줄러 등록 (매일 00:00 자동 발송)
-builder.Services.AddHostedService<DailyRewardScheduler>();
-
-// 매칭 설정 등록
-var matchMakingOptions = builder.Configuration.GetSection("MatchMaking").Get<MatchMakingOptions>() ?? new MatchMakingOptions();
-builder.Services.AddSingleton(matchMakingOptions);
-
-// SignalR 및 매칭 서비스 등록
-builder.Services.AddSignalR();
-builder.Services.AddSingleton<IMatchNotifier, SignalRMatchNotifier>();
-builder.Services.AddSingleton<IMatchMakingService, MatchMakingService>();
+builder.Services.AddHostedService<Framework.Api.Services.DailyRewardScheduler>();
 
 builder.Services.AddControllers();
 // OpenAPI(Swagger) 문서 생성
@@ -57,6 +38,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+// 인증 → 인가 순서 중요
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

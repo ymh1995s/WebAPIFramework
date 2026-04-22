@@ -4,8 +4,12 @@ namespace Framework.Domain.Entities;
 public class DailyLoginLog
 {
     public int Id { get; set; }
+
+    // 플레이어 계정 FK
     public int PlayerId { get; set; }
+
     public DateOnly LoginDate { get; set; }
 
-    public PlayerRecord Player { get; set; } = null!;
+    // 플레이어 네비게이션 프로퍼티
+    public Player Player { get; set; } = null!;
 }
