@@ -30,6 +30,7 @@ public static class ServiceExtensions
         services.AddScoped<IItemRepository, ItemRepository>();
         services.AddScoped<IPlayerItemRepository, PlayerItemRepository>();
         services.AddScoped<IMailRepository, MailRepository>();
+        services.AddScoped<IRankingRepository, RankingRepository>();
         services.AddScoped<IDailyLoginLogRepository, DailyLoginLogRepository>();
         services.AddScoped<IDailyRewardConfigRepository, DailyRewardConfigRepository>();
         services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
@@ -53,6 +54,7 @@ public static class ServiceExtensions
         services.AddScoped<IDailyLoginService, DailyLoginService>();
         services.AddScoped<IPlayerItemService, PlayerItemService>();
         services.AddScoped<ISystemConfigService, SystemConfigService>();
+        services.AddScoped<IRankingService, RankingService>();
         return services;
     }
 
