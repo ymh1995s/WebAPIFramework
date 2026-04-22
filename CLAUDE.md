@@ -73,9 +73,19 @@ Any temporary values or placeholders must be explicitly listed here and updated 
 - `Framework.Api/Program.cs` `#if DEBUG` 블록 — 디버그 빌드 전용 인증 우회 코드 (PlayerId=1 고정). Release 빌드에서는 컴파일 제외되므로 운영에 영향 없음
 - `Framework.Api/Filters/AdminApiKeyAttribute.cs` — Admin 키 검증 임시 구현. Blazor Admin 인증 완성 시 JWT 방식으로 교체 필요
 
+### [성능] DB 인덱스 미적용 항목
+현재 적용된 인덱스는 데이터 무결성(유니크 제약) 목적의 필수 인덱스만 존재합니다.
+성능용 세컨더리 인덱스는 의도적으로 추가하지 않았습니다 — 유저 수가 늘어날 때 적용 전/후 성능 비교 후 추가 권장합니다.
+인덱스 추가 위치: `Framework.Infrastructure/Persistence/AppDbContext.cs` `OnModelCreating()`
+
+| 테이블 | 컬럼 | 사용 쿼리 | 예상 효과 |
+|---|---|---|---|
+| `PlayerRecords` | `Score` | 랭킹 정렬 (`ORDER BY Score DESC`) | 랭킹 조회 속도 개선 |
+| `Mails` | `PlayerId` + `IsClaimed` | 미수령 우편 조회 | 우편함 조회 속도 개선 |
+| `Mails` | `ExpiresAt` | 만료 우편 정리 | 만료 처리 속도 개선 |
+
 ### [미구현] 추가 개발 필요 항목
 - **Admin 인증** — 현재 `X-Admin-Key` 헤더 방식은 임시. Blazor Admin UI 완성 시 Admin 전용 JWT로 교체
-- **Apple 로그인** — iOS 앱스토어 출시 시 필수 (소셜 로그인 제공 앱은 Apple 로그인도 필수 제공해야 함)
 - **광고 보상 서버사이드 검증(SSV)** — 광고 시청 보상 지급 시 클라이언트 조작 방지를 위해 구글/애플 서버 검증 필요
 - **인앱 결제 영수증 검증** — Google Play / Apple IAP 결제 후 서버에서 영수증 진위 검증 필요
 
