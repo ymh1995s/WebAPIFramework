@@ -21,6 +21,9 @@ builder.Services.AddMatchMakingServices(builder.Configuration);
 // JWT 인증 설정
 builder.Services.AddJwtAuthentication(builder.Configuration);
 
+// Rate Limiter 정책 등록
+builder.Services.AddRateLimiting();
+
 // 스케줄러 등록 (매일 00:00 자동 발송)
 builder.Services.AddHostedService<Framework.Api.Services.DailyRewardScheduler>();
 
@@ -37,6 +40,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Rate Limiter는 인증보다 앞에 위치해야 함
+app.UseRateLimiter();
 
 // 인증 → 인가 순서 중요
 app.UseAuthentication();

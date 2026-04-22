@@ -24,6 +24,9 @@ public class AppDbContext : DbContext
     public DbSet<Item> Items { get; set; }
     public DbSet<SystemConfig> SystemConfigs { get; set; }
 
+    // 운영 로그 테이블
+    public DbSet<RateLimitLog> RateLimitLogs { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // SystemConfig: Key를 PK로 사용

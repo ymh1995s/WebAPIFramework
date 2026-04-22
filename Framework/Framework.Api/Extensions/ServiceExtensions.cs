@@ -1,12 +1,15 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using Framework.Application.Interfaces;
 using Framework.Application.Options;
 using Framework.Application.Services;
+using Framework.Domain.Entities;
 using Framework.Domain.Interfaces;
 using Framework.Infrastructure.Repositories;
 using Framework.Api.Notifications;
 using Framework.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Framework.Api.Extensions;
@@ -67,6 +70,75 @@ public static class ServiceExtensions
         services.AddSignalR();
         services.AddSingleton<IMatchNotifier, SignalRMatchNotifier>();
         services.AddSingleton<IMatchMakingService, MatchMakingService>();
+        return services;
+    }
+
+    // Rate Limiter 정책 등록
+    public static IServiceCollection AddRateLimiting(this IServiceCollection services)
+    {
+        // RateLimitLogRepository는 OnRejected 콜백에서 직접 생성하므로 Scoped 등록
+        services.AddScoped<RateLimitLogRepository>();
+
+        services.AddRateLimiter(options =>
+        {
+            // AddFixedWindowLimiter: 이름("auth")을 붙여 등록하는 방식
+            // [EnableRateLimiting("auth")]로 특정 컨트롤러/액션에만 선택 적용 가능
+            // 로그인 API처럼 별도 제한이 필요한 엔드포인트에 사용
+            options.AddFixedWindowLimiter("auth", limiter =>
+            {
+                limiter.PermitLimit = 10;
+                limiter.Window = TimeSpan.FromMinutes(1);
+                limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                limiter.QueueLimit = 0;
+            });
+
+            // GlobalLimiter: 이름 없이 모든 요청에 자동 적용되는 기본 정책
+            // [EnableRateLimiting] 어트리뷰트 없이도 전체 API에 깔리며
+            // IP 기준으로 요청자를 직접 구분(파티션)하는 로직을 작성해야 함
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 60,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                        QueueLimit = 0
+                    }));
+
+            // 429 발생 시 DB에 로그 기록
+            options.OnRejected = async (context, cancellationToken) =>
+            {
+                context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+
+                var ip = context.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var path = context.HttpContext.Request.Path.ToString();
+                var policy = context.HttpContext.GetEndpoint()
+                    ?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName ?? "global";
+
+                var logger = context.HttpContext.RequestServices
+                    .GetRequiredService<ILogger<RateLimitLog>>();
+                logger.LogWarning("Rate limit 초과 — IP: {Ip}, Path: {Path}, Policy: {Policy}", ip, path, policy);
+
+                try
+                {
+                    var repo = context.HttpContext.RequestServices
+                        .GetRequiredService<RateLimitLogRepository>();
+                    await repo.AddAsync(new RateLimitLog
+                    {
+                        IpAddress = ip,
+                        Path = path,
+                        Policy = policy,
+                        OccurredAt = DateTime.UtcNow
+                    });
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Rate limit 로그 DB 저장 실패");
+                }
+            };
+        });
+
         return services;
     }
 
