@@ -88,7 +88,6 @@ Any temporary values or placeholders must be explicitly listed here and updated 
 
 ### [미구현] 추가 개발 필요 항목
 - **계정 탈퇴** — 플레이어 요청 시 개인정보 및 게임 데이터 삭제. 개인정보보호법 법적 의무
-- **Rate Limiting** — API 요청 횟수 제한. 어뷰징/DDoS 기본 방어. ASP.NET Core 내장 미들웨어로 구현 가능
 - **공지사항** — 점검/업데이트 알림 등 클라이언트가 수신하는 공지 API 및 Admin 관리 페이지
 - **버전 체크** — 앱 버전 vs 최소 지원 버전 비교, 강제 업데이트 여부 반환
 - **점검 모드** — 점검 중 모든 API 요청 차단. SystemConfig 연동으로 Admin에서 on/off
@@ -98,6 +97,22 @@ Any temporary values or placeholders must be explicitly listed here and updated 
 - **광고 보상 서버사이드 검증(SSV)** — 광고 시청 보상 지급 시 클라이언트 조작 방지를 위해 구글/애플 서버 검증 필요
 - **인앱 결제 영수증 검증** — Google Play / Apple IAP 결제 후 서버에서 영수증 진위 검증 필요
 - **이벤트 기간 관리** [중요도 낮음] — 기간 한정 이벤트 시작/종료 관리. 클라이언트가 현재 이벤트 진행 여부를 서버에 질의. 게임마다 구조가 달라 범용 설계 필요
+
+## Feature Status
+
+| 기능 | 설명 |
+|---|---|
+| JWT 인증 | 게스트 로그인(DeviceId), AccessToken/RefreshToken 발급, 로그아웃 |
+| 구글 OAuth 연동 | Google IdToken 검증, 신규 로그인 및 기존 계정 연결 |
+| 랭킹 시스템 | 게임 결과 점수 기록, 상위 N명 랭킹 조회 |
+| 인벤토리 관리 | 플레이어 보유 아이템 조회, 아이템 획득 |
+| 우편 시스템 | 우편 수신/수령 API, Admin 단건·일괄 발송 |
+| 일일 로그인 보상 | 로그인 시 당일 보상 자동 우편 발송, 자정 스케줄러 |
+| 매치메이킹 | SignalR 기반 실시간 매칭, 대기열 관리 |
+| 아이템 마스터 관리 | Admin CRUD (추가/수정/소프트삭제), 보유 유저 수 확인 |
+| Admin 인증 | X-Admin-Key 헤더 기반 API 접근 제어 |
+| 시스템 설정 | 일일 보상 활성화 여부 Admin 제어 (SystemConfig) |
+| 어뷰징 방어 | Rate Limiting (IP 기준), 429 발생 시 DB 로그, Admin 보안 감시 페이지 |
 
 ## COMMON
 <!--이하 모든 프로젝트의 CLAUDE.md에 적용 되는 규칙-->
