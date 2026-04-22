@@ -1,11 +1,10 @@
-using Framework.Application.DTOs;
 using Framework.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Framework.Api.Controllers;
 
-// 우편 API 컨트롤러 - 인증된 사용자만 접근 가능
+// 우편 API 컨트롤러 (유저 전용) - 인증된 사용자만 접근 가능
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
@@ -18,23 +17,16 @@ public class MailsController : ControllerBase
         _mailService = mailService;
     }
 
-    // 단일 플레이어에게 보상 발송
-    [HttpPost]
-    public async Task<IActionResult> Send(SendMailDto dto)
+    // 내 우편함 조회 - JWT에서 PlayerId 추출하여 본인 우편만 조회
+    [HttpGet]
+    public async Task<IActionResult> GetMyMails()
     {
-        await _mailService.SendAsync(dto);
-        return Created();
+        var playerId = int.Parse(User.FindFirst("playerId")!.Value);
+        var result = await _mailService.GetMyMailsAsync(playerId);
+        return Ok(result);
     }
 
-    // 전체 플레이어에게 보상 일괄 발송
-    [HttpPost("bulk")]
-    public async Task<IActionResult> BulkSend(BulkSendMailDto dto)
-    {
-        await _mailService.BulkSendAsync(dto);
-        return Created();
-    }
-
-    // 우편 수령
+    // 우편 수령 - 아이템을 인벤토리로 이동
     [HttpPost("{id}/claim")]
     public async Task<IActionResult> Claim(int id)
     {

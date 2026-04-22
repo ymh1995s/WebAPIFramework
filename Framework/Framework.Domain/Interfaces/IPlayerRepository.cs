@@ -12,6 +12,9 @@ public interface IPlayerRepository
     // Id로 플레이어 조회
     Task<Player?> GetByIdAsync(int id);
 
+    // 전체 플레이어 조회 (일괄 우편 발송 시 사용)
+    Task<List<Player>> GetAllAsync();
+
     // 플레이어 추가
     Task AddAsync(Player player);
 

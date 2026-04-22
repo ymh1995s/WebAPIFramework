@@ -9,17 +9,28 @@ namespace Framework.Application.Services;
 public class MailService : IMailService
 {
     private readonly IMailRepository _mailRepository;
-    private readonly IPlayerRecordRepository _playerRepository;
+    private readonly IPlayerRepository _playerRepository;
     private readonly IPlayerItemRepository _playerItemRepository;
 
-    public MailService(IMailRepository mailRepository, IPlayerRecordRepository playerRepository, IPlayerItemRepository playerItemRepository)
+    public MailService(IMailRepository mailRepository, IPlayerRepository playerRepository, IPlayerItemRepository playerItemRepository)
     {
         _mailRepository = mailRepository;
         _playerRepository = playerRepository;
         _playerItemRepository = playerItemRepository;
     }
 
-    // 단일 플레이어에게 우편 발송
+    // 내 우편함 조회 - JWT에서 추출한 PlayerId 기준
+    public async Task<List<MailDto>> GetMyMailsAsync(int playerId)
+    {
+        var mails = await _mailRepository.GetByPlayerIdAsync(playerId);
+        return mails.Select(m => new MailDto(
+            m.Id, m.PlayerId, m.Title, m.Body,
+            m.ItemId, m.Item?.Name, m.ItemCount,
+            m.IsRead, m.IsClaimed, m.CreatedAt, m.ExpiresAt
+        )).ToList();
+    }
+
+    // 단일 플레이어에게 우편 발송 (Admin 전용)
     public async Task SendAsync(SendMailDto dto)
     {
         var mail = new Mail
@@ -35,7 +46,7 @@ public class MailService : IMailService
         await _mailRepository.SaveChangesAsync();
     }
 
-    // 전체 플레이어에게 우편 일괄 발송
+    // 전체 플레이어에게 우편 일괄 발송 (Admin 전용)
     public async Task BulkSendAsync(BulkSendMailDto dto)
     {
         var players = await _playerRepository.GetAllAsync();

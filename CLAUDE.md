@@ -52,6 +52,33 @@ Rules:
 - Design output must be clearly structured and reusable (e.g., markdown sections or files)
 
 
+## Notice (Developer TODO)
+The following items should be revised when applied to a real project.
+Any temporary values or placeholders must be explicitly listed here and updated later.
+
+### [필수] Framework.Api/appsettings.json 교체값
+라이브 배포 전 반드시 교체해야 하는 임시값 목록입니다.
+
+| 키 | 현재값 | 교체 방법 |
+|---|---|---|
+| `Jwt:SecretKey` | `change-this-to-a-very-long-secret-key...` | 32자 이상 랜덤 문자열로 교체 |
+| `Admin:ApiKey` | `change-this-admin-key-in-production` | 랜덤 문자열로 교체 |
+| `Google:ClientId` | `your-google-client-id.apps...` | Google Cloud Console에서 OAuth 클라이언트 ID 발급 |
+| `ConnectionStrings:Default` | `localhost/postgres` | 운영 DB 서버 주소/계정으로 교체 |
+
+### [필수] Framework.Admin/appsettings.json 교체값
+- `ApiBaseUrl` — 현재 `http://localhost:5058`. 운영 서버 도메인으로 교체 필요
+
+### [주의] 코드 내 임시 처리
+- `Framework.Api/Program.cs` `#if DEBUG` 블록 — 디버그 빌드 전용 인증 우회 코드 (PlayerId=1 고정). Release 빌드에서는 컴파일 제외되므로 운영에 영향 없음
+- `Framework.Api/Filters/AdminApiKeyAttribute.cs` — Admin 키 검증 임시 구현. Blazor Admin 인증 완성 시 JWT 방식으로 교체 필요
+
+### [미구현] 추가 개발 필요 항목
+- **Admin 인증** — 현재 `X-Admin-Key` 헤더 방식은 임시. Blazor Admin UI 완성 시 Admin 전용 JWT로 교체
+- **Apple 로그인** — iOS 앱스토어 출시 시 필수 (소셜 로그인 제공 앱은 Apple 로그인도 필수 제공해야 함)
+- **광고 보상 서버사이드 검증(SSV)** — 광고 시청 보상 지급 시 클라이언트 조작 방지를 위해 구글/애플 서버 검증 필요
+- **인앱 결제 영수증 검증** — Google Play / Apple IAP 결제 후 서버에서 영수증 진위 검증 필요
+
 ## COMMON
 <!--이하 모든 프로젝트의 CLAUDE.md에 적용 되는 규칙-->
 

@@ -18,6 +18,10 @@ public class PlayerRepository : IPlayerRepository
     public async Task<Player?> GetByDeviceIdAsync(string deviceId)
         => await _db.Players.FirstOrDefaultAsync(p => p.DeviceId == deviceId);
 
+    // 전체 플레이어 조회
+    public async Task<List<Player>> GetAllAsync()
+        => await _db.Players.ToListAsync();
+
     // GoogleId로 플레이어 조회
     public async Task<Player?> GetByGoogleIdAsync(string googleId)
         => await _db.Players.FirstOrDefaultAsync(p => p.GoogleId == googleId);
