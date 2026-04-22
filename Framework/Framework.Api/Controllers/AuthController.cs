@@ -51,4 +51,42 @@ public class AuthController : ControllerBase
         await _authService.LogoutAsync(request.RefreshToken);
         return NoContent();
     }
+
+    // 구글 로그인 - Unity 구글 SDK가 발급한 IdToken으로 JWT 발급
+    [HttpPost("google")]
+    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequestDto request)
+    {
+        try
+        {
+            var result = await _authService.GoogleLoginAsync(request.IdToken);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ex.Message);
+        }
+    }
+
+    // 게스트 계정에 구글 연동 - 기존 데이터 유지하면서 GoogleId 추가
+    [Authorize]
+    [HttpPost("link/google")]
+    public async Task<IActionResult> LinkGoogle([FromBody] LinkGoogleRequestDto request)
+    {
+        // JWT에서 현재 로그인한 플레이어 ID 추출
+        var playerId = int.Parse(User.FindFirst("playerId")!.Value);
+
+        try
+        {
+            await _authService.LinkGoogleAsync(playerId, request.IdToken);
+            return Ok();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ex.Message);
+        }
+    }
 }

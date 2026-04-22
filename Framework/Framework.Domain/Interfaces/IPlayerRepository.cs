@@ -6,6 +6,9 @@ public interface IPlayerRepository
     // DeviceId로 플레이어 조회
     Task<Player?> GetByDeviceIdAsync(string deviceId);
 
+    // GoogleId로 플레이어 조회
+    Task<Player?> GetByGoogleIdAsync(string googleId);
+
     // Id로 플레이어 조회
     Task<Player?> GetByIdAsync(int id);
 

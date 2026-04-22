@@ -9,17 +9,20 @@ public class AuthService : IAuthService
     private readonly IPlayerProfileRepository _profileRepo;
     private readonly IRefreshTokenRepository _refreshTokenRepo;
     private readonly IJwtTokenProvider _jwtProvider;
+    private readonly IGoogleTokenVerifier _googleVerifier;
 
     public AuthService(
         IPlayerRepository playerRepo,
         IPlayerProfileRepository profileRepo,
         IRefreshTokenRepository refreshTokenRepo,
-        IJwtTokenProvider jwtProvider)
+        IJwtTokenProvider jwtProvider,
+        IGoogleTokenVerifier googleVerifier)
     {
         _playerRepo = playerRepo;
         _profileRepo = profileRepo;
         _refreshTokenRepo = refreshTokenRepo;
         _jwtProvider = jwtProvider;
+        _googleVerifier = googleVerifier;
     }
 
     // 게스트 로그인 처리
@@ -76,6 +79,57 @@ public class AuthService : IAuthService
         var stored = await _refreshTokenRepo.GetByTokenAsync(refreshToken);
         if (stored is not null)
             await _refreshTokenRepo.DeleteAsync(stored);
+    }
+
+    // 구글 로그인 - IdToken 검증 후 GoogleId로 플레이어 조회 또는 신규 생성
+    public async Task<TokenResponseDto> GoogleLoginAsync(string idToken)
+    {
+        // 구글 서버에 IdToken 검증 요청 → GoogleId 획득
+        var googleId = await _googleVerifier.VerifyAsync(idToken);
+
+        var player = await _playerRepo.GetByGoogleIdAsync(googleId);
+        var isNew = player is null;
+
+        if (isNew)
+        {
+            // 구글 계정으로 신규 플레이어 생성
+            player = new Player
+            {
+                DeviceId = Guid.NewGuid().ToString(),
+                GoogleId = googleId,
+                Nickname = $"Player_{googleId[..8]}"
+            };
+            await _playerRepo.AddAsync(player);
+
+            // 인게임 프로필 초기화
+            await _profileRepo.AddAsync(new PlayerProfile { PlayerId = player.Id });
+        }
+        else
+        {
+            // 마지막 로그인 시간 갱신
+            player!.LastLoginAt = DateTime.UtcNow;
+            await _playerRepo.UpdateAsync(player);
+        }
+
+        return await IssueTokensAsync(player, isNew);
+    }
+
+    // 게스트 계정에 구글 연동 - 기존 데이터 유지하면서 GoogleId 추가
+    public async Task LinkGoogleAsync(int playerId, string idToken)
+    {
+        var googleId = await _googleVerifier.VerifyAsync(idToken);
+
+        // 이미 다른 계정에 연동된 구글 계정인지 확인
+        var existing = await _playerRepo.GetByGoogleIdAsync(googleId);
+        if (existing is not null)
+            throw new InvalidOperationException("이미 다른 계정에 연동된 구글 계정입니다.");
+
+        var player = await _playerRepo.GetByIdAsync(playerId)
+            ?? throw new InvalidOperationException("플레이어를 찾을 수 없습니다.");
+
+        // 기존 플레이어에 GoogleId 연결
+        player.GoogleId = googleId;
+        await _playerRepo.UpdateAsync(player);
     }
 
     // 토큰 생성 및 저장 공통 처리

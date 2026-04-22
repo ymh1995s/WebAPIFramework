@@ -11,4 +11,10 @@ public interface IAuthService
 
     // 로그아웃 - 리프래시 토큰 삭제
     Task LogoutAsync(string refreshToken);
+
+    // 구글 로그인 - IdToken 검증 후 GoogleId로 플레이어 조회 또는 신규 생성
+    Task<TokenResponseDto> GoogleLoginAsync(string idToken);
+
+    // 게스트 계정에 구글 연동 - 기존 데이터 유지하면서 GoogleId 추가
+    Task LinkGoogleAsync(int playerId, string idToken);
 }
