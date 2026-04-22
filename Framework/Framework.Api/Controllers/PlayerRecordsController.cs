@@ -1,12 +1,12 @@
+using Framework.Api.Filters;
 using Framework.Application.DTOs;
 using Framework.Application.Interfaces;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Framework.Api.Controllers;
 
-// 플레이어 기록 API 컨트롤러 - 인증된 사용자만 접근 가능
-[Authorize]
+// 플레이어 기록 API 컨트롤러 - Admin 전용 (X-Admin-Key 헤더 필요)
+[AdminApiKey]
 [ApiController]
 [Route("api/[controller]")]
 public class PlayerRecordsController : ControllerBase

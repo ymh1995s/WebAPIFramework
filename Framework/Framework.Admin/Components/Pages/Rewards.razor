@@ -1,4 +1,5 @@
 @page "/rewards"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @rendermode InteractiveServer
 @inject IHttpClientFactory HttpClientFactory
 
@@ -125,12 +126,12 @@
         if (sendMode == "single")
         {
             var payload = new { PlayerId = targetPlayerId, Title = mailTitle, Body = mailBody, ItemId = mailItemId, ItemCount = mailItemCount, ExpiresInDays = mailExpiresInDays };
-            response = await client.PostAsJsonAsync("api/mails", payload);
+            response = await client.PostAsJsonAsync("api/admin/mails", payload);
         }
         else
         {
             var payload = new { Title = mailTitle, Body = mailBody, ItemId = mailItemId, ItemCount = mailItemCount, ExpiresInDays = mailExpiresInDays };
-            response = await client.PostAsJsonAsync("api/mails/bulk", payload);
+            response = await client.PostAsJsonAsync("api/admin/mails/bulk", payload);
         }
 
         if (response.IsSuccessStatusCode)
