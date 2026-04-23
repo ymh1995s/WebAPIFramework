@@ -27,4 +27,58 @@ public class SystemConfigService : ISystemConfigService
         await _repository.SetValueAsync(SystemConfigKeys.DailyLoginRewardEnabled, enabled ? "true" : "false");
         await _repository.SaveChangesAsync();
     }
+
+    // DB에서 점검 모드 활성화 여부 조회 (수동)
+    public async Task<bool> GetMaintenanceModeAsync()
+    {
+        var value = await _repository.GetValueAsync(SystemConfigKeys.MaintenanceMode);
+        return value == "true";
+    }
+
+    // 점검 모드 활성화 여부를 DB에 저장 (수동)
+    public async Task SetMaintenanceModeAsync(bool enabled)
+    {
+        await _repository.SetValueAsync(SystemConfigKeys.MaintenanceMode, enabled ? "true" : "false");
+        await _repository.SaveChangesAsync();
+    }
+
+    // 점검 예약 시작 시각 조회 (없으면 null)
+    public async Task<DateTime?> GetMaintenanceStartAtAsync()
+    {
+        var value = await _repository.GetValueAsync(SystemConfigKeys.MaintenanceStartAt);
+        return DateTime.TryParse(value, null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt) ? dt : null;
+    }
+
+    // 점검 예약 시작 시각 저장 (null이면 삭제)
+    public async Task SetMaintenanceStartAtAsync(DateTime? dateTime)
+    {
+        await _repository.SetValueAsync(SystemConfigKeys.MaintenanceStartAt, dateTime?.ToString("O") ?? "");
+        await _repository.SaveChangesAsync();
+    }
+
+    // 점검 예약 종료 시각 조회 (없으면 null)
+    public async Task<DateTime?> GetMaintenanceEndAtAsync()
+    {
+        var value = await _repository.GetValueAsync(SystemConfigKeys.MaintenanceEndAt);
+        return DateTime.TryParse(value, null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt) ? dt : null;
+    }
+
+    // 점검 예약 종료 시각 저장 (null이면 삭제)
+    public async Task SetMaintenanceEndAtAsync(DateTime? dateTime)
+    {
+        await _repository.SetValueAsync(SystemConfigKeys.MaintenanceEndAt, dateTime?.ToString("O") ?? "");
+        await _repository.SaveChangesAsync();
+    }
+
+    // 수동 ON 또는 현재 시각이 예약 범위 안에 있으면 점검 중으로 판단
+    public async Task<bool> IsUnderMaintenanceAsync()
+    {
+        if (await GetMaintenanceModeAsync()) return true;
+
+        var start = await GetMaintenanceStartAtAsync();
+        var end = await GetMaintenanceEndAtAsync();
+        var now = DateTime.UtcNow;
+
+        return start.HasValue && end.HasValue && now >= start.Value && now <= end.Value;
+    }
 }

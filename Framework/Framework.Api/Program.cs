@@ -1,5 +1,6 @@
 using Framework.Api.Extensions;
 using Framework.Api.Hubs;
+using Framework.Application.Interfaces;
 using Framework.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -43,6 +44,27 @@ app.UseHttpsRedirection();
 
 // Rate Limiter는 인증보다 앞에 위치해야 함
 app.UseRateLimiter();
+
+// 점검 모드 미들웨어 — X-Admin-Key 헤더가 있는 요청(Admin Blazor)은 통과, 나머지는 수동/예약 여부 확인 후 503 반환
+app.Use(async (context, next) =>
+{
+    var adminKey = context.Request.Headers["X-Admin-Key"].FirstOrDefault();
+    var expectedKey = context.RequestServices.GetRequiredService<IConfiguration>()["Admin:ApiKey"];
+    var isAdminRequest = !string.IsNullOrEmpty(adminKey) && adminKey == expectedKey;
+
+    if (!isAdminRequest)
+    {
+        var configService = context.RequestServices.GetRequiredService<ISystemConfigService>();
+        if (await configService.IsUnderMaintenanceAsync())
+        {
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsync("{\"message\":\"서버 점검 중입니다. 잠시 후 다시 시도해주세요.\"}");
+            return;
+        }
+    }
+    await next();
+});
 
 // 인증 → 인가 순서 중요
 app.UseAuthentication();

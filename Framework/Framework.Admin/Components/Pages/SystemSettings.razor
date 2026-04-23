@@ -1,0 +1,288 @@
+@page "/system-settings"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>시스템 설정</PageTitle>
+
+<div class="d-flex align-items-center gap-3 mb-3">
+    <h2 class="mb-0">시스템 설정</h2>
+    <span class="badge @(isUnderMaintenance ? "bg-danger" : "bg-success") fs-6">
+        @(isUnderMaintenance ? "점검 중" : "정상 운영 중")
+    </span>
+    <button class="btn btn-outline-secondary btn-sm" @onclick="LoadSettings">새로고침</button>
+</div>
+
+@if (isLoading)
+{
+    <p>불러오는 중...</p>
+}
+else
+{
+    <!-- 점검 모드 수동 토글 -->
+    <section class="mb-5">
+        <h4>점검 모드 (수동)</h4>
+        <p class="text-muted small">즉시 켜고 끕니다. Admin을 제외한 모든 API가 503을 반환합니다.</p>
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="maintenanceToggle"
+                   checked="@maintenanceEnabled" @onchange="ToggleMaintenance" />
+            <label class="form-check-label @(maintenanceEnabled ? "text-danger fw-bold" : "")" for="maintenanceToggle">
+                @(maintenanceEnabled ? "점검 중" : "정상 운영 중")
+            </label>
+        </div>
+        @if (maintenanceMessage != null)
+        {
+            <p class="mt-1 @(maintenanceEnabled ? "text-danger" : "text-success")">@maintenanceMessage</p>
+        }
+    </section>
+
+    <!-- 점검 예약 -->
+    <section class="mb-5">
+        <h4>점검 예약</h4>
+        <p class="text-muted small">설정한 시간 범위에 자동으로 점검 모드가 적용됩니다. (KST 기준 입력)</p>
+        <div class="d-flex gap-3 align-items-end flex-wrap mb-2">
+            <div>
+                <label class="form-label">시작 시각</label>
+                <div class="d-flex gap-1">
+                    <input type="date" class="form-control" value="@scheduleStartDate" @onchange="e => scheduleStartDate = e.Value?.ToString()" />
+                    <input type="time" class="form-control" value="@scheduleStartTime" @onchange="e => scheduleStartTime = e.Value?.ToString()" />
+                </div>
+            </div>
+            <div>
+                <label class="form-label">종료 시각</label>
+                <div class="d-flex gap-1">
+                    <input type="date" class="form-control" value="@scheduleEndDate" @onchange="e => scheduleEndDate = e.Value?.ToString()" />
+                    <input type="time" class="form-control" value="@scheduleEndTime" @onchange="e => scheduleEndTime = e.Value?.ToString()" />
+                </div>
+            </div>
+            <button class="btn btn-primary" @onclick="SaveSchedule">저장</button>
+            <button class="btn btn-outline-secondary" @onclick="ClearSchedule">초기화</button>
+        </div>
+        @if (currentStartAt.HasValue && currentEndAt.HasValue)
+        {
+            <p class="text-muted small">
+                현재 예약: @currentStartAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ~ @currentEndAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") (KST)
+            </p>
+        }
+        else
+        {
+            <p class="text-muted small">현재 예약 없음</p>
+        }
+        @if (scheduleMessage != null)
+        {
+            <p class="mt-1 text-success">@scheduleMessage</p>
+        }
+    </section>
+
+    <!-- 일일 보상 토글 -->
+    <section class="mb-5">
+        <h4>일일 로그인 보상 자동 발송</h4>
+        <p class="text-muted small">비활성화하면 매일 00:00 자동 발송이 중단됩니다.</p>
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="dailyRewardToggle"
+                   checked="@dailyRewardEnabled" @onchange="ToggleDailyReward" />
+            <label class="form-check-label" for="dailyRewardToggle">
+                @(dailyRewardEnabled ? "활성화됨 (매일 00:00 자동 발송)" : "비활성화됨")
+            </label>
+        </div>
+        @if (dailyRewardMessage != null)
+        {
+            <p class="mt-1 text-success">@dailyRewardMessage</p>
+        }
+    </section>
+}
+
+@if (errorMessage != null)
+{
+    <p class="text-danger">@errorMessage</p>
+}
+
+@code {
+    private bool isLoading = true;
+
+    // 수동 점검 상태
+    private bool maintenanceEnabled;
+    private string? maintenanceMessage;
+
+    // 예약 점검 상태
+    private DateTime? currentStartAt;
+    private DateTime? currentEndAt;
+    private string? scheduleStartDate;
+    private string? scheduleStartTime;
+    private string? scheduleEndDate;
+    private string? scheduleEndTime;
+    private string? scheduleMessage;
+
+    // 일일 보상 상태
+    private bool dailyRewardEnabled;
+    private string? dailyRewardMessage;
+
+    // 수동 + 예약 포함 현재 실제 점검 여부
+    private bool isUnderMaintenance;
+
+    private string? errorMessage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadSettings();
+            StateHasChanged();
+        }
+    }
+
+    // 전체 설정 조회
+    private async Task LoadSettings()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        var client = HttpClientFactory.CreateClient("ApiClient");
+
+        var r1 = await client.GetAsync("api/admin/systemconfig/maintenance-mode");
+        var r2 = await client.GetAsync("api/admin/systemconfig/maintenance-schedule");
+        var r3 = await client.GetAsync("api/admin/systemconfig/daily-reward-enabled");
+        var r4 = await client.GetAsync("api/admin/systemconfig/maintenance-status");
+
+        if (r1.IsSuccessStatusCode && r2.IsSuccessStatusCode && r3.IsSuccessStatusCode && r4.IsSuccessStatusCode)
+        {
+            maintenanceEnabled = (await r1.Content.ReadFromJsonAsync<ToggleDto>())?.Enabled ?? false;
+            dailyRewardEnabled = (await r3.Content.ReadFromJsonAsync<ToggleDto>())?.Enabled ?? false;
+            isUnderMaintenance = (await r4.Content.ReadFromJsonAsync<StatusDto>())?.IsUnderMaintenance ?? false;
+
+            var schedule = await r2.Content.ReadFromJsonAsync<ScheduleDto>();
+            currentStartAt = schedule?.StartAt;
+            currentEndAt = schedule?.EndAt;
+
+            // 입력 필드에 기존 예약 시각을 KST로 변환해서 날짜/시간 분리 채워둠
+            if (currentStartAt.HasValue)
+            {
+                var local = currentStartAt.Value.ToLocalTime();
+                scheduleStartDate = local.ToString("yyyy-MM-dd");
+                scheduleStartTime = local.ToString("HH:mm");
+            }
+            if (currentEndAt.HasValue)
+            {
+                var local = currentEndAt.Value.ToLocalTime();
+                scheduleEndDate = local.ToString("yyyy-MM-dd");
+                scheduleEndTime = local.ToString("HH:mm");
+            }
+        }
+        else
+        {
+            errorMessage = "설정 조회에 실패했습니다.";
+        }
+
+        isLoading = false;
+    }
+
+    // 수동 점검 토글
+    private async Task ToggleMaintenance(ChangeEventArgs e)
+    {
+        maintenanceMessage = null;
+        var enabled = (bool)(e.Value ?? false);
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var response = await client.PutAsJsonAsync("api/admin/systemconfig/maintenance-mode", enabled);
+
+        if (response.IsSuccessStatusCode)
+        {
+            maintenanceEnabled = enabled;
+            maintenanceMessage = enabled ? "점검 모드가 활성화되었습니다." : "점검 모드가 해제되었습니다.";
+        }
+        else
+        {
+            errorMessage = "점검 모드 변경에 실패했습니다.";
+        }
+    }
+
+    // 점검 예약 저장 — 입력값을 UTC로 변환 후 전송
+    private async Task SaveSchedule()
+    {
+        scheduleMessage = null;
+        if (string.IsNullOrEmpty(scheduleStartDate) || string.IsNullOrEmpty(scheduleStartTime) ||
+            string.IsNullOrEmpty(scheduleEndDate) || string.IsNullOrEmpty(scheduleEndTime))
+        {
+            errorMessage = "시작/종료 시각을 모두 입력해주세요.";
+            return;
+        }
+
+        // 날짜 + 시간 문자열을 합쳐 DateTime으로 변환 후 UTC로 저장
+        var scheduleStartAt = DateTime.Parse($"{scheduleStartDate}T{scheduleStartTime}");
+        var scheduleEndAt = DateTime.Parse($"{scheduleEndDate}T{scheduleEndTime}");
+
+        if (scheduleEndAt <= scheduleStartAt)
+        {
+            errorMessage = "종료 시각은 시작 시각보다 늦어야 합니다.";
+            return;
+        }
+
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var payload = new
+        {
+            StartAt = DateTime.SpecifyKind(scheduleStartAt, DateTimeKind.Local).ToUniversalTime(),
+            EndAt = DateTime.SpecifyKind(scheduleEndAt, DateTimeKind.Local).ToUniversalTime()
+        };
+        var response = await client.PutAsJsonAsync("api/admin/systemconfig/maintenance-schedule", payload);
+
+        if (response.IsSuccessStatusCode)
+        {
+            currentStartAt = payload.StartAt;
+            currentEndAt = payload.EndAt;
+            scheduleMessage = "점검 예약이 저장되었습니다.";
+            errorMessage = null;
+        }
+        else
+        {
+            errorMessage = "점검 예약 저장에 실패했습니다.";
+        }
+    }
+
+    // 점검 예약 초기화
+    private async Task ClearSchedule()
+    {
+        scheduleMessage = null;
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var payload = new { StartAt = (DateTime?)null, EndAt = (DateTime?)null };
+        var response = await client.PutAsJsonAsync("api/admin/systemconfig/maintenance-schedule", payload);
+
+        if (response.IsSuccessStatusCode)
+        {
+            currentStartAt = null;
+            currentEndAt = null;
+            scheduleStartDate = null;
+            scheduleStartTime = null;
+            scheduleEndDate = null;
+            scheduleEndTime = null;
+            scheduleMessage = "점검 예약이 초기화되었습니다.";
+            errorMessage = null;
+        }
+        else
+        {
+            errorMessage = "점검 예약 초기화에 실패했습니다.";
+        }
+    }
+
+    // 일일 보상 토글
+    private async Task ToggleDailyReward(ChangeEventArgs e)
+    {
+        dailyRewardMessage = null;
+        var enabled = (bool)(e.Value ?? false);
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var response = await client.PutAsJsonAsync("api/admin/systemconfig/daily-reward-enabled", enabled);
+
+        if (response.IsSuccessStatusCode)
+        {
+            dailyRewardEnabled = enabled;
+            dailyRewardMessage = enabled ? "일일 보상 자동 발송이 활성화되었습니다." : "일일 보상 자동 발송이 비활성화되었습니다.";
+        }
+        else
+        {
+            errorMessage = "일일 보상 설정 변경에 실패했습니다.";
+        }
+    }
+
+    // API 응답 매핑용 로컬 DTO
+    private record ToggleDto(bool Enabled);
+    private record StatusDto(bool IsUnderMaintenance);
+    private record ScheduleDto(DateTime? StartAt, DateTime? EndAt);
+}
