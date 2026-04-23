@@ -88,7 +88,6 @@ Any temporary values or placeholders must be explicitly listed here and updated 
 
 ### [미구현] 추가 개발 필요 항목
 - **공지사항** — 점검/업데이트 알림 등 클라이언트가 수신하는 공지 API 및 Admin 관리 페이지
-- **버전 체크** — 앱 버전 vs 최소 지원 버전 비교, 강제 업데이트 여부 반환
 - **개발자 문의(To 개발자)** — 플레이어가 개발자에게 메시지를 보낼 수 있는 간단한 문의 기능
 - **감사 로그(Audit Log)** — 아이템 증감, 데이터 변경 이력 추적. 애플리케이션 레벨 구현 필요 (DB 백업으로는 변경 원인 추적 불가)
 - **백업 정책** — DB 백업은 애플리케이션 관할 아님. Docker로 운영 중인 PostgreSQL 컨테이너/볼륨 레벨에서 별도 설정 필요 (pg_dump, 볼륨 스냅샷 등). 최소 1일 1회 백업, 30일 보관 권장
@@ -114,6 +113,7 @@ Any temporary values or placeholders must be explicitly listed here and updated 
 | 어뷰징 방어 | Rate Limiting (IP 기준), 429 발생 시 DB 로그, Admin 보안 감시 페이지 |
 | 점검 모드 | 수동 ON/OFF 및 시각 예약, 미들웨어에서 503 차단, Admin은 점검 중에도 접근 가능 |
 | 계정 탈퇴 | DELETE /auth/withdraw, 플레이어 즉시 하드 삭제, CASCADE로 모든 연관 데이터 삭제 (개인정보보호법 제21조 준수) |
+| 클라이언트 앱 버전 체크 | GET /api/version/check, 강제 업데이트 여부 반환, Admin에서 최소/최신 버전 설정 (서버 버전 아님 — 앱스토어 배포 Unity 빌드 기준) |
 
 ## COMMON
 <!--이하 모든 프로젝트의 CLAUDE.md에 적용 되는 규칙-->
