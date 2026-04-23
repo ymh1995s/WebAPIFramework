@@ -57,19 +57,19 @@ The following items should be revised when applied to a real project.
 Any temporary values or placeholders must be explicitly listed here and updated later.
 
 ### [필수] Framework.Api/appsettings.json 교체값
-라이브 배포 전 반드시 교체해야 하는 임시값 목록입니다.
+라이브 배포 전 .env 파일에 반드시 실제 값을 채워야 하는 항목 목록입니다.
 
-| 키 | 현재값 | 교체 방법 |
+| 키 | .env 변수명 | 교체 방법 |
 |---|---|---|
-| `Jwt:SecretKey` | `change-this-to-a-very-long-secret-key...` | 32자 이상 랜덤 문자열로 교체 |
-| `Admin:ApiKey` | `change-this-admin-key-in-production` | 랜덤 문자열로 교체 |
-| `Google:ClientId` | `your-google-client-id.apps...` | Google Cloud Console에서 OAuth 클라이언트 ID 발급 |
-| `ConnectionStrings:Default` | `localhost/postgres` | 운영 DB 서버 주소/계정으로 교체 |
+| `Jwt:SecretKey` | `JWT_SECRET_KEY` | 32자 이상 랜덤 문자열로 교체 |
+| `Admin:ApiKey` | `ADMIN_API_KEY` | 랜덤 문자열로 교체 |
+| `Google:ClientId` | `GOOGLE_CLIENT_ID` | Google Cloud Console에서 OAuth 클라이언트 ID 발급 |
+| `ConnectionStrings:Default` | `POSTGRES_PASSWORD` | 운영 DB 비밀번호 설정 |
 
 ### [필수] Framework.Admin/appsettings.json 교체값
-- `ApiBaseUrl` — 현재 `https://localhost:7034`. 운영 서버 도메인으로 교체 필요
-- `Admin:Password` — 현재 `admin`. 운영 전 강력한 비밀번호로 교체 필요
-- `Admin:ApiKey` — 현재 `change-this-admin-key-in-production`. Framework.Api의 `Admin:ApiKey`와 동일한 값으로 설정 필요
+- `ApiBaseUrl` — 현재 `https://api.overture.io.kr`. 도메인 변경 시 교체 필요
+- `Admin:Password` — 운영툴(Blazor) 로그인 비밀번호. 운영 전 강력한 비밀번호로 직접 입력 필요
+- `Admin:ApiKey` — Framework.Api의 `.env` `ADMIN_API_KEY`와 동일한 값으로 설정 필요
 
 ### [주의] 코드 내 임시 처리
 - `Framework.Api/Program.cs` `#if DEBUG` 블록 — 디버그 빌드 전용 인증 우회 코드 (PlayerId=1 고정). Release 빌드에서는 컴파일 제외되므로 운영에 영향 없음
