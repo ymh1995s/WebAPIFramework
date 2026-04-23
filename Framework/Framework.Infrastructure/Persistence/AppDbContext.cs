@@ -86,6 +86,29 @@ public class AppDbContext : DbContext
             .WithMany(p => p.Mails)
             .HasForeignKey(m => m.PlayerId);
 
+        // Mail: IsClaimed를 낙관적 동시성 토큰으로 설정
+        //
+        // [목적] 동일 우편에 대한 동시 Claim 요청이 2건 이상 들어와도 아이템이 단 1회만 지급되도록 강제
+        //       — 애플리케이션 레벨 `if (mail.IsClaimed) return false` 체크만으로는
+        //         두 요청이 거의 동시에 들어올 때 둘 다 통과하여 중복 수령이 발생할 수 있음
+        //
+        // [원리] EF Core가 Mail을 UPDATE할 때 엔티티를 읽어왔을 당시의 IsClaimed 값을 WHERE 절에 자동 포함시킴
+        //   예) UPDATE Mails SET IsClaimed=TRUE WHERE Id=@id AND IsClaimed=FALSE
+        //   → 이 row의 IsClaimed가 그 사이 다른 트랜잭션에 의해 바뀌었다면 매칭 실패 → 0 row 업데이트
+        //
+        // [동작 흐름 — 동일 mailId로 A, B 두 요청이 동시에 들어온 경우]
+        //   1) A·B 모두 IsClaimed=false를 읽음 (애플리케이션 레벨 체크 통과)
+        //   2) A가 먼저 SaveChanges → 1 row UPDATE 성공 → 아이템 지급 확정
+        //   3) B가 SaveChanges → WHERE 조건 불일치로 0 row UPDATE
+        //   4) EF Core가 DbUpdateConcurrencyException을 던짐 → 호출부에서 catch 후 false 반환
+        //   5) B가 같은 SaveChanges에 묶어둔 아이템 수량 변경도 함께 롤백 → 중복 지급 차단
+        //
+        // [주의] 호출부(MailService.ClaimAsync)에서 IsClaimed 변경과 아이템 지급을 반드시
+        //   동일한 DbContext + 단일 SaveChanges로 묶어야 위 롤백이 보장됨
+        modelBuilder.Entity<Mail>()
+            .Property(m => m.IsClaimed)
+            .IsConcurrencyToken();
+
         // DailyLoginLog → Player (N:1), 플레이어+날짜 중복 방지
         modelBuilder.Entity<DailyLoginLog>()
             .HasOne(l => l.Player)
