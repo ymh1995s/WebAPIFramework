@@ -108,7 +108,7 @@ Any temporary values or placeholders must be explicitly listed here and updated 
 | 일일 로그인 보상 | 로그인 시 당일 보상 자동 우편 발송, 자정 스케줄러 |
 | 매치메이킹 | SignalR 기반 실시간 매칭, 대기열 관리 |
 | 아이템 마스터 관리 | Admin CRUD (추가/수정/소프트삭제), 보유 유저 수 확인 |
-| Admin 인증 | X-Admin-Key 헤더 기반 API 접근 제어 |
+| Admin 인증 | X-Admin-Key 헤더 기반 API 접근 제어, 미들웨어에서 Admin Key 인증 시 모든 [Authorize] 엔드포인트 접근 허용 |
 | 시스템 설정 | 일일 보상 활성화 여부 Admin 제어 (SystemConfig) |
 | 어뷰징 방어 | Rate Limiting (IP 기준), 429 발생 시 DB 로그, Admin 보안 감시 페이지 |
 | 점검 모드 | 수동 ON/OFF 및 시각 예약, 미들웨어에서 503 차단, Admin은 점검 중에도 접근 가능 |

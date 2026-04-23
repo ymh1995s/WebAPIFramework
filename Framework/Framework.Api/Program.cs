@@ -98,6 +98,23 @@ app.Use(async (context, next) =>
 // 인증 → 인가 순서 중요
 app.UseAuthentication();
 
+// Admin Key 인증 미들웨어 — 유효한 X-Admin-Key 요청은 모든 [Authorize] 엔드포인트 접근 허용
+app.Use(async (context, next) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+    {
+        var adminKey = context.Request.Headers["X-Admin-Key"].FirstOrDefault();
+        var expectedKey = context.RequestServices.GetRequiredService<IConfiguration>()["Admin:ApiKey"];
+        if (!string.IsNullOrEmpty(adminKey) && adminKey == expectedKey)
+        {
+            var claims = new[] { new System.Security.Claims.Claim("role", "Admin") };
+            var identity = new System.Security.Claims.ClaimsIdentity(claims, "AdminApiKey");
+            context.User = new System.Security.Claims.ClaimsPrincipal(identity);
+        }
+    }
+    await next();
+});
+
 #if DEBUG
 // 디버그 빌드 전용 - 릴리즈 빌드에서는 이 코드가 컴파일되지 않음
 // PlayerId = 1 로 고정된 가짜 인증을 주입하여 토큰 없이 API 테스트 가능
