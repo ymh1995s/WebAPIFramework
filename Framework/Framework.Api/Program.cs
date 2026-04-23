@@ -42,10 +42,12 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // 저장소 등록
 builder.Services.AddAuthRepositories();
 builder.Services.AddGameRepositories();
+builder.Services.AddNoticeRepositories();
 
 // 서비스 등록
 builder.Services.AddAuthServices();
 builder.Services.AddGameServices();
+builder.Services.AddNoticeServices();
 builder.Services.AddMatchMakingServices(builder.Configuration);
 
 // JWT 인증 설정

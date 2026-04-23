@@ -105,6 +105,25 @@ public static class ApiRoutes
         public const string Version = $"{Base}/version";
     }
 
+    // ── 공지 Admin (AdminNoticesController: Route = "api/admin/notices") ────
+    public static class AdminNotices
+    {
+        private const string Base = "api/admin/notices";
+
+        /// <summary>전체 공지 조회 (GET) / 공지 생성 (POST)</summary>
+        public const string Collection = Base;
+
+        /// <summary>공지 수정 (PUT) / 삭제 (DELETE)</summary>
+        public static string ById(int id) => $"{Base}/{id}";
+    }
+
+    // ── 공지 (NoticesController: Route = "api/notices") ──────────────────
+    public static class Notices
+    {
+        /// <summary>최신 활성 공지 1개 조회 (GET)</summary>
+        public const string Latest = "api/notices/latest";
+    }
+
     // ── 매치메이킹 (MatchMakingController: Route = "api/matchmaking") ──────
     public static class Matchmaking
     {
