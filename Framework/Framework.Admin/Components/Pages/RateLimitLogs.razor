@@ -1,7 +1,9 @@
 @page "/rate-limit-logs"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @rendermode InteractiveServer
+@inherits SafeComponentBase
 @inject IHttpClientFactory HttpClientFactory
+@using Framework.Admin.Constants
 
 <PageTitle>보안 감시</PageTitle>
 
@@ -103,7 +105,7 @@
         loadError = null;
 
         var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync("api/admin/rate-limit-logs");
+        var response = await client.GetAsync(ApiRoutes.AdminRateLimitLogs.Collection);
 
         if (response.IsSuccessStatusCode)
             logs = await response.Content.ReadFromJsonAsync<List<RateLimitLogDto>>();
@@ -124,7 +126,7 @@
 
         for (var i = 1; i <= 15; i++)
         {
-            var response = await client.PostAsJsonAsync("auth/guest", payload);
+            var response = await client.PostAsJsonAsync(ApiRoutes.Auth.Guest, payload);
             var status = (int)response.StatusCode;
             attackResults.Add(new AttackResult(i, status, status == 429 ? "Too Many Requests" : "OK"));
             StateHasChanged();

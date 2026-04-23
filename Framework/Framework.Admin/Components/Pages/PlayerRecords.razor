@@ -1,7 +1,9 @@
 @page "/players"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @rendermode InteractiveServer
+@inherits SafeComponentBase
 @inject IHttpClientFactory HttpClientFactory
+@using Framework.Admin.Constants
 
 <PageTitle>플레이어 기록</PageTitle>
 
@@ -167,7 +169,7 @@
     {
         if (firstRender)
         {
-            await LoadPaged();
+            await SafeExecute(LoadPaged, msg => createMessage = msg);
             StateHasChanged();
         }
     }
@@ -176,7 +178,7 @@
     {
         isLoading = true;
         var client = HttpClientFactory.CreateClient("ApiClient");
-        pagedResult = await client.GetFromJsonAsync<PagedResultDto>($"api/playerrecords?page={currentPage}&pageSize={pageSize}");
+        pagedResult = await client.GetFromJsonAsync<PagedResultDto>(ApiRoutes.PlayerRecords.Paged(currentPage, pageSize));
         isLoading = false;
     }
 
@@ -196,7 +198,7 @@
         searchError = null;
 
         var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync($"api/playerrecords/{searchId}");
+        var response = await client.GetAsync(ApiRoutes.PlayerRecords.ById(searchId));
 
         if (response.IsSuccessStatusCode)
             searchResult = await response.Content.ReadFromJsonAsync<PlayerRecordDto>();
@@ -217,7 +219,7 @@
 
         var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new { Nickname = newNickname, PlayTime = newPlayTime, Score = newScore };
-        var response = await client.PostAsJsonAsync("api/playerrecords", payload);
+        var response = await client.PostAsJsonAsync(ApiRoutes.PlayerRecords.Create, payload);
 
         if (response.IsSuccessStatusCode)
         {

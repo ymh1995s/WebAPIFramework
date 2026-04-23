@@ -18,7 +18,31 @@
         </div>
 
         <article class="content px-4">
+            @*
+                [빌드별 예외 처리]
+                Debug: @Body를 그대로 렌더링 → 예외 발생 시 Blazor가 SignalR 회로를 끊고
+                       상세 오류를 노출(DetailedErrors=true). 개발자가 즉시 포착 가능.
+                Release: SafeErrorBoundary로 감싸 자식 컴포넌트의 모든 예외
+                        (렌더링/라이프사이클/이벤트 핸들러)를 자동 catch.
+                        Serilog 파일 로그 기록 + 사용자에게 친화적인 오류 카드 표시.
+                        회로는 유지되므로 다른 페이지로 이동하면 정상 작동.
+            *@
+#if DEBUG
             @Body
+#else
+            <SafeErrorBoundary>
+                <ChildContent>
+                    @Body
+                </ChildContent>
+                <ErrorContent>
+                    <div class="alert alert-danger mt-3" role="alert">
+                        <h5 class="alert-heading">오류가 발생했습니다</h5>
+                        <p class="mb-2">문제가 반복되면 관리자에게 문의해주세요.</p>
+                        <a href="." class="btn btn-primary btn-sm">새로고침</a>
+                    </div>
+                </ErrorContent>
+            </SafeErrorBoundary>
+#endif
         </article>
     </main>
 </div>

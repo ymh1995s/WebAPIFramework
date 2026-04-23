@@ -1,7 +1,9 @@
 @page "/rewards"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @rendermode InteractiveServer
+@inherits SafeComponentBase
 @inject IHttpClientFactory HttpClientFactory
+@using Framework.Admin.Constants
 
 <PageTitle>보상 관리</PageTitle>
 
@@ -86,7 +88,8 @@
     {
         if (firstRender)
         {
-            await LoadToggleState();
+            // SafeExecute: 릴리즈 빌드에서 예외 발생 시 회로 보호 + 로그 기록
+            await SafeExecute(LoadToggleState, msg => toggleMessage = msg);
             StateHasChanged();
         }
     }
@@ -95,7 +98,7 @@
     {
         toggleLoading = true;
         var client = HttpClientFactory.CreateClient("ApiClient");
-        var result = await client.GetFromJsonAsync<DailyRewardEnabledDto>("api/systemconfig/daily-reward-enabled");
+        var result = await client.GetFromJsonAsync<DailyRewardEnabledDto>(ApiRoutes.SystemConfig.DailyRewardEnabled);
         dailyRewardEnabled = result?.Enabled ?? false;
         toggleLoading = false;
     }
@@ -105,7 +108,7 @@
         toggleMessage = null;
         dailyRewardEnabled = (bool)(e.Value ?? false);
         var client = HttpClientFactory.CreateClient("ApiClient");
-        await client.PutAsJsonAsync("api/systemconfig/daily-reward-enabled", dailyRewardEnabled);
+        await client.PutAsJsonAsync(ApiRoutes.SystemConfig.DailyRewardEnabled, dailyRewardEnabled);
         toggleMessage = dailyRewardEnabled ? "자동 발송이 활성화되었습니다." : "자동 발송이 비활성화되었습니다.";
     }
 
@@ -126,12 +129,12 @@
         if (sendMode == "single")
         {
             var payload = new { PlayerId = targetPlayerId, Title = mailTitle, Body = mailBody, ItemId = mailItemId, ItemCount = mailItemCount, ExpiresInDays = mailExpiresInDays };
-            response = await client.PostAsJsonAsync("api/admin/mails", payload);
+            response = await client.PostAsJsonAsync(ApiRoutes.AdminMails.Single, payload);
         }
         else
         {
             var payload = new { Title = mailTitle, Body = mailBody, ItemId = mailItemId, ItemCount = mailItemCount, ExpiresInDays = mailExpiresInDays };
-            response = await client.PostAsJsonAsync("api/admin/mails/bulk", payload);
+            response = await client.PostAsJsonAsync(ApiRoutes.AdminMails.Bulk, payload);
         }
 
         if (response.IsSuccessStatusCode)

@@ -97,6 +97,7 @@ Any temporary values or placeholders must be explicitly listed here and updated 
 - **광고 보상 서버사이드 검증(SSV)** — 광고 시청 보상 지급 시 클라이언트 조작 방지를 위해 구글/애플 서버 검증 필요
 - **인앱 결제 영수증 검증** — Google Play / Apple IAP 결제 후 서버에서 영수증 진위 검증 필요
 - **이벤트 기간 관리** [중요도 낮음] — 기간 한정 이벤트 시작/종료 관리. 클라이언트가 현재 이벤트 진행 여부를 서버에 질의. 게임마다 구조가 달라 범용 설계 필요
+- **로그 수집 도구 연동** [중요도 낮음] — 현재 파일 로그(Serilog) 기반. 유저 증가 시 Seq(컨테이너 1개, .NET 친화적) 또는 Grafana+Loki(2개) 연동 권장. `Serilog.Sinks.Seq` 패키지 추가 + Program.cs 한 줄로 연동 가능
 
 ## Feature Status
 

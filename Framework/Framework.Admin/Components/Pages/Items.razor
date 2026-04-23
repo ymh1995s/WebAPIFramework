@@ -1,7 +1,9 @@
 @page "/items"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @rendermode InteractiveServer
+@inherits SafeComponentBase
 @inject IHttpClientFactory HttpClientFactory
+@using Framework.Admin.Constants
 
 <PageTitle>아이템 마스터 관리</PageTitle>
 
@@ -155,7 +157,7 @@
     {
         if (firstRender)
         {
-            await LoadItems();
+            await SafeExecute(LoadItems, msg => listMessage = msg);
             StateHasChanged();
         }
     }
@@ -166,7 +168,7 @@
         isLoading = true;
         listMessage = null;
         var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync("api/admin/items");
+        var response = await client.GetAsync(ApiRoutes.AdminItems.Collection);
         if (response.IsSuccessStatusCode)
             items = await response.Content.ReadFromJsonAsync<List<ItemDto>>();
         else
@@ -187,7 +189,7 @@
 
         var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new { Name = newName, ItemType = newItemType, Description = newDescription };
-        var response = await client.PostAsJsonAsync("api/admin/items", payload);
+        var response = await client.PostAsJsonAsync(ApiRoutes.AdminItems.Collection, payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -224,7 +226,7 @@
     {
         var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new { Name = editName, ItemType = editItemType, Description = editDescription };
-        var response = await client.PutAsJsonAsync($"api/admin/items/{id}", payload);
+        var response = await client.PutAsJsonAsync(ApiRoutes.AdminItems.ById(id), payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -242,7 +244,7 @@
     {
         listMessage = null;
         var client = HttpClientFactory.CreateClient("ApiClient");
-        var result = await client.GetFromJsonAsync<HolderCountDto>($"api/admin/items/{id}/holders");
+        var result = await client.GetFromJsonAsync<HolderCountDto>(ApiRoutes.AdminItems.Holders(id));
         holderCount = result?.Count ?? 0;
         confirmDeleteId = id;
     }
@@ -253,7 +255,7 @@
         if (confirmDeleteId == null) return;
 
         var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.DeleteAsync($"api/admin/items/{confirmDeleteId}");
+        var response = await client.DeleteAsync(ApiRoutes.AdminItems.ById(confirmDeleteId!.Value));
 
         confirmDeleteId = null;
 

@@ -3,8 +3,37 @@ using Framework.Api.Hubs;
 using Framework.Application.Interfaces;
 using Framework.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
+
+// ─────────────────────────────────────────────────────────────
+// Serilog 설정
+//
+// [API는 왜 컴포넌트별 try-catch가 불필요한가]
+// ASP.NET Core 컨트롤러는 요청마다 독립적으로 실행된다(stateless).
+// 한 요청에서 예외가 발생해도 다음 요청은 영향을 받지 않는다.
+// 따라서 전역 예외 미들웨어 하나로 모든 처리를 중앙화한다.
+//
+// [파일 경로 분리]
+// Admin 로그(logs/admin-.log)와 API 로그(logs/api-.log)를 분리하여
+// 문제 발생 시 어느 서버에서 발생했는지 즉시 구분 가능하다.
+// ─────────────────────────────────────────────────────────────
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .WriteTo.Console()
+#if !DEBUG
+    .WriteTo.File(
+        path: "logs/api-.log",
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 30,
+        fileSizeLimitBytes: 50 * 1024 * 1024,
+        rollOnFileSizeLimit: true)
+#endif
+    .CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ASP.NET Core 기본 로거를 Serilog로 교체
+builder.Host.UseSerilog();
 
 // DB 컨텍스트 등록
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -82,6 +111,42 @@ app.Use(async (context, next) =>
 #endif
 
 app.UseAuthorization();
+
+// 전역 예외 처리 미들웨어 (릴리즈 빌드 전용)
+//
+// 목적 1 — 로깅: catch로 예외를 직접 잡으면 ASP.NET Core는 예외를 볼 수 없어
+//   자동 로깅이 동작하지 않는다. 따라서 이 미들웨어에서 직접 찍어야 한다.
+// 목적 2 — JSON 응답: 미들웨어 없이 500이 반환되면 바디가 비어있다.
+//   클라이언트(유니티)가 빈 바디를 역직렬화하려다 추가 오류가 발생하므로
+//   항상 JSON 형식으로 응답한다.
+// 목적 3 — HasStarted 가드: 스트리밍 등으로 응답이 이미 시작된 뒤 예외가 나면
+//   StatusCode 변경 자체가 또 예외를 던진다. 시작 여부를 먼저 확인한다.
+//
+// Debug 빌드에서는 ASP.NET Core 기본 오류 페이지가 상세 스택 트레이스를 보여주므로 적용하지 않는다.
+#if !DEBUG
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (Exception ex)
+    {
+        // 요청 경로와 메서드를 함께 기록하여 어느 API 호출이 실패했는지 추적
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "[API 오류] {Method} {Path}", context.Request.Method, context.Request.Path);
+
+        // 응답이 이미 클라이언트로 전송되기 시작했으면 StatusCode와 바디를 덮어쓸 수 없으므로
+        // 아래 세 줄(상태코드 500 설정, ContentType 설정, JSON 바디 쓰기)을 실행하지 않는다.
+        if (!context.Response.HasStarted)
+        {
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsync("{\"message\":\"서버 내부 오류가 발생했습니다.\"}");
+        }
+    }
+});
+#endif
 
 app.MapControllers();
 

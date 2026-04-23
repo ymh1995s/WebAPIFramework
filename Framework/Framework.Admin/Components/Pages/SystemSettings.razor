@@ -1,7 +1,9 @@
 @page "/system-settings"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @rendermode InteractiveServer
+@inherits SafeComponentBase
 @inject IHttpClientFactory HttpClientFactory
+@using Framework.Admin.Constants
 
 <PageTitle>시스템 설정</PageTitle>
 
@@ -126,7 +128,7 @@ else
     {
         if (firstRender)
         {
-            await LoadSettings();
+            await SafeExecute(LoadSettings, msg => errorMessage = msg);
             StateHasChanged();
         }
     }
@@ -139,10 +141,10 @@ else
 
         var client = HttpClientFactory.CreateClient("ApiClient");
 
-        var r1 = await client.GetAsync("api/admin/systemconfig/maintenance-mode");
-        var r2 = await client.GetAsync("api/admin/systemconfig/maintenance-schedule");
-        var r3 = await client.GetAsync("api/admin/systemconfig/daily-reward-enabled");
-        var r4 = await client.GetAsync("api/admin/systemconfig/maintenance-status");
+        var r1 = await client.GetAsync(ApiRoutes.SystemConfig.MaintenanceMode);
+        var r2 = await client.GetAsync(ApiRoutes.SystemConfig.MaintenanceSchedule);
+        var r3 = await client.GetAsync(ApiRoutes.SystemConfig.DailyRewardEnabled);
+        var r4 = await client.GetAsync(ApiRoutes.SystemConfig.MaintenanceStatus);
 
         if (r1.IsSuccessStatusCode && r2.IsSuccessStatusCode && r3.IsSuccessStatusCode && r4.IsSuccessStatusCode)
         {
@@ -182,7 +184,7 @@ else
         maintenanceMessage = null;
         var enabled = (bool)(e.Value ?? false);
         var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.PutAsJsonAsync("api/admin/systemconfig/maintenance-mode", enabled);
+        var response = await client.PutAsJsonAsync(ApiRoutes.SystemConfig.MaintenanceMode, enabled);
 
         if (response.IsSuccessStatusCode)
         {
@@ -222,7 +224,7 @@ else
             StartAt = DateTime.SpecifyKind(scheduleStartAt, DateTimeKind.Local).ToUniversalTime(),
             EndAt = DateTime.SpecifyKind(scheduleEndAt, DateTimeKind.Local).ToUniversalTime()
         };
-        var response = await client.PutAsJsonAsync("api/admin/systemconfig/maintenance-schedule", payload);
+        var response = await client.PutAsJsonAsync(ApiRoutes.SystemConfig.MaintenanceSchedule, payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -243,7 +245,7 @@ else
         scheduleMessage = null;
         var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new { StartAt = (DateTime?)null, EndAt = (DateTime?)null };
-        var response = await client.PutAsJsonAsync("api/admin/systemconfig/maintenance-schedule", payload);
+        var response = await client.PutAsJsonAsync(ApiRoutes.SystemConfig.MaintenanceSchedule, payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -268,7 +270,7 @@ else
         dailyRewardMessage = null;
         var enabled = (bool)(e.Value ?? false);
         var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.PutAsJsonAsync("api/admin/systemconfig/daily-reward-enabled", enabled);
+        var response = await client.PutAsJsonAsync(ApiRoutes.SystemConfig.DailyRewardEnabled, enabled);
 
         if (response.IsSuccessStatusCode)
         {

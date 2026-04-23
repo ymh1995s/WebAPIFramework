@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.SignalR.Client
 @using Framework.Application.DTOs
 @using Framework.Domain.Enums
+@using Framework.Admin.Constants
 @inject IHttpClientFactory HttpClientFactory
 @inject IConfiguration Configuration
 @implements IAsyncDisposable
@@ -76,7 +77,7 @@
         // Api 서버의 SignalR 허브에 연결
         var baseUrl = Configuration["ApiBaseUrl"] ?? "http://localhost:5058";
         hubConnection = new HubConnectionBuilder()
-            .WithUrl($"{baseUrl}/hubs/matchmaking")
+            .WithUrl($"{baseUrl}{ApiRoutes.Hubs.Matchmaking}")
             .Build();
 
         // 대기 인원 변경 이벤트 수신
@@ -117,7 +118,7 @@
         }
 
         var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.PostAsJsonAsync("api/matchmaking", new JoinMatchRequestDto(userId, selectedTier));
+        var response = await client.PostAsJsonAsync(ApiRoutes.Matchmaking.Join, new JoinMatchRequestDto(userId, selectedTier));
 
         if (response.IsSuccessStatusCode)
         {
@@ -138,7 +139,7 @@
         if (string.IsNullOrWhiteSpace(userId)) return;
 
         var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.DeleteAsync($"api/matchmaking/{userId}");
+        var response = await client.DeleteAsync(ApiRoutes.Matchmaking.Cancel(userId));
 
         if (response.IsSuccessStatusCode)
         {

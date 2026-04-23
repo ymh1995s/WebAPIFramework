@@ -1,7 +1,9 @@
 @page "/ranking"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @rendermode InteractiveServer
+@inherits SafeComponentBase
 @inject IHttpClientFactory HttpClientFactory
+@using Framework.Admin.Constants
 
 <PageTitle>랭킹 조회</PageTitle>
 
@@ -70,7 +72,7 @@
         errorMessage = null;
 
         var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync($"api/ranking/top?count={count}");
+        var response = await client.GetAsync(ApiRoutes.Ranking.Top(count));
 
         if (response.IsSuccessStatusCode)
             rankings = await response.Content.ReadFromJsonAsync<List<RankingDto>>();

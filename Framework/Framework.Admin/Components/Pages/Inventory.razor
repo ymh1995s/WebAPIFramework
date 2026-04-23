@@ -1,7 +1,9 @@
 @page "/inventory"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @rendermode InteractiveServer
+@inherits SafeComponentBase
 @inject IHttpClientFactory HttpClientFactory
+@using Framework.Admin.Constants
 
 <PageTitle>인벤토리 조회</PageTitle>
 
@@ -74,7 +76,7 @@
         errorMessage = null;
 
         var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync($"api/players/{playerId}/items");
+        var response = await client.GetAsync(ApiRoutes.Players.Items(playerId));
 
         if (response.IsSuccessStatusCode)
             items = await response.Content.ReadFromJsonAsync<List<PlayerItemDto>>();

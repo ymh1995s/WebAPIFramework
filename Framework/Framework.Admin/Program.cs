@@ -2,9 +2,44 @@ using Framework.Admin.Components;
 using Framework.Admin.Handlers;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Serilog;
 using System.Security.Claims;
 
+// ─────────────────────────────────────────────────────────────
+// Serilog 설정
+//
+// UseSerilog()를 호출하면 ASP.NET Core 기본 로거(ILogger<T>)가
+// Serilog로 교체된다. 즉, 컴포넌트에서 ILogger<T>를 주입받아도
+// 실제로는 Serilog가 처리한다.
+//
+// [릴리즈 빌드 전용 파일 로그]
+// - 경로: logs/admin-.log (날짜별 롤링, 예: admin-20260423.log)
+// - 보관: 최대 30일 / 파일 1개당 최대 50MB
+// - Debug 빌드에서는 콘솔 로그만 출력하여 파일 I/O 오버헤드를 제거
+//
+// [왜 파일 로그를 DB보다 우선하는가]
+// DB 장애 자체가 크래시 원인인 경우, DB에 로그를 쓰는 시도도 실패한다.
+// 파일은 DB와 독립적으로 동작하므로 어떤 상황에서도 기록이 남는다.
+// ─────────────────────────────────────────────────────────────
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    // 개발/운영 공통: 콘솔 출력
+    .WriteTo.Console()
+#if !DEBUG
+    // 릴리즈 빌드 전용: 파일 롤링 로그
+    .WriteTo.File(
+        path: "logs/admin-.log",          // 날짜별 파일명 자동 생성
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 30,        // 30일치 보관
+        fileSizeLimitBytes: 50 * 1024 * 1024, // 파일당 최대 50MB
+        rollOnFileSizeLimit: true)         // 크기 초과 시 새 파일 생성
+#endif
+    .CreateLogger();
+
 var builder = WebApplication.CreateBuilder(args);
+
+// ASP.NET Core 기본 로거를 Serilog로 교체
+builder.Host.UseSerilog();
 
 // Razor 컴포넌트 및 인터랙티브 서버 렌더링 등록
 builder.Services.AddRazorComponents()
