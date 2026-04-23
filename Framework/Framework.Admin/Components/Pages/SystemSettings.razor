@@ -76,6 +76,29 @@ else
         }
     </section>
 
+    <!-- 클라이언트 앱 버전 설정 (서버 버전 아님) -->
+    <section class="mb-5">
+        <h4>클라이언트 앱 버전 관리</h4>
+        <p class="text-muted small">앱스토어에 배포된 Unity 클라이언트 빌드 버전 기준입니다. 서버 버전과 무관합니다.</p>
+        <div class="d-flex gap-3 align-items-end flex-wrap mb-2">
+            <div>
+                <label class="form-label">최소 지원 버전 — 이 미만은 강제 업데이트</label>
+                <input type="text" class="form-control" placeholder="예: 1.0.0"
+                       value="@minVersion" @onchange="e => minVersion = e.Value?.ToString() ?? string.Empty" />
+            </div>
+            <div>
+                <label class="form-label">최신 버전</label>
+                <input type="text" class="form-control" placeholder="예: 1.2.0"
+                       value="@latestVersion" @onchange="e => latestVersion = e.Value?.ToString() ?? string.Empty" />
+            </div>
+            <button class="btn btn-primary" @onclick="SaveVersion">저장</button>
+        </div>
+        @if (versionMessage != null)
+        {
+            <p class="mt-1 text-success">@versionMessage</p>
+        }
+    </section>
+
     <!-- 일일 보상 토글 -->
     <section class="mb-5">
         <h4>일일 로그인 보상 자동 발송</h4>
@@ -115,6 +138,11 @@ else
     private string? scheduleEndTime;
     private string? scheduleMessage;
 
+    // 버전 설정 상태
+    private string minVersion = "";
+    private string latestVersion = "";
+    private string? versionMessage;
+
     // 일일 보상 상태
     private bool dailyRewardEnabled;
     private string? dailyRewardMessage;
@@ -145,8 +173,9 @@ else
         var r2 = await client.GetAsync(ApiRoutes.SystemConfig.MaintenanceSchedule);
         var r3 = await client.GetAsync(ApiRoutes.SystemConfig.DailyRewardEnabled);
         var r4 = await client.GetAsync(ApiRoutes.SystemConfig.MaintenanceStatus);
+        var r5 = await client.GetAsync(ApiRoutes.SystemConfig.Version);
 
-        if (r1.IsSuccessStatusCode && r2.IsSuccessStatusCode && r3.IsSuccessStatusCode && r4.IsSuccessStatusCode)
+        if (r1.IsSuccessStatusCode && r2.IsSuccessStatusCode && r3.IsSuccessStatusCode && r4.IsSuccessStatusCode && r5.IsSuccessStatusCode)
         {
             maintenanceEnabled = (await r1.Content.ReadFromJsonAsync<ToggleDto>())?.Enabled ?? false;
             dailyRewardEnabled = (await r3.Content.ReadFromJsonAsync<ToggleDto>())?.Enabled ?? false;
@@ -155,6 +184,10 @@ else
             var schedule = await r2.Content.ReadFromJsonAsync<ScheduleDto>();
             currentStartAt = schedule?.StartAt;
             currentEndAt = schedule?.EndAt;
+
+            var version = await r5.Content.ReadFromJsonAsync<VersionDto>();
+            minVersion = version?.MinVersion ?? "";
+            latestVersion = version?.LatestVersion ?? "";
 
             // 입력 필드에 기존 예약 시각을 KST로 변환해서 날짜/시간 분리 채워둠
             if (currentStartAt.HasValue)
@@ -264,6 +297,37 @@ else
         }
     }
 
+    // 버전 설정 저장
+    private async Task SaveVersion()
+    {
+        versionMessage = null;
+        if (string.IsNullOrWhiteSpace(minVersion) || string.IsNullOrWhiteSpace(latestVersion))
+        {
+            errorMessage = "최소 버전과 최신 버전을 모두 입력해주세요.";
+            return;
+        }
+
+        // 버전 형식 유효성 검사 (예: 1.0.0)
+        if (!Version.TryParse(minVersion, out _) || !Version.TryParse(latestVersion, out _))
+        {
+            errorMessage = "버전 형식이 올바르지 않습니다. 예: 1.0.0";
+            return;
+        }
+
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var response = await client.PutAsJsonAsync(ApiRoutes.SystemConfig.Version, new { MinVersion = minVersion, LatestVersion = latestVersion });
+
+        if (response.IsSuccessStatusCode)
+        {
+            versionMessage = "버전 설정이 저장되었습니다.";
+            errorMessage = null;
+        }
+        else
+        {
+            errorMessage = "버전 설정 저장에 실패했습니다.";
+        }
+    }
+
     // 일일 보상 토글
     private async Task ToggleDailyReward(ChangeEventArgs e)
     {
@@ -287,4 +351,5 @@ else
     private record ToggleDto(bool Enabled);
     private record StatusDto(bool IsUnderMaintenance);
     private record ScheduleDto(DateTime? StartAt, DateTime? EndAt);
+    private record VersionDto(string MinVersion, string LatestVersion);
 }

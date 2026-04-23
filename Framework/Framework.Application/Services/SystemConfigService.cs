@@ -70,6 +70,35 @@ public class SystemConfigService : ISystemConfigService
         await _repository.SaveChangesAsync();
     }
 
+    // 클라이언트 앱 강제 업데이트 기준 최소 버전 조회 (미설정 시 "0.0.0" — 강제 업데이트 없음)
+    // 서버 버전이 아닌 앱스토어에 배포된 Unity 클라이언트 빌드 버전 기준
+    public async Task<string> GetClientAppMinVersionAsync()
+    {
+        var value = await _repository.GetValueAsync(SystemConfigKeys.ClientAppMinVersion);
+        return string.IsNullOrEmpty(value) ? "0.0.0" : value;
+    }
+
+    // 클라이언트 앱 강제 업데이트 기준 최소 버전 저장
+    public async Task SetClientAppMinVersionAsync(string version)
+    {
+        await _repository.SetValueAsync(SystemConfigKeys.ClientAppMinVersion, version);
+        await _repository.SaveChangesAsync();
+    }
+
+    // 앱스토어에 배포된 클라이언트 앱 최신 버전 조회 (미설정 시 빈 문자열)
+    public async Task<string> GetClientAppLatestVersionAsync()
+    {
+        var value = await _repository.GetValueAsync(SystemConfigKeys.ClientAppLatestVersion);
+        return value ?? "";
+    }
+
+    // 앱스토어에 배포된 클라이언트 앱 최신 버전 저장
+    public async Task SetClientAppLatestVersionAsync(string version)
+    {
+        await _repository.SetValueAsync(SystemConfigKeys.ClientAppLatestVersion, version);
+        await _repository.SaveChangesAsync();
+    }
+
     // 수동 ON 또는 현재 시각이 예약 범위 안에 있으면 점검 중으로 판단
     public async Task<bool> IsUnderMaintenanceAsync()
     {

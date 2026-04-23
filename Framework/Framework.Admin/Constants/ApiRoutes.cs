@@ -100,6 +100,9 @@ public static class ApiRoutes
 
         /// <summary>일일 보상 자동 발송 활성화 여부 조회(GET) / 변경(PUT)</summary>
         public const string DailyRewardEnabled = $"{Base}/daily-reward-enabled";
+
+        /// <summary>버전 설정 조회(GET) / 저장(PUT)</summary>
+        public const string Version = $"{Base}/version";
     }
 
     // ── 매치메이킹 (MatchMakingController: Route = "api/matchmaking") ──────

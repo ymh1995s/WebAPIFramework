@@ -26,26 +26,40 @@
                         (렌더링/라이프사이클/이벤트 핸들러)를 자동 catch.
                         Serilog 파일 로그 기록 + 사용자에게 친화적인 오류 카드 표시.
                         회로는 유지되므로 다른 페이지로 이동하면 정상 작동.
+                [주의] #if DEBUG를 마크업에 직접 쓰면 텍스트로 렌더링되므로
+                       @code 블록의 _isDebugBuild 상수를 @if로 참조한다.
             *@
-#if DEBUG
-            @Body
-#else
-            <SafeErrorBoundary>
-                <ChildContent>
-                    @Body
-                </ChildContent>
-                <ErrorContent>
-                    <div class="alert alert-danger mt-3" role="alert">
-                        <h5 class="alert-heading">오류가 발생했습니다</h5>
-                        <p class="mb-2">문제가 반복되면 관리자에게 문의해주세요.</p>
-                        <a href="." class="btn btn-primary btn-sm">새로고침</a>
-                    </div>
-                </ErrorContent>
-            </SafeErrorBoundary>
-#endif
+            @if (_isDebugBuild)
+            {
+                @Body
+            }
+            else
+            {
+                <SafeErrorBoundary>
+                    <ChildContent>
+                        @Body
+                    </ChildContent>
+                    <ErrorContent>
+                        <div class="alert alert-danger mt-3" role="alert">
+                            <h5 class="alert-heading">오류가 발생했습니다</h5>
+                            <p class="mb-2">문제가 반복되면 관리자에게 문의해주세요.</p>
+                            <a href="." class="btn btn-primary btn-sm">새로고침</a>
+                        </div>
+                    </ErrorContent>
+                </SafeErrorBoundary>
+            }
         </article>
     </main>
 </div>
+
+@code {
+    // 컴파일 타임에 결정되는 빌드 구분값 — 마크업에서 @if로 참조
+#if DEBUG
+    private const bool _isDebugBuild = true;
+#else
+    private const bool _isDebugBuild = false;
+#endif
+}
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.

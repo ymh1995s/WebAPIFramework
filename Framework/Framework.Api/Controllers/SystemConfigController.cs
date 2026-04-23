@@ -68,4 +68,21 @@ public class SystemConfigController : ControllerBase
     public async Task<IActionResult> GetMaintenanceStatus()
         => Ok(new { IsUnderMaintenance = await _systemConfigService.IsUnderMaintenanceAsync() });
 
+    // 클라이언트 앱 버전 설정 조회 (서버 버전 아님 — 앱스토어 배포 Unity 빌드 버전 기준)
+    [HttpGet("version")]
+    public async Task<IActionResult> GetVersion()
+    {
+        var minVersion = await _systemConfigService.GetClientAppMinVersionAsync();
+        var latestVersion = await _systemConfigService.GetClientAppLatestVersionAsync();
+        return Ok(new { MinVersion = minVersion, LatestVersion = latestVersion });
+    }
+
+    // 클라이언트 앱 버전 설정 저장
+    [HttpPut("version")]
+    public async Task<IActionResult> SetVersion([FromBody] VersionConfigDto dto)
+    {
+        await _systemConfigService.SetClientAppMinVersionAsync(dto.MinVersion);
+        await _systemConfigService.SetClientAppLatestVersionAsync(dto.LatestVersion);
+        return Ok();
+    }
 }
