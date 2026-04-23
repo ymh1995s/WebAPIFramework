@@ -74,7 +74,7 @@
     protected override async Task OnInitializedAsync()
     {
         // Api 서버의 SignalR 허브에 연결
-        var baseUrl = Configuration["ApiBaseUrl"] ?? "http://localhost:5058";
+        var baseUrl = Configuration["ApiBaseUrl"] ?? "https://localhost:7034";
         hubConnection = new HubConnectionBuilder()
             .WithUrl($"{baseUrl}{ApiRoutes.Hubs.Matchmaking}")
             .Build();

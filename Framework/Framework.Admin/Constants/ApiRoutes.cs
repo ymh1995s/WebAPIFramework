@@ -136,6 +136,27 @@ public static class ApiRoutes
         public static string Cancel(string userId) => $"{Base}/{userId}";
     }
 
+    // ── 문의 (InquiriesController: Route = "api/inquiries") ─────────────
+    public static class Inquiries
+    {
+        private const string Base = "api/inquiries";
+
+        /// <summary>문의 제출 (POST) / 내 문의 목록 (GET)</summary>
+        public const string Collection = Base;
+    }
+
+    // ── 문의 Admin (AdminInquiriesController: Route = "api/admin/inquiries") ──
+    public static class AdminInquiries
+    {
+        private const string Base = "api/admin/inquiries";
+
+        /// <summary>전체 문의 목록 조회 (GET)</summary>
+        public const string Collection = Base;
+
+        /// <summary>문의 답변 등록 (POST)</summary>
+        public static string Reply(int id) => $"{Base}/{id}/reply";
+    }
+
     // ── SignalR 허브 경로 ──────────────────────────────────────────────────
     public static class Hubs
     {

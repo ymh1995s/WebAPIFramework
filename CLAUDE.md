@@ -67,7 +67,7 @@ Any temporary values or placeholders must be explicitly listed here and updated 
 | `ConnectionStrings:Default` | `localhost/postgres` | 운영 DB 서버 주소/계정으로 교체 |
 
 ### [필수] Framework.Admin/appsettings.json 교체값
-- `ApiBaseUrl` — 현재 `http://localhost:5058`. 운영 서버 도메인으로 교체 필요
+- `ApiBaseUrl` — 현재 `https://localhost:7034`. 운영 서버 도메인으로 교체 필요
 - `Admin:Password` — 현재 `admin`. 운영 전 강력한 비밀번호로 교체 필요
 - `Admin:ApiKey` — 현재 `change-this-admin-key-in-production`. Framework.Api의 `Admin:ApiKey`와 동일한 값으로 설정 필요
 
@@ -88,7 +88,6 @@ Any temporary values or placeholders must be explicitly listed here and updated 
 
 ### [미구현] 추가 개발 필요 항목
 - **공지사항 페이지** [선택] — 현재는 1회성 텍스트 공지만 구현됨. 공지 이력 열람, 카테고리 분류 등 게시판 형태가 필요해지면 별도 페이지 추가 고려
-- **개발자 문의(To 개발자)** — 플레이어가 개발자에게 메시지를 보낼 수 있는 간단한 문의 기능
 - **감사 로그(Audit Log)** — 아이템 증감, 데이터 변경 이력 추적. 애플리케이션 레벨 구현 필요 (DB 백업으로는 변경 원인 추적 불가)
 - **백업 정책** — DB 백업은 애플리케이션 관할 아님. Docker로 운영 중인 PostgreSQL 컨테이너/볼륨 레벨에서 별도 설정 필요 (pg_dump, 볼륨 스냅샷 등). 최소 1일 1회 백업, 30일 보관 권장
 - **광고 보상 서버사이드 검증(SSV)** — 광고 시청 보상 지급 시 클라이언트 조작 방지를 위해 구글/애플 서버 검증 필요
@@ -115,6 +114,7 @@ Any temporary values or placeholders must be explicitly listed here and updated 
 | 계정 탈퇴 | DELETE /auth/withdraw, 플레이어 즉시 하드 삭제, CASCADE로 모든 연관 데이터 삭제 (개인정보보호법 제21조 준수) |
 | 클라이언트 앱 버전 체크 | GET /api/version/check, 강제 업데이트 여부 반환, Admin에서 최소/최신 버전 설정 (서버 버전 아님 — 앱스토어 배포 Unity 빌드 기준) |
 | 공지 시스템 | GET /api/notices/latest, 최신 활성 공지 1개 반환. 클라이언트가 NoticeId를 PlayerPrefs에 저장해 1회성 표시. Admin CRUD 관리 페이지 포함 |
+| 플레이어 문의 | POST /api/inquiries 제출, GET /api/inquiries 내 목록 조회. Admin 답변 등록. 소원수리함 형태(자유 텍스트). Blazor 테스트 페이지 포함 |
 
 ## COMMON
 <!--이하 모든 프로젝트의 CLAUDE.md에 적용 되는 규칙-->

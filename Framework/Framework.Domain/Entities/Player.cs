@@ -38,4 +38,7 @@ public class Player
 
     // 게임 플레이 기록
     public ICollection<PlayerRecord> Records { get; set; } = new List<PlayerRecord>();
+
+    // 소원수리함 문의 목록
+    public ICollection<Inquiry> Inquiries { get; set; } = new List<Inquiry>();
 }

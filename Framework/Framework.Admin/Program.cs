@@ -61,7 +61,7 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddTransient<AdminApiKeyHandler>();
 builder.Services.AddHttpClient("ApiClient", client =>
 {
-    client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5058");
+    client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "https://localhost:7034");
 }).AddHttpMessageHandler<AdminApiKeyHandler>();
 
 var app = builder.Build();

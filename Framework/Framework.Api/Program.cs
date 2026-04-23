@@ -43,11 +43,13 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddAuthRepositories();
 builder.Services.AddGameRepositories();
 builder.Services.AddNoticeRepositories();
+builder.Services.AddInquiryRepositories();
 
 // 서비스 등록
 builder.Services.AddAuthServices();
 builder.Services.AddGameServices();
 builder.Services.AddNoticeServices();
+builder.Services.AddInquiryServices();
 builder.Services.AddMatchMakingServices(builder.Configuration);
 
 // JWT 인증 설정
@@ -100,23 +102,6 @@ app.Use(async (context, next) =>
 // 인증 → 인가 순서 중요
 app.UseAuthentication();
 
-// Admin Key 인증 미들웨어 — 유효한 X-Admin-Key 요청은 모든 [Authorize] 엔드포인트 접근 허용
-app.Use(async (context, next) =>
-{
-    if (context.User.Identity?.IsAuthenticated != true)
-    {
-        var adminKey = context.Request.Headers["X-Admin-Key"].FirstOrDefault();
-        var expectedKey = context.RequestServices.GetRequiredService<IConfiguration>()["Admin:ApiKey"];
-        if (!string.IsNullOrEmpty(adminKey) && adminKey == expectedKey)
-        {
-            var claims = new[] { new System.Security.Claims.Claim("role", "Admin") };
-            var identity = new System.Security.Claims.ClaimsIdentity(claims, "AdminApiKey");
-            context.User = new System.Security.Claims.ClaimsPrincipal(identity);
-        }
-    }
-    await next();
-});
-
 #if DEBUG
 // 디버그 빌드 전용 - 릴리즈 빌드에서는 이 코드가 컴파일되지 않음
 // PlayerId = 1 로 고정된 가짜 인증을 주입하여 토큰 없이 API 테스트 가능
@@ -131,17 +116,14 @@ app.Use(async (context, next) =>
 
 app.UseAuthorization();
 
+// ─────────────────────────────────────────────────────────────
 // 전역 예외 처리 미들웨어 (릴리즈 빌드 전용)
 //
-// 목적 1 — 로깅: catch로 예외를 직접 잡으면 ASP.NET Core는 예외를 볼 수 없어
-//   자동 로깅이 동작하지 않는다. 따라서 이 미들웨어에서 직접 찍어야 한다.
-// 목적 2 — JSON 응답: 미들웨어 없이 500이 반환되면 바디가 비어있다.
-//   클라이언트(유니티)가 빈 바디를 역직렬화하려다 추가 오류가 발생하므로
-//   항상 JSON 형식으로 응답한다.
-// 목적 3 — HasStarted 가드: 스트리밍 등으로 응답이 이미 시작된 뒤 예외가 나면
-//   StatusCode 변경 자체가 또 예외를 던진다. 시작 여부를 먼저 확인한다.
-//
-// Debug 빌드에서는 ASP.NET Core 기본 오류 페이지가 상세 스택 트레이스를 보여주므로 적용하지 않는다.
+// [동작 방식]
+// 컨트롤러에서 처리되지 않은 예외가 이 미들웨어까지 버블링되면
+// Serilog로 기록한 뒤 클라이언트에게 500을 반환한다.
+// 스택 트레이스 등 내부 정보는 절대 클라이언트에 노출하지 않는다.
+// ─────────────────────────────────────────────────────────────
 #if !DEBUG
 app.Use(async (context, next) =>
 {
@@ -155,14 +137,10 @@ app.Use(async (context, next) =>
         var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
         logger.LogError(ex, "[API 오류] {Method} {Path}", context.Request.Method, context.Request.Path);
 
-        // 응답이 이미 클라이언트로 전송되기 시작했으면 StatusCode와 바디를 덮어쓸 수 없으므로
-        // 아래 세 줄(상태코드 500 설정, ContentType 설정, JSON 바디 쓰기)을 실행하지 않는다.
-        if (!context.Response.HasStarted)
-        {
-            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync("{\"message\":\"서버 내부 오류가 발생했습니다.\"}");
-        }
+        // 클라이언트에는 내부 정보를 노출하지 않고 일반 오류 응답만 반환
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsync("{\"message\":\"서버 내부 오류가 발생했습니다.\"}");
     }
 });
 #endif

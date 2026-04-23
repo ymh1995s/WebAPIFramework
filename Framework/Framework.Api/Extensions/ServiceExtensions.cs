@@ -56,6 +56,13 @@ public static class ServiceExtensions
         return services;
     }
 
+    // 저장소 등록 - 문의
+    public static IServiceCollection AddInquiryRepositories(this IServiceCollection services)
+    {
+        services.AddScoped<IInquiryRepository, InquiryRepository>();
+        return services;
+    }
+
     // 서비스 등록 - 인게임 관련
     public static IServiceCollection AddGameServices(this IServiceCollection services)
     {
@@ -73,6 +80,13 @@ public static class ServiceExtensions
     public static IServiceCollection AddNoticeServices(this IServiceCollection services)
     {
         services.AddScoped<INoticeService, NoticeService>();
+        return services;
+    }
+
+    // 서비스 등록 - 문의
+    public static IServiceCollection AddInquiryServices(this IServiceCollection services)
+    {
+        services.AddScoped<IInquiryService, InquiryService>();
         return services;
     }
 

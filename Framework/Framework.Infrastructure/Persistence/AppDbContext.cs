@@ -27,6 +27,9 @@ public class AppDbContext : DbContext
     // 공지 테이블
     public DbSet<Notice> Notices { get; set; }
 
+    // 소원수리함 테이블
+    public DbSet<Inquiry> Inquiries { get; set; }
+
     // 운영 로그 테이블
     public DbSet<RateLimitLog> RateLimitLogs { get; set; }
 
@@ -89,5 +92,11 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<DailyLoginLog>()
             .HasIndex(l => new { l.PlayerId, l.LoginDate })
             .IsUnique();
+
+        // Inquiry → Player (N:1), 플레이어 삭제 시 문의도 함께 삭제
+        modelBuilder.Entity<Inquiry>()
+            .HasOne(i => i.Player)
+            .WithMany(p => p.Inquiries)
+            .HasForeignKey(i => i.PlayerId);
     }
 }
