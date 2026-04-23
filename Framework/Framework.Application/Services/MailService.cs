@@ -11,12 +11,18 @@ public class MailService : IMailService
     private readonly IMailRepository _mailRepository;
     private readonly IPlayerRepository _playerRepository;
     private readonly IPlayerItemRepository _playerItemRepository;
+    private readonly IAuditLogService _auditLogService;
 
-    public MailService(IMailRepository mailRepository, IPlayerRepository playerRepository, IPlayerItemRepository playerItemRepository)
+    public MailService(
+        IMailRepository mailRepository,
+        IPlayerRepository playerRepository,
+        IPlayerItemRepository playerItemRepository,
+        IAuditLogService auditLogService)
     {
         _mailRepository = mailRepository;
         _playerRepository = playerRepository;
         _playerItemRepository = playerItemRepository;
+        _auditLogService = auditLogService;
     }
 
     // 내 우편함 조회 - JWT에서 추출한 PlayerId 기준
@@ -73,6 +79,7 @@ public class MailService : IMailService
         {
             // 기존 보유 아이템이면 수량 증가, 없으면 신규 추가
             var existing = await _playerItemRepository.GetByPlayerAndItemAsync(mail.PlayerId, mail.ItemId.Value);
+            var balanceBefore = existing?.Quantity ?? 0;
             if (existing is not null)
                 existing.Quantity += mail.ItemCount;
             else
@@ -83,6 +90,11 @@ public class MailService : IMailService
                     Quantity = mail.ItemCount
                 });
             await _playerItemRepository.SaveChangesAsync();
+
+            // 감사 로그 기록 — AuditLevel에 따라 서비스 내부에서 저장 여부 결정
+            await _auditLogService.RecordAsync(
+                mail.PlayerId, mail.ItemId.Value, "MailClaim",
+                mail.ItemCount, balanceBefore, balanceBefore + mail.ItemCount);
         }
 
         mail.IsClaimed = true;

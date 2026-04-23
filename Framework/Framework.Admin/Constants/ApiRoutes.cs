@@ -84,6 +84,26 @@ public static class ApiRoutes
         public const string Collection = "api/admin/rate-limit-logs";
     }
 
+    // ── 감사 로그 Admin (AdminAuditLogsController: Route = "api/admin/audit-logs") ──
+    public static class AdminAuditLogs
+    {
+        private const string Base = "api/admin/audit-logs";
+
+        /// <summary>필터/페이지네이션 기반 검색 (GET) — 지원 파라미터: playerId, itemId, from, to, isAnomaly, page, pageSize</summary>
+        public static string Search(int? playerId, int? itemId, DateTime? from, DateTime? to, bool? isAnomaly, int page, int pageSize)
+        {
+            var parts = new List<string>();
+            if (playerId.HasValue) parts.Add($"playerId={playerId.Value}");
+            if (itemId.HasValue) parts.Add($"itemId={itemId.Value}");
+            if (from.HasValue) parts.Add($"from={Uri.EscapeDataString(from.Value.ToString("o"))}");
+            if (to.HasValue) parts.Add($"to={Uri.EscapeDataString(to.Value.ToString("o"))}");
+            if (isAnomaly.HasValue) parts.Add($"isAnomaly={isAnomaly.Value.ToString().ToLower()}");
+            parts.Add($"page={page}");
+            parts.Add($"pageSize={pageSize}");
+            return $"{Base}?{string.Join("&", parts)}";
+        }
+    }
+
     // ── 시스템 설정 Admin (SystemConfigController: Route = "api/admin/systemconfig") ──
     public static class SystemConfig
     {

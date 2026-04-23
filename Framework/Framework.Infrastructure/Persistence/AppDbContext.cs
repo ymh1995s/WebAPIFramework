@@ -33,6 +33,9 @@ public class AppDbContext : DbContext
     // 운영 로그 테이블
     public DbSet<RateLimitLog> RateLimitLogs { get; set; }
 
+    // 감사 로그 테이블 — 재화/아이템 변동 추적
+    public DbSet<AuditLog> AuditLogs { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // SystemConfig: Key를 PK로 사용
@@ -98,5 +101,11 @@ public class AppDbContext : DbContext
             .HasOne(i => i.Player)
             .WithMany(p => p.Inquiries)
             .HasForeignKey(i => i.PlayerId);
+
+        // AuditLog: 플레이어별/시간순 조회 대비 인덱스
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(l => l.PlayerId);
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(l => l.CreatedAt);
     }
 }

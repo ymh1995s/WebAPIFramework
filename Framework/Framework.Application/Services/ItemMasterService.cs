@@ -19,7 +19,7 @@ public class ItemMasterService : IItemMasterService
     public async Task<List<ItemDto>> GetAllAsync()
     {
         var items = await _itemRepository.GetAllAsync();
-        return items.Select(i => new ItemDto(i.Id, i.Name, i.ItemType, i.Description)).ToList();
+        return items.Select(i => new ItemDto(i.Id, i.Name, i.ItemType, i.Description, i.AuditLevel, i.AnomalyThreshold)).ToList();
     }
 
     // 새 아이템 생성
@@ -29,11 +29,13 @@ public class ItemMasterService : IItemMasterService
         {
             Name = dto.Name,
             ItemType = dto.ItemType,
-            Description = dto.Description
+            Description = dto.Description,
+            AuditLevel = dto.AuditLevel,
+            AnomalyThreshold = dto.AnomalyThreshold
         };
         await _itemRepository.AddAsync(item);
         await _itemRepository.SaveChangesAsync();
-        return new ItemDto(item.Id, item.Name, item.ItemType, item.Description);
+        return new ItemDto(item.Id, item.Name, item.ItemType, item.Description, item.AuditLevel, item.AnomalyThreshold);
     }
 
     // 아이템 수정
@@ -45,6 +47,8 @@ public class ItemMasterService : IItemMasterService
         item.Name = dto.Name;
         item.ItemType = dto.ItemType;
         item.Description = dto.Description;
+        item.AuditLevel = dto.AuditLevel;
+        item.AnomalyThreshold = dto.AnomalyThreshold;
 
         _itemRepository.Update(item);
         await _itemRepository.SaveChangesAsync();

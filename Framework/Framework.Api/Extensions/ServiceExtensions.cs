@@ -37,6 +37,7 @@ public static class ServiceExtensions
         services.AddScoped<IDailyLoginLogRepository, DailyLoginLogRepository>();
         services.AddScoped<IDailyRewardConfigRepository, DailyRewardConfigRepository>();
         services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
+        services.AddScoped<IAuditLogRepository, AuditLogRepository>();
         return services;
     }
 
@@ -73,6 +74,7 @@ public static class ServiceExtensions
         services.AddScoped<ISystemConfigService, SystemConfigService>();
         services.AddScoped<IRankingService, RankingService>();
         services.AddScoped<IItemMasterService, ItemMasterService>();
+        services.AddScoped<IAuditLogService, AuditLogService>();
         return services;
     }
 
