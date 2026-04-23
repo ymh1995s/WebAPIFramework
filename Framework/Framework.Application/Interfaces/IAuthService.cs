@@ -17,4 +17,7 @@ public interface IAuthService
 
     // 게스트 계정에 구글 연동 - 기존 데이터 유지하면서 GoogleId 추가
     Task LinkGoogleAsync(int playerId, string idToken);
+
+    // 계정 탈퇴 - 플레이어 및 모든 연관 데이터 즉시 삭제
+    Task WithdrawAsync(int playerId);
 }

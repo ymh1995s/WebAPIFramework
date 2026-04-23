@@ -20,4 +20,7 @@ public interface IPlayerRepository
 
     // 플레이어 수정 (LastLoginAt 갱신 등)
     Task UpdateAsync(Player player);
+
+    // 플레이어 삭제 (계정 탈퇴 - 연관 데이터 CASCADE 삭제)
+    Task DeleteAsync(Player player);
 }

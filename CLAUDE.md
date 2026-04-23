@@ -87,17 +87,15 @@ Any temporary values or placeholders must be explicitly listed here and updated 
 | `Mails` | `ExpiresAt` | 만료 우편 정리 | 만료 처리 속도 개선 |
 
 ### [미구현] 추가 개발 필요 항목
-- **계정 탈퇴** — 플레이어 요청 시 개인정보 및 게임 데이터 삭제. 개인정보보호법 법적 의무
 - **공지사항** — 점검/업데이트 알림 등 클라이언트가 수신하는 공지 API 및 Admin 관리 페이지
 - **버전 체크** — 앱 버전 vs 최소 지원 버전 비교, 강제 업데이트 여부 반환
-- **점검 모드** — 점검 중 모든 API 요청 차단. SystemConfig 연동으로 Admin에서 on/off
 - **개발자 문의(To 개발자)** — 플레이어가 개발자에게 메시지를 보낼 수 있는 간단한 문의 기능
 - **감사 로그(Audit Log)** — 아이템 증감, 데이터 변경 이력 추적. 애플리케이션 레벨 구현 필요 (DB 백업으로는 변경 원인 추적 불가)
 - **백업 정책** — DB 백업은 애플리케이션 관할 아님. Docker로 운영 중인 PostgreSQL 컨테이너/볼륨 레벨에서 별도 설정 필요 (pg_dump, 볼륨 스냅샷 등). 최소 1일 1회 백업, 30일 보관 권장
 - **광고 보상 서버사이드 검증(SSV)** — 광고 시청 보상 지급 시 클라이언트 조작 방지를 위해 구글/애플 서버 검증 필요
 - **인앱 결제 영수증 검증** — Google Play / Apple IAP 결제 후 서버에서 영수증 진위 검증 필요
 - **이벤트 기간 관리** [중요도 낮음] — 기간 한정 이벤트 시작/종료 관리. 클라이언트가 현재 이벤트 진행 여부를 서버에 질의. 게임마다 구조가 달라 범용 설계 필요
-- **로그 수집 도구 연동** [중요도 낮음] — 현재 파일 로그(Serilog) 기반. 유저 증가 시 Seq(컨테이너 1개, .NET 친화적) 또는 Grafana+Loki(2개) 연동 권장. `Serilog.Sinks.Seq` 패키지 추가 + Program.cs 한 줄로 연동 가능
+- **로그/APM 도구 연동** [중요도 낮음] — 현재 파일 로그(Serilog) 기반. 유저 증가 시 ELK Stack + Elastic APM 연동 권장 (APM이 ELK 위에서 동작하므로 세트로 도입). 가벼운 대안으로 Seq(컨테이너 1개, .NET 친화적) 또는 Grafana+Loki 가능. Serilog 싱크 추가 + Program.cs 한 줄로 연동 가능
 
 ## Feature Status
 
@@ -114,6 +112,8 @@ Any temporary values or placeholders must be explicitly listed here and updated 
 | Admin 인증 | X-Admin-Key 헤더 기반 API 접근 제어 |
 | 시스템 설정 | 일일 보상 활성화 여부 Admin 제어 (SystemConfig) |
 | 어뷰징 방어 | Rate Limiting (IP 기준), 429 발생 시 DB 로그, Admin 보안 감시 페이지 |
+| 점검 모드 | 수동 ON/OFF 및 시각 예약, 미들웨어에서 503 차단, Admin은 점검 중에도 접근 가능 |
+| 계정 탈퇴 | DELETE /auth/withdraw, 플레이어 즉시 하드 삭제, CASCADE로 모든 연관 데이터 삭제 (개인정보보호법 제21조 준수) |
 
 ## COMMON
 <!--이하 모든 프로젝트의 CLAUDE.md에 적용 되는 규칙-->

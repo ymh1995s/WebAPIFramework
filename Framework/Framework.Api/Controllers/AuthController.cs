@@ -93,4 +93,15 @@ public class AuthController : ControllerBase
             return Conflict(ex.Message);
         }
     }
+
+    // 계정 탈퇴 - 플레이어 및 모든 연관 데이터 즉시 삭제
+    [Authorize]
+    [HttpDelete("withdraw")]
+    public async Task<IActionResult> Withdraw()
+    {
+        // JWT에서 현재 로그인한 플레이어 ID 추출
+        var playerId = int.Parse(User.FindFirst("playerId")!.Value);
+        await _authService.WithdrawAsync(playerId);
+        return NoContent();
+    }
 }

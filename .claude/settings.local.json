@@ -14,7 +14,9 @@
       "Bash(curl -s http://localhost:5058/api/playerrecords/1)",
       "Bash(docker rm framework-postgres *)",
       "Bash(docker rm objective_knuth *)",
-      "Bash(docker rmi 7ad98329d513 *)"
+      "Bash(docker rmi 7ad98329d513 *)",
+      "WebSearch",
+      "WebFetch(domain:www.law.go.kr)"
     ]
   }
 }

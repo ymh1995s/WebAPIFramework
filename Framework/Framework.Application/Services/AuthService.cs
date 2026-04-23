@@ -114,6 +114,15 @@ public class AuthService : IAuthService
         return await IssueTokensAsync(player, isNew);
     }
 
+    // 계정 탈퇴 - 플레이어 삭제 시 CASCADE로 모든 연관 데이터 삭제됨
+    public async Task WithdrawAsync(int playerId)
+    {
+        var player = await _playerRepo.GetByIdAsync(playerId)
+            ?? throw new InvalidOperationException("플레이어를 찾을 수 없습니다.");
+
+        await _playerRepo.DeleteAsync(player);
+    }
+
     // 게스트 계정에 구글 연동 - 기존 데이터 유지하면서 GoogleId 추가
     public async Task LinkGoogleAsync(int playerId, string idToken)
     {
