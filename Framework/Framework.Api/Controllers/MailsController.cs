@@ -26,11 +26,12 @@ public class MailsController : ControllerBase
         return Ok(result);
     }
 
-    // 우편 수령 - 아이템을 인벤토리로 이동
+    // 우편 수령 - 아이템을 인벤토리로 이동 (JWT에서 추출한 본인 PlayerId로 소유자 검증)
     [HttpPost("{id}/claim")]
     public async Task<IActionResult> Claim(int id)
     {
-        var success = await _mailService.ClaimAsync(id);
+        var playerId = int.Parse(User.FindFirst("playerId")!.Value);
+        var success = await _mailService.ClaimAsync(id, playerId);
         return success ? Ok() : BadRequest("이미 수령했거나 존재하지 않는 우편입니다.");
     }
 }

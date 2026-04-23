@@ -11,6 +11,6 @@ public interface IMailService
     Task SendAsync(SendMailDto dto);
     // 전체 플레이어에게 우편 일괄 발송
     Task BulkSendAsync(BulkSendMailDto dto);
-    // 우편 수령 → 아이템을 인벤토리에 추가
-    Task<bool> ClaimAsync(int mailId);
+    // 우편 수령 → 아이템을 인벤토리에 추가 (본인 우편 여부는 playerId로 검증)
+    Task<bool> ClaimAsync(int mailId, int playerId);
 }

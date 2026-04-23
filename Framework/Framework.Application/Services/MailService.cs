@@ -70,10 +70,11 @@ public class MailService : IMailService
     }
 
     // 우편 수령 → 인벤토리에 아이템 추가
-    public async Task<bool> ClaimAsync(int mailId)
+    // [보안] playerId로 본인 우편 여부 검증 — 타 유저 mailId로 남의 우편 조작 불가
+    public async Task<bool> ClaimAsync(int mailId, int playerId)
     {
         var mail = await _mailRepository.GetByIdAsync(mailId);
-        if (mail is null || mail.IsClaimed) return false;
+        if (mail is null || mail.PlayerId != playerId || mail.IsClaimed) return false;
 
         if (mail.ItemId.HasValue)
         {

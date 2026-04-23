@@ -19,23 +19,28 @@ public class MatchMakingController : ControllerBase
     }
 
     // POST api/matchmaking - 매칭 참가 요청
+    // 클라이언트가 보낸 UserId 필드는 무시하고 JWT의 PlayerId로 덮어씀 — 타 유저 사칭 방지
     [HttpPost]
     public async Task<IActionResult> Join([FromBody] JoinMatchRequestDto request)
     {
-        var result = await _matchMakingService.JoinAsync(request);
+        var playerId = int.Parse(User.FindFirst("playerId")!.Value);
+        var safeRequest = request with { UserId = playerId.ToString() };
+
+        var result = await _matchMakingService.JoinAsync(safeRequest);
 
         if (result.IsDuplicate) return Conflict(result);
         return Ok(result);
     }
 
-    // DELETE api/matchmaking/{userId} - 매칭 취소 요청
-    [HttpDelete("{userId}")]
-    public async Task<IActionResult> Cancel(string userId)
+    // DELETE api/matchmaking - 본인 매칭 취소 (JWT의 PlayerId 기준)
+    [HttpDelete]
+    public async Task<IActionResult> Cancel()
     {
-        var result = await _matchMakingService.CancelAsync(userId);
+        var playerId = int.Parse(User.FindFirst("playerId")!.Value);
+        var result = await _matchMakingService.CancelAsync(playerId.ToString());
 
         if (result is null)
-            return NotFound(new { Message = $"{userId} 는 대기열에 없습니다." });
+            return NotFound(new { Message = "대기열에 없습니다." });
 
         return Ok(result);
     }
