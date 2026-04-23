@@ -70,6 +70,24 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
+// ─────────────────────────────────────────────────────────────
+// DB 마이그레이션 자동 적용
+//
+// [목적]
+// Docker 컨테이너가 시작될 때 대기 중인 EF Core 마이그레이션을
+// 자동으로 DB에 반영한다. 최초 기동 시 테이블이 생성되고
+// 이후 마이그레이션이 추가될 때마다 재기동만으로 스키마가 최신화된다.
+//
+// [주의]
+// 소규모 운영 기준의 편의 기능이다. 유저가 크게 늘어나면
+// 무중단 배포 전략과 충돌할 수 있으므로 수동 적용으로 전환 고려.
+// ─────────────────────────────────────────────────────────────
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
+
 // 개발 환경에서만 OpenAPI 엔드포인트 활성화
 if (app.Environment.IsDevelopment())
 {

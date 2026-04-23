@@ -1,0 +1,55 @@
+# ─────────────────────────────────────────────────────────────
+# Framework.Api 운영 컨테이너 구성
+#
+# [구성 요소]
+# - db  : PostgreSQL 16, 외부 노출 없음 (api 컨테이너만 접근)
+# - api : Framework.Api, 호스트 5000번 포트에 노출
+#
+# [서비스간 통신]
+# 같은 compose 파일의 서비스는 자동으로 동일 네트워크에 속하며
+# 서비스 이름(db, api)이 호스트명으로 해석된다.
+# 예: api 컨테이너 내부에서 "Host=db" 로 DB에 접근 가능.
+#
+# [민감 정보]
+# 비밀번호/시크릿은 .env 파일에 정의한다 (.gitignore 처리 필수).
+# ─────────────────────────────────────────────────────────────
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: framework_db
+      POSTGRES_USER: framework_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      # 컨테이너가 재시작돼도 DB 데이터는 호스트의 이름있는 볼륨에 보존
+      - pgdata:/var/lib/postgresql/data
+    # ports 설정 없음 - DB는 외부/호스트에 절대 노출하지 않음
+    # api 컨테이너만 내부 네트워크로 접근 가능
+
+  api:
+    build:
+      context: ./Framework
+      dockerfile: Framework.Api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      # Production 환경으로 실행 - appsettings.Development.json 무시
+      ASPNETCORE_ENVIRONMENT: Production
+
+      # ASP.NET Core 설정을 환경변수로 주입
+      # 콜론(:) 대신 더블 언더스코어(__)를 사용하는 것이 표준 방식
+      ConnectionStrings__Default: "Host=db;Port=5432;Database=framework_db;Username=framework_user;Password=${POSTGRES_PASSWORD}"
+      Jwt__SecretKey: ${JWT_SECRET_KEY}
+      Admin__ApiKey: ${ADMIN_API_KEY}
+      Google__ClientId: ${GOOGLE_CLIENT_ID}
+    ports:
+      # 호스트 5000 → 컨테이너 8080
+      # 초기 테스트용. 최종적으로는 Caddy(443)가 이 포트를 프록시한다
+      - "5000:8080"
+
+volumes:
+  # 이름있는 볼륨 - 컨테이너 삭제해도 데이터 보존
+  pgdata:

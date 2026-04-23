@@ -1,0 +1,19 @@
+# 빌드 산출물 제외 - 컨테이너 안에서 다시 빌드하므로 불필요
+**/bin/
+**/obj/
+
+# IDE 설정 파일 제외
+**/.vs/
+**/*.user
+**/*.suo
+
+# 개발 환경 설정 제외 - 운영에서는 환경변수로 주입
+**/appsettings.Development.json
+
+# 로그 파일 제외
+**/logs/
+**/*.log
+
+# 도커 관련 파일 자체 제외
+**/Dockerfile
+**/.dockerignore
