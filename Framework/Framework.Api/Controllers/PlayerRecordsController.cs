@@ -31,7 +31,7 @@ public class PlayerRecordsController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
-    // 새 기록 저장
+    // 새 유저 기록 등록
     [HttpPost]
     public async Task<IActionResult> Create(CreatePlayerRecordDto dto)
     {

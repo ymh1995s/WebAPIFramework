@@ -4,9 +4,9 @@
 @inject IHttpClientFactory HttpClientFactory
 @using Framework.Admin.Constants
 
-<PageTitle>플레이어 기록</PageTitle>
+<PageTitle>플레이어 조회 및 등록</PageTitle>
 
-<h2>플레이어 기록 관리</h2>
+<h2>플레이어 조회 및 등록</h2>
 
 <!-- 전체 목록 -->
 <section class="mb-5">
@@ -16,13 +16,14 @@
         <table class="table table-striped">
             <thead>
                 <tr>
-                    <th>ID</th><th>닉네임</th><th>플레이 시간(초)</th><th>점수</th><th>등록일시</th>
+                    <th>ID</th><th>DeviceId</th><th>닉네임</th><th>Google 연동</th><th>생성일</th><th>마지막 로그인</th>
                 </tr>
             </thead>
             <tbody>
                 @for (int i = 0; i < pageSize; i++)
                 {
                     <tr class="skeleton-row">
+                        <td><span class="skeleton-cell"></span></td>
                         <td><span class="skeleton-cell"></span></td>
                         <td><span class="skeleton-cell"></span></td>
                         <td><span class="skeleton-cell"></span></td>
@@ -35,7 +36,7 @@
     }
     else if (pagedResult == null || !pagedResult.Items.Any())
     {
-        <p>등록된 기록이 없습니다.</p>
+        <p>등록된 플레이어가 없습니다.</p>
     }
     else
     {
@@ -43,21 +44,23 @@
             <thead>
                 <tr>
                     <th>ID</th>
+                    <th>DeviceId</th>
                     <th>닉네임</th>
-                    <th>플레이 시간(초)</th>
-                    <th>점수</th>
-                    <th>등록일시</th>
+                    <th>Google 연동</th>
+                    <th>생성일</th>
+                    <th>마지막 로그인</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach (var r in pagedResult.Items)
+                @foreach (var p in pagedResult.Items)
                 {
                     <tr>
-                        <td>@r.Id</td>
-                        <td>@r.Nickname</td>
-                        <td>@r.PlayTime</td>
-                        <td>@r.Score</td>
-                        <td>@r.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td>@p.Id</td>
+                        <td><code>@p.DeviceId</code></td>
+                        <td>@p.Nickname</td>
+                        <td>@(string.IsNullOrEmpty(p.GoogleId) ? "-" : "연동됨")</td>
+                        <td>@p.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td>@p.LastLoginAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
                     </tr>
                 }
             </tbody>
@@ -76,7 +79,7 @@
 <section class="mb-5">
     <h4>ID로 조회</h4>
     <div class="d-flex gap-2 mb-2">
-        <input type="number" class="form-control w-auto" placeholder="ID 입력" @bind="searchId" />
+        <input type="number" class="form-control w-auto" placeholder="플레이어 ID 입력" @bind="searchId" />
         <button class="btn btn-secondary" @onclick="SearchById">조회</button>
     </div>
     @if (searchResult != null)
@@ -85,19 +88,21 @@
             <thead>
                 <tr>
                     <th>ID</th>
+                    <th>DeviceId</th>
                     <th>닉네임</th>
-                    <th>플레이 시간(초)</th>
-                    <th>점수</th>
-                    <th>등록일시</th>
+                    <th>Google 연동</th>
+                    <th>생성일</th>
+                    <th>마지막 로그인</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
                     <td>@searchResult.Id</td>
+                    <td><code>@searchResult.DeviceId</code></td>
                     <td>@searchResult.Nickname</td>
-                    <td>@searchResult.PlayTime</td>
-                    <td>@searchResult.Score</td>
+                    <td>@(string.IsNullOrEmpty(searchResult.GoogleId) ? "-" : "연동됨")</td>
                     <td>@searchResult.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    <td>@searchResult.LastLoginAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
                 </tr>
             </tbody>
         </table>
@@ -108,18 +113,22 @@
     }
 </section>
 
-<!-- 신규 입력 -->
+<!-- 신규 등록 (게스트 로그인) -->
 <section class="mb-5">
-    <h4>신규 입력</h4>
-    <div class="d-flex flex-column gap-2" style="max-width: 320px;">
-        <input type="text" class="form-control" placeholder="닉네임" @bind="newNickname" />
-        <input type="number" class="form-control" placeholder="플레이 시간(초)" @bind="newPlayTime" step="0.1" />
-        <input type="number" class="form-control" placeholder="점수" @bind="newScore" />
-        <button class="btn btn-primary" @onclick="CreateRecord">등록</button>
+    <h4>신규 등록</h4>
+    <div class="d-flex flex-column gap-2" style="max-width: 400px;">
+        <div>
+            <label class="form-label">DeviceId</label>
+            <div class="d-flex gap-2">
+                <input type="text" class="form-control" placeholder="직접 입력 또는 자동 생성" @bind="newDeviceId" />
+                <button class="btn btn-outline-secondary" @onclick="GenerateDeviceId" style="white-space: nowrap;">자동 생성</button>
+            </div>
+        </div>
+        <button class="btn btn-primary" @onclick="RegisterGuest">게스트 등록</button>
     </div>
-    @if (createMessage != null)
+    @if (registerMessage != null)
     {
-        <p class="mt-2 @(createSuccess ? "text-success" : "text-danger")">@createMessage</p>
+        <p class="mt-2 @(registerSuccess ? "text-success" : "text-danger")">@registerMessage</p>
     }
 </section>
 
@@ -141,43 +150,36 @@
 
 @code {
     // 전체 목록 (페이지네이션)
-    private PagedResultDto? pagedResult;
+    private PlayerPagedResult? pagedResult;
     private int currentPage = 1;
     private const int pageSize = 20;
     private bool isLoading = true;
 
     // ID 조회
     private int searchId;
-    private PlayerRecordDto? searchResult;
+    private PlayerDto? searchResult;
     private string? searchError;
 
-    // 신규 입력
-    private string newNickname = "";
-    private float newPlayTime;
-    private int newScore;
-    private string? createMessage;
-    private bool createSuccess;
+    // 신규 등록
+    private string newDeviceId = "";
+    private string? registerMessage;
+    private bool registerSuccess;
 
-    // ★ 개선 전: OnInitializedAsync에서 전체 데이터를 한 번에 로드 → 데이터 많을수록 페이지 진입 블로킹
-    //   protected override async Task OnInitializedAsync() { await LoadAll(); }
-    //   private async Task LoadAll() { allRecords = await client.GetFromJsonAsync<List<PlayerRecordDto>>("api/playerrecords"); }
-    //
-    // ★ 개선 후: OnAfterRenderAsync(firstRender)로 페이지 먼저 렌더링 → 스켈레톤 표시 → 데이터 로드 후 StateHasChanged()
-    //   OnInitializedAsync에서 await하면 렌더링 자체가 블로킹되어 스켈레톤이 보이지 않음
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            await SafeExecute(LoadPaged, msg => createMessage = msg);
+            await SafeExecute(LoadPaged, msg => registerMessage = msg);
             StateHasChanged();
         }
     }
 
+    // 플레이어 목록 조회
     private async Task LoadPaged()
     {
         isLoading = true;
         var client = HttpClientFactory.CreateClient("ApiClient");
-        pagedResult = await client.GetFromJsonAsync<PagedResultDto>(ApiRoutes.PlayerRecords.Paged(currentPage, pageSize));
+        pagedResult = await client.GetFromJsonAsync<PlayerPagedResult>(ApiRoutes.AdminPlayers.Paged(currentPage, pageSize));
         isLoading = false;
     }
 
@@ -191,66 +193,66 @@
         if (pagedResult != null && currentPage < pagedResult.TotalPages) { currentPage++; await LoadPaged(); }
     }
 
+    // ID로 플레이어 단건 조회
     private async Task SearchById()
     {
         searchResult = null;
         searchError = null;
 
         var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(ApiRoutes.PlayerRecords.ById(searchId));
+        var response = await client.GetAsync(ApiRoutes.AdminPlayers.ById(searchId));
 
         if (response.IsSuccessStatusCode)
-            searchResult = await response.Content.ReadFromJsonAsync<PlayerRecordDto>();
+            searchResult = await response.Content.ReadFromJsonAsync<PlayerDto>();
         else
-            searchError = $"ID {searchId}에 해당하는 기록을 찾을 수 없습니다.";
+            searchError = $"ID {searchId}에 해당하는 플레이어를 찾을 수 없습니다.";
     }
 
-    private async Task CreateRecord()
+    // DeviceId 자동 생성
+    private void GenerateDeviceId()
     {
-        createMessage = null;
+        newDeviceId = Guid.NewGuid().ToString();
+    }
 
-        if (string.IsNullOrWhiteSpace(newNickname))
+    // 게스트 등록 — auth/guest 엔드포인트 호출
+    private async Task RegisterGuest()
+    {
+        registerMessage = null;
+
+        if (string.IsNullOrWhiteSpace(newDeviceId))
         {
-            createMessage = "닉네임을 입력해주세요.";
-            createSuccess = false;
+            registerMessage = "DeviceId를 입력하거나 자동 생성해주세요.";
+            registerSuccess = false;
             return;
         }
 
         var client = HttpClientFactory.CreateClient("ApiClient");
-        var payload = new { Nickname = newNickname, PlayTime = newPlayTime, Score = newScore };
-        var response = await client.PostAsJsonAsync(ApiRoutes.PlayerRecords.Create, payload);
+        var payload = new { DeviceId = newDeviceId };
+        var response = await client.PostAsJsonAsync(ApiRoutes.Auth.Guest, payload);
 
         if (response.IsSuccessStatusCode)
         {
-            createMessage = "등록되었습니다.";
-            createSuccess = true;
-            newNickname = "";
-            newPlayTime = 0;
-            newScore = 0;
-            await LoadPaged(); // 목록 갱신
+            var result = await response.Content.ReadFromJsonAsync<GuestLoginResponse>();
+            var status = result?.IsNewPlayer == true ? "신규 생성" : "기존 플레이어";
+            registerMessage = $"{status}됨 (PlayerId: {result?.PlayerId})";
+            registerSuccess = true;
+            newDeviceId = "";
+            await LoadPaged();
         }
         else
         {
-            createMessage = "등록에 실패했습니다.";
-            createSuccess = false;
+            registerMessage = "등록에 실패했습니다.";
+            registerSuccess = false;
         }
     }
 
-    // API 응답 매핑용 로컬 DTO
-    // record 미사용 시 아래와 동일:
-    /* private class PlayerRecordDto
-    {
-        public int Id { get; init; }
-        public string Nickname { get; init; } = "";
-        public float PlayTime { get; init; }
-        public int Score { get; init; }
-        public DateTime CreatedAt { get; init; }
-    } */
-    private record PlayerRecordDto(int Id, string Nickname, float PlayTime, int Score, DateTime CreatedAt);
+    // 로컬 DTO
+    private record PlayerDto(int Id, string DeviceId, string Nickname, string? GoogleId, DateTime CreatedAt, DateTime LastLoginAt);
 
-    // 페이지네이션 응답 매핑용 로컬 DTO
-    private record PagedResultDto(List<PlayerRecordDto> Items, int TotalCount, int Page, int PageSize)
+    private record PlayerPagedResult(List<PlayerDto> Items, int TotalCount, int Page, int PageSize)
     {
         public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
     }
+
+    private record GuestLoginResponse(string AccessToken, string RefreshToken, int PlayerId, bool IsNewPlayer);
 }

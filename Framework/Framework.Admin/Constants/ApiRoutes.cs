@@ -23,6 +23,18 @@ public static class ApiRoutes
         public const string Guest = "auth/guest";
     }
 
+    // ── 플레이어 Admin (AdminPlayersController: Route = "api/admin/players") ──
+    public static class AdminPlayers
+    {
+        private const string Base = "api/admin/players";
+
+        /// <summary>전체 플레이어 목록 페이지네이션 조회</summary>
+        public static string Paged(int page, int pageSize) => $"{Base}?page={page}&pageSize={pageSize}";
+
+        /// <summary>ID로 플레이어 단건 조회</summary>
+        public static string ById(int id) => $"{Base}/{id}";
+    }
+
     // ── 플레이어 기록 (PlayerRecordsController: Route = "api/playerrecords") ──
     public static class PlayerRecords
     {
