@@ -1,7 +1,15 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Framework.Application.DTOs;
 
 // 게스트 로그인 요청 DTO
-public record GuestLoginRequestDto(string DeviceId);
+public record GuestLoginRequestDto(
+    [Required]
+    [MinLength(8, ErrorMessage = "DeviceId는 최소 8자 이상이어야 합니다.")]
+    [MaxLength(64, ErrorMessage = "DeviceId는 64자를 초과할 수 없습니다.")]
+    [RegularExpression(@"^[a-zA-Z0-9\-_]+$", ErrorMessage = "DeviceId는 영문·숫자·하이픈·언더스코어만 허용됩니다.")]
+    string DeviceId
+);
 
 // 토큰 응답 DTO (로그인/재발급 공통)
 public record TokenResponseDto(string AccessToken, string RefreshToken, int PlayerId, bool IsNewPlayer);

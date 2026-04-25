@@ -38,7 +38,7 @@ public class AuthService : IAuthService
             player = new Player
             {
                 DeviceId = deviceId,
-                Nickname = $"Guest_{deviceId[..8]}"
+                Nickname = $"Guest_{deviceId[..Math.Min(8, deviceId.Length)]}"
             };
             await _playerRepo.AddAsync(player);
 
@@ -97,7 +97,7 @@ public class AuthService : IAuthService
             {
                 DeviceId = Guid.NewGuid().ToString(),
                 GoogleId = googleId,
-                Nickname = $"Player_{googleId[..8]}"
+                Nickname = $"Player_{googleId[..Math.Min(8, googleId.Length)]}"
             };
             await _playerRepo.AddAsync(player);
 

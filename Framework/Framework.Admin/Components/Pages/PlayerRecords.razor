@@ -123,6 +123,8 @@
                 <input type="text" class="form-control" placeholder="직접 입력 또는 자동 생성" @bind="newDeviceId" />
                 <button class="btn btn-outline-secondary" @onclick="GenerateDeviceId" style="white-space: nowrap;">자동 생성</button>
             </div>
+            <!-- DeviceId 입력 조건 안내 -->
+            <div class="form-text text-muted">영문·숫자만 사용 가능하며 최소 8자 이상이어야 합니다. (예: UUID 형식 권장)</div>
         </div>
         <button class="btn btn-primary" @onclick="RegisterGuest">게스트 등록</button>
     </div>
@@ -222,6 +224,22 @@
         if (string.IsNullOrWhiteSpace(newDeviceId))
         {
             registerMessage = "DeviceId를 입력하거나 자동 생성해주세요.";
+            registerSuccess = false;
+            return;
+        }
+
+        // 한글 포함 여부 검사
+        if (newDeviceId.Any(c => c >= '가' && c <= '힣' || c >= 'ᄀ' && c <= 'ᇿ' || c >= '㄰' && c <= '㆏'))
+        {
+            registerMessage = "DeviceId에 한글은 사용할 수 없습니다. 영문·숫자만 입력해주세요.";
+            registerSuccess = false;
+            return;
+        }
+
+        // 최소 길이 검사
+        if (newDeviceId.Length < 8)
+        {
+            registerMessage = "DeviceId는 최소 8자 이상이어야 합니다.";
             registerSuccess = false;
             return;
         }
