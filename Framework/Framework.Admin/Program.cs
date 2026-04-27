@@ -1,5 +1,6 @@
 using Framework.Admin.Components;
 using Framework.Admin.Handlers;
+using Framework.Admin.Logging;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Serilog;
@@ -57,12 +58,19 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
 
+// HTTP 로그 저장소 — Singleton으로 모든 컴포넌트가 동일 인스턴스를 공유
+builder.Services.AddSingleton<IHttpLogStore, InMemoryHttpLogStore>();
+
 // X-Admin-Key 헤더 자동 주입 핸들러 등록
 builder.Services.AddTransient<AdminApiKeyHandler>();
+// HTTP 로그 캡처 핸들러 — AdminApiKeyHandler 다음에 체인으로 삽입
+builder.Services.AddTransient<HttpLogCaptureHandler>();
 builder.Services.AddHttpClient("ApiClient", client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "https://localhost:7034");
-}).AddHttpMessageHandler<AdminApiKeyHandler>();
+})
+.AddHttpMessageHandler<AdminApiKeyHandler>()
+.AddHttpMessageHandler<HttpLogCaptureHandler>();
 
 var app = builder.Build();
 

@@ -143,11 +143,113 @@
     }
 
     .nav-scrollable {
-        /* Never collapse the sidebar for wide screens */
-        display: block;
-
-        /* Allow sidebar to scroll for tall menus */
+        /* 사이드바 전체 높이를 flex 컬럼으로 — 로그 패널이 나머지 공간을 채움 */
+        display: flex;
+        flex-direction: column;
         height: calc(100vh - 3.5rem);
-        overflow-y: auto;
+        overflow: hidden;
     }
 }
+
+/* ─── HTTP 로그 패널 ─── */
+
+/* 나머지 사이드바 공간을 모두 채우는 flex 컨테이너 */
+::deep .http-log-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.35);
+    font-size: 0.72rem;
+    color: #ccc;
+}
+
+/* 헤더 바 (제목 + 버튼 영역) */
+::deep .http-log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.35rem 0.75rem;
+    cursor: default;
+    user-select: none;
+}
+
+::deep .http-log-title {
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: #aaa;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+}
+
+/* 헤더 우측 버튼/토글 묶음 */
+::deep .http-log-actions {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+/* 펼침/접힘 토글 레이블 */
+::deep .http-log-toggle {
+    cursor: pointer;
+    color: #aaa;
+    font-size: 0.65rem;
+}
+
+/* 체크박스 자체는 숨김 */
+::deep .http-log-toggle input[type="checkbox"] {
+    display: none;
+}
+
+/* 지우기 버튼 */
+::deep .http-log-clear-btn {
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    color: #aaa;
+    font-size: 0.65rem;
+    padding: 0 0.4rem;
+    cursor: pointer;
+    line-height: 1.4rem;
+    transition: background 0.15s;
+}
+
+::deep .http-log-clear-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+/* 로그 본문 — 패널 남은 공간을 모두 차지, 세로 스크롤만 허용 */
+::deep .http-log-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0 0.5rem 0.5rem;
+}
+
+/* 로그가 없을 때 안내 문구 */
+::deep .http-log-empty {
+    color: #666;
+    text-align: center;
+    padding: 0.5rem 0;
+    font-style: italic;
+}
+
+/* 로그 텍스트 — 가로 스크롤 없이 줄바꿈 */
+::deep .http-log-pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-family: "Consolas", "Menlo", monospace;
+    font-size: 0.68rem;
+    line-height: 1.4;
+    color: #ccc;
+}
+
+/* 상태별 색상 */
+::deep .log-ok    { color: #6be26b; }
+::deep .log-warn  { color: #f0c040; }
+::deep .log-error { color: #f06060; }
+::deep .log-default { color: #ccc; }

@@ -1,0 +1,75 @@
+@implements IDisposable
+@inject IHttpLogStore LogStore
+
+@* Nav 사이드바 하단에 항상 펼쳐진 HTTP 로그 뷰어 패널 *@
+<div class="http-log-panel">
+    <div class="http-log-header">
+        <span class="http-log-title">HTTP 로그</span>
+        <button class="http-log-clear-btn" @onclick="OnClearClick" title="로그 지우기">지우기</button>
+    </div>
+
+    <div class="http-log-body">
+        @* 로그가 없을 때 안내 문구 *@
+        @if (_entries.Count == 0)
+        {
+            <div class="http-log-empty">API 요청이 없습니다.</div>
+        }
+        else
+        {
+            <pre class="http-log-pre">@foreach (var e in _entries)
+{
+    <span class="@e.CssClass">@FormatEntry(e)</span>
+}</pre>
+        }
+    </div>
+</div>
+
+@code {
+    // 현재 표시 중인 로그 항목 목록
+    private List<HttpLogEntry> _entries = [];
+
+    protected override void OnInitialized()
+    {
+        // 초기 로그 목록 로드 및 이벤트 구독
+        _entries = [.. LogStore.GetAll()];
+        LogStore.LogAdded += OnLogAdded;
+    }
+
+    /// <summary>
+    /// 새 로그 항목 추가 시 백그라운드 스레드에서 호출 — InvokeAsync로 안전하게 갱신
+    /// </summary>
+    private void OnLogAdded(HttpLogEntry entry)
+    {
+        InvokeAsync(() =>
+        {
+            _entries = [.. LogStore.GetAll()];
+            StateHasChanged();
+        });
+    }
+
+    /// <summary>
+    /// 지우기 버튼 클릭 — 저장소 및 목록 초기화
+    /// </summary>
+    private void OnClearClick()
+    {
+        LogStore.Clear();
+        _entries.Clear();
+    }
+
+    /// <summary>
+    /// 로그 항목을 한 줄 문자열로 변환
+    /// </summary>
+    private static string FormatEntry(HttpLogEntry e)
+    {
+        var time = e.Timestamp.ToString("HH:mm:ss");
+        var status = e.StatusCode == 0 ? "ERR" : e.StatusCode.ToString();
+        var error = e.ErrorMessage is not null ? $" ! {e.ErrorMessage}" : string.Empty;
+        return $"[{time}] {e.Method,-6} {status} {e.ElapsedMs,4}ms  {e.Url}{error}\n";
+    }
+
+    // 컴포넌트 해제 시 이벤트 구독 해제 — 메모리 누수 방지
+    public void Dispose()
+    {
+        LogStore.LogAdded -= OnLogAdded;
+    }
+}
