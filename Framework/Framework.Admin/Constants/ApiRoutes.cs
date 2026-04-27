@@ -33,6 +33,15 @@ public static class ApiRoutes
 
         /// <summary>ID로 플레이어 단건 조회</summary>
         public static string ById(int id) => $"{Base}/{id}";
+
+        /// <summary>DeviceId 또는 닉네임 부분 일치 검색</summary>
+        public static string Search(string keyword) => $"{Base}/search?keyword={Uri.EscapeDataString(keyword)}";
+
+        /// <summary>플레이어 밴 처리 (POST) — body: { bannedUntil: DateTime? }, null이면 영구 밴</summary>
+        public static string Ban(int id) => $"{Base}/{id}/ban";
+
+        /// <summary>플레이어 밴 해제 (POST)</summary>
+        public static string Unban(int id) => $"{Base}/{id}/unban";
     }
 
     // ── 플레이어 기록 (PlayerRecordsController: Route = "api/playerrecords") ──

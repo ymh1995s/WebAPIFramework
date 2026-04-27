@@ -41,6 +41,11 @@ public class AppDbContext : DbContext
         // SystemConfig: Key를 PK로 사용
         modelBuilder.Entity<SystemConfig>().HasKey(c => c.Key);
 
+        // Player: IsBanned 기본값 false 설정 (DB 컬럼 DEFAULT 보장)
+        modelBuilder.Entity<Player>()
+            .Property(p => p.IsBanned)
+            .HasDefaultValue(false);
+
         // Player: DeviceId 유니크 인덱스
         modelBuilder.Entity<Player>()
             .HasIndex(p => p.DeviceId)

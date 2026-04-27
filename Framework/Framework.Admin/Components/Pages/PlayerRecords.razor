@@ -4,25 +4,27 @@
 @inject IHttpClientFactory HttpClientFactory
 @using Framework.Admin.Constants
 
-<PageTitle>플레이어 조회 및 등록</PageTitle>
+<PageTitle>플레이어 관리</PageTitle>
 
-<h2>플레이어 조회 및 등록</h2>
+<h2>플레이어 관리</h2>
 
-<!-- 전체 목록 -->
+<!-- 플레이어 목록 -->
 <section class="mb-5">
-    <h4>전체 목록</h4>
+    <h4>플레이어 목록</h4>
     @if (isLoading)
     {
         <table class="table table-striped">
             <thead>
                 <tr>
-                    <th>ID</th><th>DeviceId</th><th>닉네임</th><th>Google 연동</th><th>생성일</th><th>마지막 로그인</th>
+                    <th>ID</th><th>DeviceId</th><th>닉네임</th><th>Google 연동</th><th>생성일</th><th>마지막 로그인</th><th>밴 상태</th><th>관리</th>
                 </tr>
             </thead>
             <tbody>
                 @for (int i = 0; i < pageSize; i++)
                 {
                     <tr class="skeleton-row">
+                        <td><span class="skeleton-cell"></span></td>
+                        <td><span class="skeleton-cell"></span></td>
                         <td><span class="skeleton-cell"></span></td>
                         <td><span class="skeleton-cell"></span></td>
                         <td><span class="skeleton-cell"></span></td>
@@ -49,6 +51,8 @@
                     <th>Google 연동</th>
                     <th>생성일</th>
                     <th>마지막 로그인</th>
+                    <th>밴 상태</th>
+                    <th>관리</th>
                 </tr>
             </thead>
             <tbody>
@@ -61,6 +65,28 @@
                         <td>@(string.IsNullOrEmpty(p.GoogleId) ? "-" : "연동됨")</td>
                         <td>@p.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
                         <td>@p.LastLoginAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <!-- 밴 상태: 정상이면 초록, 밴이면 빨강 -->
+                        <td>
+                            @if (p.IsBanned)
+                            {
+                                <span class="text-danger fw-semibold">@GetBanLabel(p)</span>
+                            }
+                            else
+                            {
+                                <span class="text-success">정상</span>
+                            }
+                        </td>
+                        <!-- 밴/밴 해제 버튼 -->
+                        <td>
+                            @if (!p.IsBanned)
+                            {
+                                <button class="btn btn-danger btn-sm" @onclick="() => BanPlayer(p.Id, null)">밴</button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-outline-secondary btn-sm" @onclick="() => UnbanPlayer(p.Id)">밴 해제</button>
+                            }
+                        </td>
                     </tr>
                 }
             </tbody>
@@ -75,47 +101,87 @@
     }
 </section>
 
-<!-- ID 조회 -->
+<!-- 플레이어 검색 -->
 <section class="mb-5">
-    <h4>ID로 조회</h4>
+    <h4>플레이어 검색</h4>
     <div class="d-flex gap-2 mb-2">
-        <input type="number" class="form-control w-auto" placeholder="플레이어 ID 입력" @bind="searchId" />
-        <button class="btn btn-secondary" @onclick="SearchById">조회</button>
+        <input type="text" class="form-control" style="max-width: 320px;"
+               placeholder="DeviceId 또는 닉네임 일부 입력"
+               @bind="searchKeyword"
+               @bind:event="oninput"
+               @onkeyup="OnSearchKeyUp" />
+        <button class="btn btn-secondary" @onclick="SearchByKeyword">검색</button>
+        <button class="btn btn-outline-secondary" @onclick="ClearSearch">초기화</button>
     </div>
-    @if (searchResult != null)
+    @if (isSearchMode)
     {
-        <table class="table table-bordered w-auto">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>DeviceId</th>
-                    <th>닉네임</th>
-                    <th>Google 연동</th>
-                    <th>생성일</th>
-                    <th>마지막 로그인</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>@searchResult.Id</td>
-                    <td><code>@searchResult.DeviceId</code></td>
-                    <td>@searchResult.Nickname</td>
-                    <td>@(string.IsNullOrEmpty(searchResult.GoogleId) ? "-" : "연동됨")</td>
-                    <td>@searchResult.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
-                    <td>@searchResult.LastLoginAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
-                </tr>
-            </tbody>
-        </table>
-    }
-    @if (searchError != null)
-    {
-        <p class="text-danger">@searchError</p>
+        @if (searchResults != null && searchResults.Any())
+        {
+            <p class="text-muted small">검색 결과 @searchResults.Count 건</p>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>DeviceId</th>
+                        <th>닉네임</th>
+                        <th>Google 연동</th>
+                        <th>생성일</th>
+                        <th>마지막 로그인</th>
+                        <th>밴 상태</th>
+                        <th>관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in searchResults)
+                    {
+                        <tr>
+                            <td>@p.Id</td>
+                            <td><code>@p.DeviceId</code></td>
+                            <td>@p.Nickname</td>
+                            <td>@(string.IsNullOrEmpty(p.GoogleId) ? "-" : "연동됨")</td>
+                            <td>@p.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                            <td>@p.LastLoginAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                            <!-- 밴 상태: 정상이면 초록, 밴이면 빨강 -->
+                            <td>
+                                @if (p.IsBanned)
+                                {
+                                    <span class="text-danger fw-semibold">@GetBanLabel(p)</span>
+                                }
+                                else
+                                {
+                                    <span class="text-success">정상</span>
+                                }
+                            </td>
+                            <!-- 밴/밴 해제 버튼 -->
+                            <td>
+                                @if (!p.IsBanned)
+                                {
+                                    <button class="btn btn-danger btn-sm" @onclick="() => BanPlayer(p.Id, null)">밴</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => UnbanPlayer(p.Id)">밴 해제</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else if (searchResults != null)
+        {
+            <p class="text-muted">검색 결과가 없습니다.</p>
+        }
+        @if (searchError != null)
+        {
+            <p class="text-danger">@searchError</p>
+        }
     }
 </section>
 
-<!-- 신규 등록 (게스트 로그인) -->
+<!-- 테스트 계정 등록 (Admin 전용 게스트 계정 생성) -->
 <section class="mb-5">
-    <h4>신규 등록</h4>
+    <h4>테스트 계정 등록</h4>
     <div class="d-flex flex-column gap-2" style="max-width: 400px;">
         <div>
             <label class="form-label">DeviceId</label>
@@ -157,10 +223,11 @@
     private const int pageSize = 20;
     private bool isLoading = true;
 
-    // ID 조회
-    private int searchId;
-    private PlayerDto? searchResult;
+    // DeviceId/닉네임 검색
+    private string searchKeyword = "";
+    private List<PlayerDto>? searchResults;
     private string? searchError;
+    private bool isSearchMode = false; // 검색 모드 여부 (true이면 검색 결과 패널 표시)
 
     // 신규 등록
     private string newDeviceId = "";
@@ -195,19 +262,70 @@
         if (pagedResult != null && currentPage < pagedResult.TotalPages) { currentPage++; await LoadPaged(); }
     }
 
-    // ID로 플레이어 단건 조회
-    private async Task SearchById()
+    // Enter 키 입력 시 검색 실행
+    private async Task OnSearchKeyUp(KeyboardEventArgs e)
     {
-        searchResult = null;
+        if (e.Key == "Enter") await SearchByKeyword();
+    }
+
+    // DeviceId 또는 닉네임 부분 일치 검색
+    private async Task SearchByKeyword()
+    {
+        searchResults = null;
         searchError = null;
+        isSearchMode = true;
+
+        if (string.IsNullOrWhiteSpace(searchKeyword))
+        {
+            // 검색어가 없으면 검색 모드 해제 후 전체 목록 표시
+            isSearchMode = false;
+            return;
+        }
 
         var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(ApiRoutes.AdminPlayers.ById(searchId));
+        var response = await client.GetAsync(ApiRoutes.AdminPlayers.Search(searchKeyword));
 
         if (response.IsSuccessStatusCode)
-            searchResult = await response.Content.ReadFromJsonAsync<PlayerDto>();
+            searchResults = await response.Content.ReadFromJsonAsync<List<PlayerDto>>();
         else
-            searchError = $"ID {searchId}에 해당하는 플레이어를 찾을 수 없습니다.";
+            searchError = "검색 중 오류가 발생했습니다.";
+    }
+
+    // 플레이어 밴 처리 — bannedUntil이 null이면 영구 밴
+    private async Task BanPlayer(int playerId, DateTime? bannedUntil)
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var payload = new { BannedUntil = bannedUntil };
+        var response = await client.PostAsJsonAsync(ApiRoutes.AdminPlayers.Ban(playerId), payload);
+        if (response.IsSuccessStatusCode)
+        {
+            // 목록 및 검색 결과 갱신
+            await LoadPaged();
+            if (isSearchMode && !string.IsNullOrWhiteSpace(searchKeyword))
+                await SearchByKeyword();
+        }
+    }
+
+    // 플레이어 밴 해제
+    private async Task UnbanPlayer(int playerId)
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var response = await client.PostAsJsonAsync(ApiRoutes.AdminPlayers.Unban(playerId), new { });
+        if (response.IsSuccessStatusCode)
+        {
+            await LoadPaged();
+            if (isSearchMode && !string.IsNullOrWhiteSpace(searchKeyword))
+                await SearchByKeyword();
+        }
+    }
+
+    // 검색 초기화 — 전체 목록으로 복귀
+    private void ClearSearch()
+    {
+        searchKeyword = "";
+        searchResults = null;
+        searchError = null;
+        isSearchMode = false;
     }
 
     // DeviceId 자동 생성
@@ -264,8 +382,8 @@
         }
     }
 
-    // 로컬 DTO
-    private record PlayerDto(int Id, string DeviceId, string Nickname, string? GoogleId, DateTime CreatedAt, DateTime LastLoginAt);
+    // 로컬 DTO — IsBanned/BannedUntil 포함
+    private record PlayerDto(int Id, string DeviceId, string Nickname, string? GoogleId, DateTime CreatedAt, DateTime LastLoginAt, bool IsBanned, DateTime? BannedUntil);
 
     private record PlayerPagedResult(List<PlayerDto> Items, int TotalCount, int Page, int PageSize)
     {
@@ -273,4 +391,12 @@
     }
 
     private record GuestLoginResponse(string AccessToken, string RefreshToken, int PlayerId, bool IsNewPlayer);
+
+    // 밴 상태 표시 문자열 — 기간 밴이면 해제 일시 함께 표기
+    private string GetBanLabel(PlayerDto p)
+    {
+        if (!p.IsBanned) return "정상";
+        if (p.BannedUntil.HasValue) return $"밴됨 (~{p.BannedUntil.Value.ToLocalTime():MM-dd HH:mm})";
+        return "영구밴";
+    }
 }

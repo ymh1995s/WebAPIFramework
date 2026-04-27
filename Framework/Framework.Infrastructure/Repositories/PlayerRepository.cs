@@ -44,6 +44,39 @@ public class PlayerRepository : IPlayerRepository
         await _db.SaveChangesAsync();
     }
 
+    // DeviceId 또는 닉네임 부분 일치 검색 — Admin 플레이어 검색 기능에서 사용
+    public async Task<List<Player>> SearchByKeywordAsync(string keyword)
+    {
+        var lower = keyword.ToLower();
+        return await _db.Players
+            .Where(p =>
+                p.DeviceId.ToLower().Contains(lower) ||
+                p.Nickname.ToLower().Contains(lower))
+            .ToListAsync();
+    }
+
+    // 플레이어 밴 처리 — IsBanned=true, BannedUntil 설정
+    public async Task BanAsync(int playerId, DateTime? bannedUntil)
+    {
+        var player = await _db.Players.FindAsync(playerId);
+        if (player is null) return;
+
+        player.IsBanned = true;
+        player.BannedUntil = bannedUntil; // null이면 영구 밴
+        await _db.SaveChangesAsync();
+    }
+
+    // 플레이어 밴 해제 — IsBanned=false, BannedUntil 초기화
+    public async Task UnbanAsync(int playerId)
+    {
+        var player = await _db.Players.FindAsync(playerId);
+        if (player is null) return;
+
+        player.IsBanned = false;
+        player.BannedUntil = null;
+        await _db.SaveChangesAsync();
+    }
+
     // 플레이어 삭제 - CASCADE로 연관 데이터 전부 삭제됨
     // [260423 기준] Players 행 삭제 시 아래 테이블이 자동 삭제됨:
     //   - RefreshTokens    : 로그인 토큰

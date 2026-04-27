@@ -21,6 +21,12 @@ public class Player
     // 마지막 로그인 일시 (UTC)
     public DateTime LastLoginAt { get; set; } = DateTime.UtcNow;
 
+    // 밴 여부 (기본값: false, 정상 계정)
+    public bool IsBanned { get; set; } = false;
+
+    // 밴 해제 일시 (null이면 영구 밴, 값이 있으면 해당 시각까지 기간 밴)
+    public DateTime? BannedUntil { get; set; }
+
     // 인게임 프로필 (1:1)
     public PlayerProfile? Profile { get; set; }
 

@@ -32,6 +32,11 @@ public class AuthService : IAuthService
         var player = await _playerRepo.GetByDeviceIdAsync(deviceId);
         var isNew = player is null;
 
+        // TODO: 밴 체크 — 로그인 허용 전 IsBanned 및 BannedUntil 검증 필요
+        //   예) if (player?.IsBanned == true && (player.BannedUntil == null || player.BannedUntil > DateTime.UtcNow))
+        //       throw new UnauthorizedAccessException("밴된 계정입니다.");
+        //   → 이 범위는 별도 작업으로 구현 예정
+
         if (isNew)
         {
             // 신규 플레이어 및 인게임 프로필 생성
