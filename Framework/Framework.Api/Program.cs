@@ -94,7 +94,11 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+// 개발 환경에서는 모바일 테스트를 위해 HTTPS 리다이렉트 비활성화
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 // Rate Limiter는 인증보다 앞에 위치해야 함
 app.UseRateLimiter();
