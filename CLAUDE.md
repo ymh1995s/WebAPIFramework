@@ -129,3 +129,11 @@ Every task follows: **Question -> Options -> Decision -> Draft -> Approval**
 - Agents MUST show drafts or summaries before requesting approval
 - Multi-file changes require explicit approval for the full changeset
 - No commits without user instruction
+
+## Agent Auto-Dispatch Rules
+
+- 신규 기능 설계 요청 → architect 에이전트 자동 사용
+- 코드 구현 요청 → programmer 에이전트 자동 사용
+- 검증/테스트 요청 → qa-reviewer 에이전트 자동 사용
+- 보안 검토 요청 → security-master 에이전트 자동 사용
+- 설계 완료 후 구현/검증은 순차 실행, qa-reviewer + security-master는 병렬 실행 가능

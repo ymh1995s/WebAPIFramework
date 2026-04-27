@@ -16,7 +16,8 @@
       "Bash(docker rm objective_knuth *)",
       "Bash(docker rmi 7ad98329d513 *)",
       "WebSearch",
-      "WebFetch(domain:www.law.go.kr)"
+      "WebFetch(domain:www.law.go.kr)",
+      "WebFetch(domain:docs.anthropic.com)"
     ]
   }
 }
