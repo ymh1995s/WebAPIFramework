@@ -5,69 +5,126 @@
 
 <PageTitle>아이템 변동 로그</PageTitle>
 
-<h2>아이템 변동 로그</h2>
+<h2 class="mb-2">아이템 변동 로그</h2>
 
-<!-- 필터 폼 -->
-<section class="mb-3">
-    <div class="d-flex gap-2 align-items-end flex-wrap">
-        <div>
-            <label class="form-label small">플레이어 ID</label>
-            <input type="number" class="form-control form-control-sm" @bind="filterPlayerId" style="width:110px" />
+<!-- 페이지 목적 및 이상치 기준 안내 -->
+<div class="alert alert-info py-2 small mb-3">
+    <strong>이 페이지는</strong> 플레이어의 모든 아이템 보유량 변동 내역(획득/소모)을 기록한 감사 로그입니다.
+    재화 관련 트랜잭션이 자동 기록되며, <strong>단일 변동량의 절대값이 아이템별 AnomalyThreshold를 초과</strong>하면
+    <span class="badge bg-warning text-dark">이상치</span>로 자동 마킹되어 어뷰징 감지에 활용됩니다.
+</div>
+
+<!-- 검색 필터 카드 -->
+<section class="card mb-3">
+    <div class="card-header py-2"><strong>검색 필터</strong></div>
+    <div class="card-body">
+        <div class="row g-3">
+            <!-- 대상 그룹 -->
+            <div class="col-md-4">
+                <div class="mb-2">
+                    <label class="form-label small mb-1">플레이어 ID</label>
+                    <input type="number" class="form-control form-control-sm" @bind="filterPlayerId" placeholder="예: 12345" />
+                    <div class="form-text small">특정 플레이어의 변동 내역만 조회</div>
+                </div>
+                <div>
+                    <label class="form-label small mb-1">아이템 ID</label>
+                    <input type="number" class="form-control form-control-sm" @bind="filterItemId" placeholder="예: 1001" />
+                    <div class="form-text small">특정 아이템의 변동 내역만 조회</div>
+                </div>
+            </div>
+
+            <!-- 기간 그룹 -->
+            <div class="col-md-5">
+                <div class="mb-2">
+                    <label class="form-label small mb-1">시작 일시 (KST)</label>
+                    <input type="datetime-local" class="form-control form-control-sm" @bind="filterFromLocal" />
+                    <div class="form-text small">이 시각 이후 발생 로그</div>
+                </div>
+                <div>
+                    <label class="form-label small mb-1">종료 일시 (KST)</label>
+                    <input type="datetime-local" class="form-control form-control-sm" @bind="filterToLocal" />
+                    <div class="form-text small">이 시각 이전 발생 로그</div>
+                </div>
+            </div>
+
+            <!-- 옵션 그룹 -->
+            <div class="col-md-3">
+                <div class="mb-2">
+                    <label class="form-label small mb-1">이상치 여부</label>
+                    <select class="form-select form-select-sm" @bind="filterAnomaly">
+                        <option value="">전체</option>
+                        <option value="true">이상치만</option>
+                        <option value="false">정상만</option>
+                    </select>
+                    <div class="form-text small">단일 변동량이 아이템별 AnomalyThreshold를 초과한 건만 필터링</div>
+                </div>
+                <div>
+                    <label class="form-label small mb-1">페이지 크기</label>
+                    <input type="number" class="form-control form-control-sm" @bind="pageSize" min="10" max="500" />
+                    <div class="form-text small">한 페이지 표시 건수 (10~500)</div>
+                </div>
+            </div>
         </div>
-        <div>
-            <label class="form-label small">아이템 ID</label>
-            <input type="number" class="form-control form-control-sm" @bind="filterItemId" style="width:110px" />
-        </div>
-        <div>
-            <label class="form-label small">시작 (KST)</label>
-            <input type="datetime-local" class="form-control form-control-sm" @bind="filterFromLocal" />
-        </div>
-        <div>
-            <label class="form-label small">종료 (KST)</label>
-            <input type="datetime-local" class="form-control form-control-sm" @bind="filterToLocal" />
-        </div>
-        <div>
-            <label class="form-label small">이상치</label>
-            <select class="form-select form-select-sm" @bind="filterAnomaly" style="width:110px">
-                <option value="">전체</option>
-                <option value="true">이상치만</option>
-                <option value="false">정상만</option>
-            </select>
-        </div>
-        <div>
-            <label class="form-label small">페이지 크기</label>
-            <input type="number" class="form-control form-control-sm" @bind="pageSize" style="width:90px" />
-        </div>
+    </div>
+    <div class="card-footer py-2 d-flex gap-2">
         <button class="btn btn-primary btn-sm" @onclick="Search">조회</button>
         <button class="btn btn-outline-secondary btn-sm" @onclick="Reset">초기화</button>
     </div>
 </section>
 
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger py-2 small">@errorMessage</div>
+}
+
 @if (isLoading)
 {
-    <p>불러오는 중...</p>
+    <p class="text-muted">불러오는 중...</p>
 }
 else if (result == null)
 {
-    <p class="text-muted">조회 버튼을 눌러주세요.</p>
+    <p class="text-muted">상단 필터를 설정한 후 <strong>조회</strong> 버튼을 눌러주세요.</p>
 }
 else if (!result.Items.Any())
 {
-    <p class="text-muted">조건에 맞는 감사 로그가 없습니다.</p>
+    <p class="text-muted">조건에 맞는 감사 로그가 없습니다. 필터를 완화해 보세요.</p>
 }
 else
 {
-    <table class="table table-sm table-striped">
+    <!-- 적용 필터 요약 -->
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+        <span class="small text-muted">적용된 필터:</span>
+        @foreach (var (label, value) in GetActiveFilters())
+        {
+            <span class="badge bg-light text-dark border">@label: <strong>@value</strong></span>
+        }
+        <span class="ms-auto small text-muted">총 <strong>@result.TotalCount</strong> 건</span>
+    </div>
+
+    <!-- 사유 / 변동량 범례 -->
+    <div class="small text-muted mb-2">
+        <strong>사유:</strong>
+        <span class="badge bg-primary">MailClaim</span> 메일 수령 ·
+        <span class="badge bg-warning text-dark">AdminGrant</span> 운영 지급 ·
+        <span class="badge bg-success">ShopPurchase</span> 상점 구매 ·
+        <span class="badge bg-secondary">기타</span>
+        &nbsp;|&nbsp;
+        <strong>변동량:</strong>
+        <span class="text-success">+ 획득</span> /
+        <span class="text-danger">− 소모</span>
+    </div>
+
+    <table class="table table-sm table-striped table-hover">
         <thead>
             <tr>
-                <th>ID</th>
-                <th>플레이어</th>
-                <th>아이템</th>
-                <th>사유</th>
-                <th>변동량</th>
-                <th>Before → After</th>
-                <th>이상치</th>
-                <th>발생 (KST)</th>
+                <th title="감사 로그 고유 ID">ID</th>
+                <th title="변동이 발생한 플레이어">플레이어</th>
+                <th title="변동된 아이템">아이템</th>
+                <th title="변동이 발생한 사유 (MailClaim·AdminGrant·ShopPurchase 등)">사유</th>
+                <th title="이번 변동의 수량 (양수=획득, 음수=소모)">변동량</th>
+                <th title="변동 전 → 변동 후 보유량">Before → After</th>
+                <th title="서버 임계값을 초과한 어뷰징 의심 변동">이상치</th>
+                <th title="발생 시각 (한국 표준시)">발생 (KST)</th>
             </tr>
         </thead>
         <tbody>
@@ -76,19 +133,19 @@ else
                 <tr class="@(log.IsAnomaly ? "table-warning" : "")">
                     <td>@log.Id</td>
                     <td>@log.PlayerId</td>
-                    <td>@log.ItemId (@log.ItemName)</td>
-                    <td>@log.Reason</td>
-                    <td class="@(log.ChangeAmount >= 0 ? "text-success" : "text-danger")">
+                    <td>@log.ItemId <span class="text-muted small">(@log.ItemName)</span></td>
+                    <td><span class="badge @ReasonBadgeClass(log.Reason)">@log.Reason</span></td>
+                    <td class="@(log.ChangeAmount >= 0 ? "text-success" : "text-danger") fw-bold">
                         @(log.ChangeAmount >= 0 ? "+" : "")@log.ChangeAmount
                     </td>
-                    <td>@log.BalanceBefore → @log.BalanceAfter</td>
+                    <td class="small">@log.BalanceBefore <span class="text-muted">→</span> @log.BalanceAfter</td>
                     <td>
                         @if (log.IsAnomaly)
                         {
-                            <span class="badge bg-warning text-dark">이상치</span>
+                            <span class="badge bg-warning text-dark" title="단일 변동량의 절대값이 아이템별 AnomalyThreshold를 초과했습니다">이상치</span>
                         }
                     </td>
-                    <td class="small">@ToKst(log.CreatedAt)</td>
+                    <td class="small text-nowrap">@ToKst(log.CreatedAt)</td>
                 </tr>
             }
         </tbody>
@@ -97,12 +154,7 @@ else
     <!-- 페이지네이션 -->
     <div class="d-flex gap-2 align-items-center">
         <button class="btn btn-outline-secondary btn-sm" @onclick="PrevPage" disabled="@(page <= 1)">이전</button>
-        <span class="small">@(page) / @result.TotalPages (총 @result.TotalCount 건)</span>
+        <span class="small">@(page) / @result.TotalPages 페이지</span>
         <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@(page >= result.TotalPages)">다음</button>
     </div>
-}
-
-@if (errorMessage != null)
-{
-    <p class="text-danger mt-2">@errorMessage</p>
 }

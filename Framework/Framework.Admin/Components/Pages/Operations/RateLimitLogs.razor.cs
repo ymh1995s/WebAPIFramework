@@ -7,7 +7,8 @@ namespace Framework.Admin.Components.Pages.Operations;
 
 /// <summary>
 /// 보안 감시(Rate Limit 로그) 페이지 코드-비하인드.
-/// Rate Limit 초과 로그 조회 및 침투 시도 테스트를 담당한다.
+/// 로그 기록 조건: 동일 IP가 인증 엔드포인트(/auth/guest)에 1분 내 10회를 초과 요청할 때 서버에 자동 기록됨.
+/// 이 페이지에서는 IP별 누적 초과 횟수·마지막 발생 시각 조회 및 침투 시도 테스트를 제공한다.
 /// </summary>
 public partial class RateLimitLogs : SafeComponentBase
 {
@@ -23,7 +24,7 @@ public partial class RateLimitLogs : SafeComponentBase
     private bool isAttacking;
     private List<AttackResult> attackResults = [];
 
-    /// <summary>로그 목록 조회</summary>
+    /// <summary>Rate Limit 초과 로그 목록 조회 — 서버에 누적된 IP별 초과 기록을 반환</summary>
     private async Task LoadLogs()
     {
         isLoading = true;
@@ -40,7 +41,10 @@ public partial class RateLimitLogs : SafeComponentBase
         isLoading = false;
     }
 
-    /// <summary>auth 엔드포인트에 15회 연속 요청 — Rate Limit 초과 유도</summary>
+    /// <summary>
+    /// 침투 시도 테스트 — auth 엔드포인트에 15회 연속 요청하여 Rate Limit(10회/분) 초과를 유도.
+    /// 11번째 요청부터 HTTP 429 응답이 반환되고, 서버에 해당 IP의 로그가 기록된다.
+    /// </summary>
     private async Task RunAttackTest()
     {
         isAttacking = true;
