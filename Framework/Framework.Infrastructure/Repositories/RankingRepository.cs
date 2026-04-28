@@ -13,20 +13,21 @@ public class RankingRepository : IRankingRepository
         _db = db;
     }
 
-    // 플레이어별 최고 점수 기준 상위 N명 조회
-    public async Task<List<(int PlayerId, string Nickname, int BestScore)>> GetTopRankingsAsync(int count)
+    // 플레이어별 최고 점수 기준 상위 N명 조회 — PublicId 포함 (내부 Id 직접 반환 금지)
+    public async Task<List<(int PlayerId, Guid PublicId, string Nickname, int BestScore)>> GetTopRankingsAsync(int count)
     {
         return await _db.PlayerRecords
-            .GroupBy(r => new { r.PlayerId, r.Player.Nickname })
+            .GroupBy(r => new { r.PlayerId, r.Player.PublicId, r.Player.Nickname })
             .Select(g => new
             {
                 g.Key.PlayerId,
+                g.Key.PublicId,
                 g.Key.Nickname,
                 BestScore = g.Max(r => r.Score)
             })
             .OrderByDescending(x => x.BestScore)
             .Take(count)
-            .Select(x => ValueTuple.Create(x.PlayerId, x.Nickname, x.BestScore))
+            .Select(x => ValueTuple.Create(x.PlayerId, x.PublicId, x.Nickname, x.BestScore))
             .ToListAsync();
     }
 

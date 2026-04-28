@@ -16,15 +16,19 @@ public class JwtTokenProvider : IJwtTokenProvider
         _config = config;
     }
 
-    // AccessToken 생성 - 플레이어 ID를 Claim에 포함
-    public string GenerateAccessToken(int playerId)
+    // AccessToken 생성 - 내부 정수 Id는 서버 내부에서만 사용하고, 공개 식별자(publicId)만 클레임에 포함
+    // playerId는 DB 조회용으로 저장만 하며 클라이언트에 노출하지 않음
+    public string GenerateAccessToken(int playerId, Guid publicId)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:SecretKey"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
+        // playerId: 서버 내부 처리용 클레임 (미들웨어에서 int로 파싱하여 DB 조회에 사용)
+        // publicId: 클라이언트에 반환하는 공개 식별자 클레임
         var claims = new[]
         {
             new Claim("playerId", playerId.ToString()),
+            new Claim("publicId", publicId.ToString()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 

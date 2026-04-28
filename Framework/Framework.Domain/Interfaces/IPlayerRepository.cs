@@ -32,4 +32,16 @@ public interface IPlayerRepository
 
     // 플레이어 삭제 (계정 탈퇴 - 연관 데이터 CASCADE 삭제)
     Task DeleteAsync(Player player);
+
+    // 플레이어 소프트 딜리트 — 계정 병합 시 게스트 계정을 논리 삭제하고 병합 대상 ID 기록
+    Task SoftDeleteAsync(Player player, int mergedIntoPlayerId);
+
+    // 소프트 딜리트된 계정을 포함한 전체 플레이어 목록 조회 (Admin 전용)
+    Task<List<Player>> GetAllIncludingDeletedAsync();
+
+    // 소프트 딜리트된 계정을 포함하여 키워드로 검색 (Admin 전용)
+    Task<List<Player>> SearchByKeywordIncludingDeletedAsync(string keyword);
+
+    // 소프트 딜리트된 계정을 포함하여 ID로 조회 (Admin 전용)
+    Task<Player?> GetByIdIncludingDeletedAsync(int id);
 }

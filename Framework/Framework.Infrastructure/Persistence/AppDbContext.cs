@@ -46,15 +46,40 @@ public class AppDbContext : DbContext
             .Property(p => p.IsBanned)
             .HasDefaultValue(false);
 
-        // Player: DeviceId 유니크 인덱스
+        // Player: IsDeleted 기본값 false 설정
         modelBuilder.Entity<Player>()
-            .HasIndex(p => p.DeviceId)
+            .Property(p => p.IsDeleted)
+            .HasDefaultValue(false);
+
+        // Global Query Filter — 소프트 딜리트된 계정은 일반 쿼리에서 자동 제외
+        // Admin이나 특수 목적 조회는 IgnoreQueryFilters()로 우회
+        modelBuilder.Entity<Player>().HasQueryFilter(p => !p.IsDeleted);
+
+        // Player: PublicId 글로벌 Unique Index — 외부 공개 식별자 충돌 방지 (소프트 딜리트 포함 전체 유일)
+        modelBuilder.Entity<Player>()
+            .HasIndex(p => p.PublicId)
             .IsUnique();
 
-        // Player: GoogleId 유니크 인덱스 (null 허용)
+        // Player: DeviceId Partial Unique Index — 소프트 딜리트되지 않은 계정만 유니크 보장
+        modelBuilder.Entity<Player>()
+            .HasIndex(p => p.DeviceId)
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = false");
+
+        // Player: GoogleId Partial Unique Index — 소프트 딜리트되지 않은 계정만 유니크 보장
+        // 동일 GoogleId로 소프트 딜리트 계정이 있어도 신규 계정 생성 가능
         modelBuilder.Entity<Player>()
             .HasIndex(p => p.GoogleId)
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = false");
+
+        // Player: MergedIntoPlayerId 자가참조 FK (ON DELETE SET NULL)
+        // 병합 대상 계정이 탈퇴하면 MergedIntoPlayerId를 null로 초기화
+        modelBuilder.Entity<Player>()
+            .HasOne<Player>()
+            .WithMany()
+            .HasForeignKey(p => p.MergedIntoPlayerId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // RefreshToken: Token 유니크 인덱스
         modelBuilder.Entity<RefreshToken>()

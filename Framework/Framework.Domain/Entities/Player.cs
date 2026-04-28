@@ -3,8 +3,11 @@ namespace Framework.Domain.Entities;
 // 플레이어 계정 엔티티 (인증 전용)
 public class Player
 {
-    // 기본 키
+    // 기본 키 (내부용 정수 PK — 외부에 절대 노출하지 않음)
     public int Id { get; set; }
+
+    // 외부 공개용 플레이어 식별자 (UUID) — API 응답·JWT 클레임에 사용하여 내부 Id 은닉
+    public Guid PublicId { get; set; } = Guid.NewGuid();
 
     // 게스트 로그인용 기기 식별자 (UUID)
     public string DeviceId { get; set; } = string.Empty;
@@ -47,4 +50,14 @@ public class Player
 
     // 소원수리함 문의 목록
     public ICollection<Inquiry> Inquiries { get; set; } = new List<Inquiry>();
+
+    // 소프트 딜리트 여부 (계정 병합 시 게스트 계정을 논리적으로 삭제)
+    public bool IsDeleted { get; set; } = false;
+
+    // 소프트 딜리트 처리 일시 (UTC) — null이면 정상 계정
+    public DateTime? DeletedAt { get; set; }
+
+    // 병합된 대상 플레이어 ID — 이 계정이 삭제되어 다른 계정으로 합쳐진 경우 대상 계정 ID 참조
+    // 자가참조 FK (ON DELETE SET NULL): 대상 계정이 삭제되면 null로 초기화
+    public int? MergedIntoPlayerId { get; set; }
 }

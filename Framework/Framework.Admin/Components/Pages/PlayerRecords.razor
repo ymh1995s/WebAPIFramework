@@ -16,13 +16,16 @@
         <table class="table table-striped">
             <thead>
                 <tr>
-                    <th>ID</th><th>DeviceId</th><th>닉네임</th><th>Google 연동</th><th>생성일</th><th>마지막 로그인</th><th>밴 상태</th><th>관리</th>
+                    <th>ID</th><th>PublicId</th><th>DeviceId</th><th>닉네임</th><th>Google 연동</th><th>생성일</th><th>마지막 로그인</th><th>밴 상태</th><th>삭제됨</th><th>병합 대상 ID</th><th>관리</th>
                 </tr>
             </thead>
             <tbody>
                 @for (int i = 0; i < pageSize; i++)
                 {
                     <tr class="skeleton-row">
+                        <td><span class="skeleton-cell"></span></td>
+                        <td><span class="skeleton-cell"></span></td>
+                        <td><span class="skeleton-cell"></span></td>
                         <td><span class="skeleton-cell"></span></td>
                         <td><span class="skeleton-cell"></span></td>
                         <td><span class="skeleton-cell"></span></td>
@@ -46,20 +49,25 @@
             <thead>
                 <tr>
                     <th>ID</th>
+                    <th>PublicId</th>
                     <th>DeviceId</th>
                     <th>닉네임</th>
                     <th>Google 연동</th>
                     <th>생성일</th>
                     <th>마지막 로그인</th>
                     <th>밴 상태</th>
+                    <th>삭제됨</th>
+                    <th>병합 대상 ID</th>
                     <th>관리</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (var p in pagedResult.Items)
                 {
-                    <tr>
+                    <!-- 소프트 딜리트 계정은 시각적으로 구분 (회색 + 취소선) -->
+                    <tr class="@(p.IsDeleted ? "text-muted text-decoration-line-through" : "")">
                         <td>@p.Id</td>
+                        <td><code class="small">@p.PublicId</code></td>
                         <td><code>@p.DeviceId</code></td>
                         <td>@p.Nickname</td>
                         <td>@(string.IsNullOrEmpty(p.GoogleId) ? "-" : "연동됨")</td>
@@ -76,9 +84,17 @@
                                 <span class="text-success">정상</span>
                             }
                         </td>
-                        <!-- 밴/밴 해제 버튼 -->
+                        <!-- IsDeleted 원시 값 (true/false) -->
+                        <td>@(p.IsDeleted ? "true" : "false")</td>
+                        <!-- MergedIntoPlayerId 원시 값 (병합 흡수된 대상 PlayerA의 int Id) -->
+                        <td>@(p.MergedIntoPlayerId?.ToString() ?? "-")</td>
+                        <!-- 밴/밴 해제 버튼 (소프트 딜리트 계정은 비활성화) -->
                         <td>
-                            @if (!p.IsBanned)
+                            @if (p.IsDeleted)
+                            {
+                                <span class="text-muted small">삭제됨</span>
+                            }
+                            else if (!p.IsBanned)
                             {
                                 <button class="btn btn-danger btn-sm" @onclick="() => BanPlayer(p.Id, null)">밴</button>
                             }
@@ -122,20 +138,24 @@
                 <thead>
                     <tr>
                         <th>ID</th>
+                        <th>PublicId</th>
                         <th>DeviceId</th>
                         <th>닉네임</th>
                         <th>Google 연동</th>
                         <th>생성일</th>
                         <th>마지막 로그인</th>
                         <th>밴 상태</th>
+                        <th>삭제됨</th>
+                        <th>병합 대상 ID</th>
                         <th>관리</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var p in searchResults)
                     {
-                        <tr>
+                        <tr class="@(p.IsDeleted ? "text-muted text-decoration-line-through" : "")">
                             <td>@p.Id</td>
+                            <td><code class="small">@p.PublicId</code></td>
                             <td><code>@p.DeviceId</code></td>
                             <td>@p.Nickname</td>
                             <td>@(string.IsNullOrEmpty(p.GoogleId) ? "-" : "연동됨")</td>
@@ -152,9 +172,17 @@
                                     <span class="text-success">정상</span>
                                 }
                             </td>
-                            <!-- 밴/밴 해제 버튼 -->
+                            <!-- IsDeleted 원시 값 -->
+                            <td>@(p.IsDeleted ? "true" : "false")</td>
+                            <!-- MergedIntoPlayerId 원시 값 -->
+                            <td>@(p.MergedIntoPlayerId?.ToString() ?? "-")</td>
+                            <!-- 밴/밴 해제 버튼 (소프트 딜리트 계정은 비활성화) -->
                             <td>
-                                @if (!p.IsBanned)
+                                @if (p.IsDeleted)
+                                {
+                                    <span class="text-muted small">삭제됨</span>
+                                }
+                                else if (!p.IsBanned)
                                 {
                                     <button class="btn btn-danger btn-sm" @onclick="() => BanPlayer(p.Id, null)">밴</button>
                                 }
@@ -382,15 +410,27 @@
         }
     }
 
-    // 로컬 DTO — IsBanned/BannedUntil 포함
-    private record PlayerDto(int Id, string DeviceId, string Nickname, string? GoogleId, DateTime CreatedAt, DateTime LastLoginAt, bool IsBanned, DateTime? BannedUntil);
+    // 로컬 DTO — IsBanned/BannedUntil + PublicId/소프트 딜리트 정보 포함
+    private record PlayerDto(
+        int Id,
+        Guid PublicId,
+        string DeviceId,
+        string Nickname,
+        string? GoogleId,
+        DateTime CreatedAt,
+        DateTime LastLoginAt,
+        bool IsBanned,
+        DateTime? BannedUntil,
+        bool IsDeleted,
+        DateTime? DeletedAt,
+        int? MergedIntoPlayerId);
 
     private record PlayerPagedResult(List<PlayerDto> Items, int TotalCount, int Page, int PageSize)
     {
         public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
     }
 
-    private record GuestLoginResponse(string AccessToken, string RefreshToken, int PlayerId, bool IsNewPlayer);
+    private record GuestLoginResponse(string AccessToken, string RefreshToken, Guid PlayerId, bool IsNewPlayer);
 
     // 밴 상태 표시 문자열 — 기간 밴이면 해제 일시 함께 표기
     private string GetBanLabel(PlayerDto p)
@@ -398,5 +438,15 @@
         if (!p.IsBanned) return "정상";
         if (p.BannedUntil.HasValue) return $"밴됨 (~{p.BannedUntil.Value.ToLocalTime():MM-dd HH:mm})";
         return "영구밴";
+    }
+
+    // 계정 상태 라벨 — 소프트 딜리트 여부 및 병합 대상 PlayerId 표시
+    private string GetAccountStatusLabel(PlayerDto p)
+    {
+        if (!p.IsDeleted) return "활성";
+        var deletedAt = p.DeletedAt?.ToLocalTime().ToString("MM-dd HH:mm") ?? "?";
+        if (p.MergedIntoPlayerId.HasValue)
+            return $"삭제됨 (→ ID {p.MergedIntoPlayerId}, {deletedAt})";
+        return $"삭제됨 ({deletedAt})";
     }
 }

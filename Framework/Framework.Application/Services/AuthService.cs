@@ -1,4 +1,5 @@
 using Framework.Application.DTOs;
+using Framework.Application.Exceptions;
 using Framework.Application.Interfaces;
 using Framework.Domain.Entities;
 
@@ -87,36 +88,54 @@ public class AuthService : IAuthService
     }
 
     // 구글 로그인 - IdToken 검증 후 GoogleId로 플레이어 조회 또는 신규 생성
-    public async Task<TokenResponseDto> GoogleLoginAsync(string idToken)
+    // currentPlayerId: 게스트 상태로 호출한 경우 JWT에서 추출한 플레이어 ID (없으면 null)
+    public async Task<TokenResponseDto> GoogleLoginAsync(string idToken, int? currentPlayerId)
     {
         // 구글 서버에 IdToken 검증 요청 → GoogleId 획득
         var googleId = await _googleVerifier.VerifyAsync(idToken);
 
-        var player = await _playerRepo.GetByGoogleIdAsync(googleId);
-        var isNew = player is null;
+        var existing = await _playerRepo.GetByGoogleIdAsync(googleId);
 
-        if (isNew)
+        // [분기 A] GoogleId를 가진 계정이 없음 → 신규 생성
+        if (existing is null)
         {
-            // 구글 계정으로 신규 플레이어 생성
-            player = new Player
+            var newPlayer = new Player
             {
                 DeviceId = Guid.NewGuid().ToString(),
                 GoogleId = googleId,
                 Nickname = $"Player_{googleId[..Math.Min(8, googleId.Length)]}"
             };
-            await _playerRepo.AddAsync(player);
-
-            // 인게임 프로필 초기화
-            await _profileRepo.AddAsync(new PlayerProfile { PlayerId = player.Id });
+            await _playerRepo.AddAsync(newPlayer);
+            await _profileRepo.AddAsync(new PlayerProfile { PlayerId = newPlayer.Id });
+            return await IssueTokensAsync(newPlayer, true);
         }
-        else
+
+        // [분기 B] 비인증 요청(currentPlayerId == null) → 기존 계정으로 정상 재로그인
+        if (currentPlayerId is null)
         {
-            // 마지막 로그인 시간 갱신
-            player!.LastLoginAt = DateTime.UtcNow;
-            await _playerRepo.UpdateAsync(player);
+            existing.LastLoginAt = DateTime.UtcNow;
+            await _playerRepo.UpdateAsync(existing);
+            return await IssueTokensAsync(existing, false);
         }
 
-        return await IssueTokensAsync(player, isNew);
+        // [분기 C] 요청자가 이미 이 구글 계정의 소유자 → 자기 재인증
+        if (existing.Id == currentPlayerId.Value)
+        {
+            existing.LastLoginAt = DateTime.UtcNow;
+            await _playerRepo.UpdateAsync(existing);
+            return await IssueTokensAsync(existing, false);
+        }
+
+        // [분기 D] 요청자(게스트)와 GoogleId 보유자가 다른 계정 → 충돌 처리
+        var currentPlayer = await _playerRepo.GetByIdAsync(currentPlayerId.Value)
+            ?? throw new InvalidOperationException("현재 플레이어를 찾을 수 없습니다.");
+
+        // 요청자가 이미 다른 구글 계정에 연동된 경우 — 병합 불가
+        if (currentPlayer.GoogleId is not null)
+            throw new InvalidOperationException("현재 계정은 이미 다른 구글 계정에 연동되어 있습니다.");
+
+        // 요청자가 순수 게스트 계정 → 충돌 예외 발생 (컨트롤러에서 409 반환)
+        throw new GoogleAccountConflictException(existing, currentPlayer);
     }
 
     // 계정 탈퇴 - 플레이어 삭제 시 CASCADE로 모든 연관 데이터 삭제됨
@@ -129,27 +148,66 @@ public class AuthService : IAuthService
     }
 
     // 게스트 계정에 구글 연동 - 기존 데이터 유지하면서 GoogleId 추가
+    // 충돌 시 GoogleAccountConflictException 발생
     public async Task LinkGoogleAsync(int playerId, string idToken)
     {
         var googleId = await _googleVerifier.VerifyAsync(idToken);
 
         // 이미 다른 계정에 연동된 구글 계정인지 확인
         var existing = await _playerRepo.GetByGoogleIdAsync(googleId);
-        if (existing is not null)
-            throw new InvalidOperationException("이미 다른 계정에 연동된 구글 계정입니다.");
 
         var player = await _playerRepo.GetByIdAsync(playerId)
             ?? throw new InvalidOperationException("플레이어를 찾을 수 없습니다.");
+
+        if (existing is not null)
+        {
+            // 자기 자신에게 이미 연동된 경우는 멱등 처리 (에러 없음)
+            if (existing.Id == playerId) return;
+
+            // 다른 계정에 연동된 경우 → 충돌 예외 (InvalidOperationException 대신 전용 예외로 교체)
+            throw new GoogleAccountConflictException(existing, player);
+        }
 
         // 기존 플레이어에 GoogleId 연결
         player.GoogleId = googleId;
         await _playerRepo.UpdateAsync(player);
     }
 
-    // 토큰 생성 및 저장 공통 처리
+    // 구글 계정 충돌 해소 — 게스트 계정을 소프트 딜리트하고 구글 연동 계정으로 토큰 발급
+    public async Task<TokenResponseDto> ResolveGoogleConflictAsync(int guestPlayerId, string idToken)
+    {
+        // IdToken 재검증으로 충돌 해소 요청의 진위 확인
+        var googleId = await _googleVerifier.VerifyAsync(idToken);
+
+        var playerA = await _playerRepo.GetByGoogleIdAsync(googleId)
+            ?? throw new InvalidOperationException("해당 구글 계정에 연동된 플레이어를 찾을 수 없습니다.");
+
+        var playerB = await _playerRepo.GetByIdAsync(guestPlayerId)
+            ?? throw new InvalidOperationException("현재 게스트 플레이어를 찾을 수 없습니다.");
+
+        // 멱등 처리 — 요청자가 이미 구글 연동 계정인 경우 (중복 호출)
+        if (playerB.Id == playerA.Id)
+            return await IssueTokensAsync(playerA, false);
+
+        // 게스트 계정이 이미 다른 구글 계정에 연동된 경우 — 병합 불가
+        if (playerB.GoogleId is not null)
+            throw new InvalidOperationException("게스트 계정이 이미 다른 구글 계정에 연동되어 있어 병합할 수 없습니다.");
+
+        // 소프트 딜리트 + 게스트 세션 토큰 삭제 + 기존 계정 LastLoginAt 갱신
+        await _playerRepo.SoftDeleteAsync(playerB, playerA.Id);
+        await _refreshTokenRepo.DeleteAllByPlayerIdAsync(playerB.Id);
+
+        playerA.LastLoginAt = DateTime.UtcNow;
+        await _playerRepo.UpdateAsync(playerA);
+
+        return await IssueTokensAsync(playerA, false);
+    }
+
+    // 토큰 생성 및 저장 공통 처리 — publicId를 JWT 클레임 및 응답에 포함
     private async Task<TokenResponseDto> IssueTokensAsync(Player player, bool isNew)
     {
-        var accessToken = _jwtProvider.GenerateAccessToken(player.Id);
+        // 내부 Id와 공개 PublicId를 함께 전달하여 JWT 생성
+        var accessToken = _jwtProvider.GenerateAccessToken(player.Id, player.PublicId);
         var (refreshTokenValue, expiresAt) = _jwtProvider.GenerateRefreshToken();
 
         // 리프래시 토큰 DB 저장
@@ -160,6 +218,7 @@ public class AuthService : IAuthService
             ExpiresAt = expiresAt
         });
 
-        return new TokenResponseDto(accessToken, refreshTokenValue, player.Id, isNew);
+        // 응답의 PlayerId는 외부 공개용 Guid (내부 정수 Id 미노출)
+        return new TokenResponseDto(accessToken, refreshTokenValue, player.PublicId, isNew);
     }
 }

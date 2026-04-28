@@ -22,7 +22,7 @@ public class AdminPlayersController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        var all = await _playerRepository.GetAllAsync();
+        var all = await _playerRepository.GetAllIncludingDeletedAsync();
         var total = all.Count;
         var items = all
             .OrderByDescending(p => p.CreatedAt)
@@ -31,13 +31,17 @@ public class AdminPlayersController : ControllerBase
             .Select(p => new
             {
                 p.Id,
+                p.PublicId,
                 p.DeviceId,
                 p.Nickname,
                 p.GoogleId,
                 p.CreatedAt,
                 p.LastLoginAt,
                 p.IsBanned,
-                p.BannedUntil
+                p.BannedUntil,
+                p.IsDeleted,
+                p.DeletedAt,
+                p.MergedIntoPlayerId
             })
             .ToList();
 
@@ -51,19 +55,23 @@ public class AdminPlayersController : ControllerBase
         if (string.IsNullOrWhiteSpace(keyword))
             return BadRequest("검색어를 입력하세요.");
 
-        var players = await _playerRepository.SearchByKeywordAsync(keyword);
+        var players = await _playerRepository.SearchByKeywordIncludingDeletedAsync(keyword);
         var items = players
             .OrderByDescending(p => p.CreatedAt)
             .Select(p => new
             {
                 p.Id,
+                p.PublicId,
                 p.DeviceId,
                 p.Nickname,
                 p.GoogleId,
                 p.CreatedAt,
                 p.LastLoginAt,
                 p.IsBanned,
-                p.BannedUntil
+                p.BannedUntil,
+                p.IsDeleted,
+                p.DeletedAt,
+                p.MergedIntoPlayerId
             })
             .ToList();
 
@@ -86,7 +94,10 @@ public class AdminPlayersController : ControllerBase
             player.CreatedAt,
             player.LastLoginAt,
             player.IsBanned,
-            player.BannedUntil
+            player.BannedUntil,
+            player.IsDeleted,
+            player.DeletedAt,
+            player.MergedIntoPlayerId
         });
     }
 

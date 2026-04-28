@@ -14,19 +14,19 @@ public class PlayerRepository : IPlayerRepository
         _db = db;
     }
 
-    // DeviceId로 플레이어 조회
+    // DeviceId로 플레이어 조회 (Global Query Filter 적용 — 소프트 딜리트 계정 제외)
     public async Task<Player?> GetByDeviceIdAsync(string deviceId)
         => await _db.Players.FirstOrDefaultAsync(p => p.DeviceId == deviceId);
 
-    // 전체 플레이어 조회
+    // 전체 플레이어 조회 (Global Query Filter 적용 — 소프트 딜리트 계정 제외)
     public async Task<List<Player>> GetAllAsync()
         => await _db.Players.ToListAsync();
 
-    // GoogleId로 플레이어 조회
+    // GoogleId로 플레이어 조회 (Global Query Filter 적용 — 소프트 딜리트 계정 제외)
     public async Task<Player?> GetByGoogleIdAsync(string googleId)
         => await _db.Players.FirstOrDefaultAsync(p => p.GoogleId == googleId);
 
-    // Id로 플레이어 조회
+    // Id로 플레이어 조회 (Global Query Filter 적용 — 소프트 딜리트 계정 제외)
     public async Task<Player?> GetByIdAsync(int id)
         => await _db.Players.FindAsync(id);
 
@@ -58,7 +58,8 @@ public class PlayerRepository : IPlayerRepository
     // 플레이어 밴 처리 — IsBanned=true, BannedUntil 설정
     public async Task BanAsync(int playerId, DateTime? bannedUntil)
     {
-        var player = await _db.Players.FindAsync(playerId);
+        // IgnoreQueryFilters: 밴 대상이 소프트 딜리트 계정일 수도 있으므로 필터 우회
+        var player = await _db.Players.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Id == playerId);
         if (player is null) return;
 
         player.IsBanned = true;
@@ -69,7 +70,8 @@ public class PlayerRepository : IPlayerRepository
     // 플레이어 밴 해제 — IsBanned=false, BannedUntil 초기화
     public async Task UnbanAsync(int playerId)
     {
-        var player = await _db.Players.FindAsync(playerId);
+        // IgnoreQueryFilters: 밴 해제 대상이 소프트 딜리트 계정일 수도 있으므로 필터 우회
+        var player = await _db.Players.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Id == playerId);
         if (player is null) return;
 
         player.IsBanned = false;
@@ -90,4 +92,36 @@ public class PlayerRepository : IPlayerRepository
         _db.Players.Remove(player);
         await _db.SaveChangesAsync();
     }
+
+    // 플레이어 소프트 딜리트 — IsDeleted=true, DeletedAt=UtcNow, MergedIntoPlayerId 설정
+    // 계정 병합 시 게스트 계정을 논리적으로 삭제하되 데이터는 보존
+    public async Task SoftDeleteAsync(Player player, int mergedIntoPlayerId)
+    {
+        player.IsDeleted = true;
+        player.DeletedAt = DateTime.UtcNow;
+        player.MergedIntoPlayerId = mergedIntoPlayerId;
+        _db.Players.Update(player);
+        await _db.SaveChangesAsync();
+    }
+
+    // 소프트 딜리트된 계정을 포함한 전체 플레이어 목록 조회 (Admin 전용)
+    // IgnoreQueryFilters: Global Query Filter(IsDeleted = false)를 우회
+    public async Task<List<Player>> GetAllIncludingDeletedAsync()
+        => await _db.Players.IgnoreQueryFilters().ToListAsync();
+
+    // 소프트 딜리트된 계정을 포함하여 키워드로 검색 (Admin 전용)
+    public async Task<List<Player>> SearchByKeywordIncludingDeletedAsync(string keyword)
+    {
+        var lower = keyword.ToLower();
+        return await _db.Players
+            .IgnoreQueryFilters()
+            .Where(p =>
+                p.DeviceId.ToLower().Contains(lower) ||
+                p.Nickname.ToLower().Contains(lower))
+            .ToListAsync();
+    }
+
+    // 소프트 딜리트된 계정을 포함하여 ID로 조회 (Admin 전용)
+    public async Task<Player?> GetByIdIncludingDeletedAsync(int id)
+        => await _db.Players.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Id == id);
 }
