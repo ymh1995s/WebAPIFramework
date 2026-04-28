@@ -1,0 +1,98 @@
+@page "/inquiry-test"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using Framework.Admin.Constants
+@using System.Net.Http.Headers
+
+<PageTitle>문의 테스트</PageTitle>
+
+<h2 class="mb-3">문의 테스트 (플레이어 역할)</h2>
+
+<!-- 1단계: 게스트 로그인 -->
+<section class="mb-4">
+    <h5>1. 게스트 로그인</h5>
+    <div class="d-flex gap-2 align-items-center">
+        <input class="form-control w-auto" @bind="deviceId" placeholder="DeviceId (UUID)" style="min-width:280px;" />
+        <button class="btn btn-primary" @onclick="GuestLogin" disabled="@isLoggedIn">로그인</button>
+        @if (isLoggedIn)
+        {
+            <button class="btn btn-outline-secondary" @onclick="Logout">로그아웃</button>
+        }
+    </div>
+    @if (isLoggedIn)
+    {
+        <p class="mt-1 text-success small">로그인됨 — PlayerId: @loggedInPlayerId</p>
+    }
+    @if (loginError != null)
+    {
+        <p class="mt-1 text-danger small">@loginError</p>
+    }
+</section>
+
+<!-- 2단계: 문의 제출 -->
+<section class="mb-4">
+    <h5>2. 문의 제출</h5>
+    <div class="d-flex gap-2 align-items-start">
+        <textarea class="form-control" rows="3" placeholder="하고 싶은 말을 자유롭게 적어주세요"
+                  @bind="inquiryContent" style="max-width:500px;" disabled="@(!isLoggedIn)"></textarea>
+        <button class="btn btn-primary" @onclick="SubmitInquiry" disabled="@(!isLoggedIn)">제출</button>
+    </div>
+    @if (submitMessage != null)
+    {
+        <p class="mt-1 text-success small">@submitMessage</p>
+    }
+    @if (submitError != null)
+    {
+        <p class="mt-1 text-danger small">@submitError</p>
+    }
+</section>
+
+<!-- 3단계: 내 문의 목록 -->
+<section>
+    <div class="d-flex align-items-center gap-2 mb-2">
+        <h5 class="mb-0">3. 내 문의 목록</h5>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="LoadMyInquiries" disabled="@(!isLoggedIn)">조회</button>
+    </div>
+
+    @if (myInquiries.Count == 0)
+    {
+        <p class="text-muted small">조회 버튼을 눌러 확인하세요.</p>
+    }
+    else
+    {
+        <table class="table table-bordered table-sm" style="max-width:800px;">
+            <thead>
+                <tr>
+                    <th style="width:60px">ID</th>
+                    <th>내용</th>
+                    <th>답변</th>
+                    <th style="width:150px">접수일</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in myInquiries)
+                {
+                    <tr>
+                        <td>@item.Id</td>
+                        <td style="white-space:pre-wrap">@item.Content</td>
+                        <td>
+                            @if (item.AdminReply != null)
+                            {
+                                <span class="text-success">@item.AdminReply</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">미답변</span>
+                            }
+                        </td>
+                        <td class="text-muted small">@item.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (listError != null)
+    {
+        <p class="text-danger small">@listError</p>
+    }
+</section>

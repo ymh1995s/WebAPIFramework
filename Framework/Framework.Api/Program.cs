@@ -1,6 +1,6 @@
 using Framework.Api.Extensions;
 using Framework.Api.Hubs;
-using Framework.Application.Interfaces;
+using Framework.Application.Features.SystemConfig;
 using Framework.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -47,6 +47,7 @@ builder.Services.AddInquiryRepositories();
 
 // 서비스 등록
 builder.Services.AddAuthServices();
+builder.Services.AddAdminServices();
 builder.Services.AddGameServices();
 builder.Services.AddNoticeServices();
 builder.Services.AddInquiryServices();

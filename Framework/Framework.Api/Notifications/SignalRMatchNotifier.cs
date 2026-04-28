@@ -1,5 +1,4 @@
-using Framework.Application.DTOs;
-using Framework.Application.Interfaces;
+using Framework.Application.Features.Matchmaking;
 using Framework.Api.Hubs;
 using Microsoft.AspNetCore.SignalR;
 

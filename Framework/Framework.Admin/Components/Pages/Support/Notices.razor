@@ -1,0 +1,93 @@
+@page "/notices"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits SafeComponentBase
+@using Framework.Admin.Constants
+
+<PageTitle>공지 관리</PageTitle>
+
+<div class="d-flex align-items-center gap-3 mb-3">
+    <h2 class="mb-0">공지 관리</h2>
+    <button class="btn btn-outline-secondary btn-sm" @onclick="LoadNotices">새로고침</button>
+</div>
+
+<!-- 공지 생성 폼 -->
+<section class="mb-4">
+    <h5>새 공지 등록</h5>
+    <div class="d-flex gap-2 align-items-start">
+        <textarea class="form-control" rows="2" placeholder="공지 내용 입력"
+                  @bind="newContent" style="max-width: 500px;"></textarea>
+        <button class="btn btn-primary" @onclick="CreateNotice">등록</button>
+    </div>
+    @if (createMessage != null)
+    {
+        <p class="mt-1 text-success small">@createMessage</p>
+    }
+</section>
+
+<!-- 공지 목록 -->
+@if (isLoading)
+{
+    <p>불러오는 중...</p>
+}
+else if (notices.Count == 0)
+{
+    <p class="text-muted">등록된 공지가 없습니다.</p>
+}
+else
+{
+    <table class="table table-bordered table-sm">
+        <thead>
+            <tr>
+                <th style="width:60px">ID</th>
+                <th>내용</th>
+                <th style="width:100px">상태</th>
+                <th style="width:160px">생성일</th>
+                <th style="width:160px">수정일</th>
+                <th style="width:130px"></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var notice in notices)
+            {
+                <tr>
+                    <td>@notice.Id</td>
+                    <td>
+                        @if (editingId == notice.Id)
+                        {
+                            <textarea class="form-control form-control-sm" rows="2"
+                                      @bind="editContent"></textarea>
+                        }
+                        else
+                        {
+                            @notice.Content
+                        }
+                    </td>
+                    <td>
+                        <span class="badge @(notice.IsActive ? "bg-success" : "bg-secondary")">
+                            @(notice.IsActive ? "활성" : "비활성")
+                        </span>
+                    </td>
+                    <td class="text-muted small">@notice.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                    <td class="text-muted small">@(notice.UpdatedAt.HasValue ? notice.UpdatedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "-")</td>
+                    <td>
+                        @if (editingId == notice.Id)
+                        {
+                            <button class="btn btn-success btn-sm me-1" @onclick="() => SaveEdit(notice)">저장</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="CancelEdit">취소</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => StartEdit(notice)">수정</button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteNotice(notice.Id)">삭제</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (errorMessage != null)
+{
+    <p class="text-danger">@errorMessage</p>
+}

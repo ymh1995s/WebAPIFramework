@@ -1,3 +1,4 @@
+using Framework.Application.Features.Auth;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;

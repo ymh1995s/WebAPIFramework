@@ -1,4 +1,4 @@
-<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.Errors.NotFound)">
     <Found Context="routeData">
         <!-- 인증 필요 라우트 뷰 - 미인증 시 NotAuthorized 블록 표시 -->
         <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">

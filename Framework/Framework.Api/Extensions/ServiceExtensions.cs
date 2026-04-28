@@ -1,8 +1,18 @@
 using System.Text;
 using System.Threading.RateLimiting;
-using Framework.Application.Interfaces;
-using Framework.Application.Options;
-using Framework.Application.Services;
+using Framework.Application.Common;
+using Framework.Application.Features.AuditLog;
+using Framework.Application.Features.Auth;
+using Framework.Application.Features.DailyLogin;
+using Framework.Application.Features.DailyReward;
+using Framework.Application.Features.Inquiry;
+using Framework.Application.Features.Item;
+using Framework.Application.Features.Mail;
+using Framework.Application.Features.Matchmaking;
+using Framework.Application.Features.Notice;
+using Framework.Application.Features.AdminPlayer;
+using Framework.Application.Features.Ranking;
+using Framework.Application.Features.SystemConfig;
 using Framework.Domain.Constants;
 using Framework.Domain.Entities;
 using Framework.Domain.Interfaces;
@@ -62,6 +72,13 @@ public static class ServiceExtensions
     public static IServiceCollection AddInquiryRepositories(this IServiceCollection services)
     {
         services.AddScoped<IInquiryRepository, InquiryRepository>();
+        return services;
+    }
+
+    // 서비스 등록 - Admin 플레이어 관리
+    public static IServiceCollection AddAdminServices(this IServiceCollection services)
+    {
+        services.AddScoped<IAdminPlayerService, AdminPlayerService>();
         return services;
     }
 

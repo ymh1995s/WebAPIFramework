@@ -1,0 +1,90 @@
+@page "/reward-slots"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits SafeComponentBase
+@using Framework.Admin.Constants
+@using System.Net.Http.Json
+
+<PageTitle>보상 슬롯 편집</PageTitle>
+
+<h2>보상 슬롯 편집</h2>
+<p class="text-muted">
+    Current = 이번 달 활성 슬롯 / Next = 다음 달 예약 슬롯<br />
+    월 전환 시 Next → Current 자동 복사됩니다. Admin이 Next를 수정하지 않으면 다음 달도 같은 보상이 반복됩니다.
+</p>
+
+<!-- ────────────── 탭 선택 ────────────── -->
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+        <button class="nav-link @(activeTab == "current" ? "active" : "")"
+                @onclick='() => SwitchTab("current")'>
+            Current (이번 달)
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link @(activeTab == "next" ? "active" : "")"
+                @onclick='() => SwitchTab("next")'>
+            Next (다음 달 예약)
+        </button>
+    </li>
+</ul>
+
+<!-- ────────────── 슬롯 테이블 ────────────── -->
+@if (loading)
+{
+    <p>불러오는 중...</p>
+}
+else if (errorMessage != null)
+{
+    <p class="text-danger">@errorMessage</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-bordered table-sm align-middle" style="max-width:600px;">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:60px;">Day</th>
+                    <th>아이템</th>
+                    <th style="width:90px;">수량</th>
+                    <th style="width:80px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in slotRows)
+                {
+                    <tr>
+                        <td class="text-center fw-bold">@row.Day</td>
+                        <td>
+                            <!-- 아이템 드롭다운 (없음 선택 시 보상 없음) -->
+                            <select class="form-select form-select-sm"
+                                    value="@(row.EditItemId?.ToString() ?? "")"
+                                    @onchange="e => row.EditItemId = string.IsNullOrEmpty(e.Value?.ToString()) ? null : int.Parse(e.Value.ToString()!)">
+                                <option value="">보상 없음</option>
+                                @foreach (var item in itemList)
+                                {
+                                    <option value="@item.Id">@item.Name</option>
+                                }
+                            </select>
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm" min="0"
+                                   @bind="row.EditItemCount" disabled="@(!row.EditItemId.HasValue)" />
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-primary"
+                                    @onclick="() => SaveDay(row)"
+                                    disabled="@row.Saving">
+                                @(row.Saving ? "저장중..." : "저장")
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (saveMessage != null)
+    {
+        <p class="mt-2 @(saveSuccess ? "text-success" : "text-danger")">@saveMessage</p>
+    }
+}

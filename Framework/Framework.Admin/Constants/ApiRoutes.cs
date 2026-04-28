@@ -47,10 +47,10 @@ public static class ApiRoutes
         public static string Delete(int id) => $"{Base}/{id}";
     }
 
-    // ── 플레이어 기록 (PlayerRecordsController: Route = "api/playerrecords") ──
+    // ── 플레이어 기록 Admin (AdminPlayerRecordsController: Route = "api/admin/playerrecords") ──
     public static class PlayerRecords
     {
-        private const string Base = "api/playerrecords";
+        private const string Base = "api/admin/playerrecords";
 
         /// <summary>전체 목록 페이지네이션 조회</summary>
         public static string Paged(int page, int pageSize) => $"{Base}?page={page}&pageSize={pageSize}";
@@ -65,15 +65,22 @@ public static class ApiRoutes
     // ── 랭킹 (RankingController: Route = "api/ranking") ───────────────────
     public static class Ranking
     {
-        /// <summary>상위 N명 랭킹 조회</summary>
-        public static string Top(int count) => $"api/ranking/top?count={count}";
+        /// <summary>내 순위 조회 (게임 클라이언트 전용)</summary>
+        public const string Me = "api/ranking/me";
     }
 
-    // ── 인벤토리 (PlayerItemsController: Route = "api/players/{playerId}/items") ──
+    // ── 랭킹 Admin (AdminRankingController: Route = "api/admin/ranking") ──
+    public static class AdminRanking
+    {
+        /// <summary>상위 N명 랭킹 조회 (Admin 전용)</summary>
+        public static string Top(int count) => $"api/admin/ranking/top?count={count}";
+    }
+
+    // ── 인벤토리 Admin (AdminPlayerItemsController: Route = "api/admin/players/{playerId}/items") ──
     public static class Players
     {
-        /// <summary>특정 플레이어의 보유 아이템 목록 조회</summary>
-        public static string Items(int playerId) => $"api/players/{playerId}/items";
+        /// <summary>특정 플레이어의 보유 아이템 목록 조회 (Admin 전용)</summary>
+        public static string Items(int playerId) => $"api/admin/players/{playerId}/items";
     }
 
     // ── 아이템 마스터 Admin (AdminItemsController: Route = "api/admin/items") ──

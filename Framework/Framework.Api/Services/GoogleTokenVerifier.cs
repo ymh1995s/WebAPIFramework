@@ -1,3 +1,4 @@
+using Framework.Application.Features.Auth;
 using Google.Apis.Auth;
 
 namespace Framework.Api.Services;

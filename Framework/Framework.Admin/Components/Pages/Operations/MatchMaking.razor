@@ -1,0 +1,57 @@
+@page "/matchmaking"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using Microsoft.AspNetCore.SignalR.Client
+@using Framework.Application.Features.Matchmaking
+@using Framework.Domain.Enums
+@using Framework.Admin.Constants
+@implements IAsyncDisposable
+
+<PageTitle>매칭 테스트</PageTitle>
+
+<h3>매칭 테스트</h3>
+
+@* 입력 폼 *@
+<div class="mb-3 d-flex gap-2 align-items-center">
+    <input class="form-control w-auto" @bind="userId" placeholder="UserId" />
+    <select class="form-select w-auto" @bind="selectedTier">
+        @foreach (var tier in Enum.GetValues<Tier>())
+        {
+            <option value="@tier">@tier</option>
+        }
+    </select>
+    <button class="btn btn-primary" @onclick="JoinMatch" disabled="@isBusy">참가</button>
+    <button class="btn btn-secondary" @onclick="CancelMatch" disabled="@isBusy">취소</button>
+</div>
+
+@* 연결 상태 및 대기 현황 *@
+<div class="mb-3">
+    <span class="badge @(IsConnected ? "bg-success" : "bg-danger")">
+        @(IsConnected ? "연결됨" : "미연결")
+    </span>
+    <span class="ms-3">대기 인원: <strong>@waitingCount / @maxPlayers</strong></span>
+</div>
+
+@* 매칭 성사 결과 *@
+@if (matchedMembers.Count > 0)
+{
+    <div class="alert alert-success mb-3">
+        <h5>매칭 성사!</h5>
+        <ul class="mb-0">
+            @foreach (var m in matchedMembers)
+            {
+                <li>@m.UserId &nbsp; (@m.Tier / @m.HumanType)</li>
+            }
+        </ul>
+    </div>
+}
+
+@* 로그 *@
+<div>
+    <h6>로그</h6>
+    <ul class="list-unstyled small text-muted" style="max-height:200px; overflow-y:auto;">
+        @foreach (var log in logs)
+        {
+            <li>@log</li>
+        }
+    </ul>
+</div>

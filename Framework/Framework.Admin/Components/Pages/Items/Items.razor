@@ -1,0 +1,155 @@
+@page "/items"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits SafeComponentBase
+@using Framework.Admin.Constants
+
+<PageTitle>아이템 마스터 관리</PageTitle>
+
+<h2>아이템 마스터 관리</h2>
+
+<!-- 아이템 추가 폼 -->
+<section class="mb-4">
+    <h4>아이템 추가</h4>
+    <div class="d-flex gap-2 align-items-end flex-wrap" style="max-width: 1100px;">
+        <div>
+            <label class="form-label">이름</label>
+            <input type="text" class="form-control" @bind="newName" placeholder="아이템 이름" />
+        </div>
+        <div>
+            <label class="form-label">타입</label>
+            <select class="form-select" @bind="newItemType">
+                @foreach (var type in Enum.GetValues<ItemType>())
+                {
+                    <option value="@type">@type</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label class="form-label">설명</label>
+            <input type="text" class="form-control" @bind="newDescription" placeholder="설명" style="width:180px;" />
+        </div>
+        <div>
+            <label class="form-label" title="Full: 모든 변동 기록 / AnomalyOnly: 이상치만 기록">감사 레벨</label>
+            <select class="form-select" @bind="newAuditLevel">
+                @foreach (var level in Enum.GetValues<AuditLevel>())
+                {
+                    <option value="@level">@level</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label class="form-label" title="AnomalyOnly에서 이 값 초과 변동 시 이상치 기록. 0이면 검사 안 함">이상치 임계값</label>
+            <input type="number" class="form-control" @bind="newAnomalyThreshold" style="width:120px;" />
+        </div>
+        <button class="btn btn-primary mb-0" @onclick="CreateItem">추가</button>
+    </div>
+    @if (createMessage != null)
+    {
+        <p class="mt-2 @(createSuccess ? "text-success" : "text-danger")">@createMessage</p>
+    }
+</section>
+
+<!-- 삭제 확인 팝업 -->
+@if (confirmDeleteId != null)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,0.4);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">아이템 삭제 확인</h5>
+                </div>
+                <div class="modal-body">
+                    @if (holderCount > 0)
+                    {
+                        <p class="text-warning">이 아이템을 보유한 사용자가 <strong>@holderCount</strong>명 있습니다.</p>
+                    }
+                    <p>그래도 삭제하시겠습니까?</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-danger" @onclick="ConfirmDelete">예</button>
+                    <button class="btn btn-secondary" @onclick="CancelDelete">아니오</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- 아이템 목록 -->
+<section>
+    <h4>아이템 목록</h4>
+    @if (isLoading)
+    {
+        <p>불러오는 중...</p>
+    }
+    else if (items == null || !items.Any())
+    {
+        <p class="text-muted">등록된 아이템이 없습니다.</p>
+    }
+    else
+    {
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>이름</th>
+                    <th>타입</th>
+                    <th>설명</th>
+                    <th>감사 레벨</th>
+                    <th>이상치 임계값</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in items)
+                {
+                    <tr>
+                        <td>@item.Id</td>
+                        @if (editingId == item.Id)
+                        {
+                            <!-- 인라인 수정 모드 -->
+                            <td><input type="text" class="form-control form-control-sm" @bind="editName" /></td>
+                            <td>
+                                <select class="form-select form-select-sm" @bind="editItemType">
+                                    @foreach (var type in Enum.GetValues<ItemType>())
+                                    {
+                                        <option value="@type">@type</option>
+                                    }
+                                </select>
+                            </td>
+                            <td><input type="text" class="form-control form-control-sm" @bind="editDescription" /></td>
+                            <td>
+                                <select class="form-select form-select-sm" @bind="editAuditLevel">
+                                    @foreach (var level in Enum.GetValues<AuditLevel>())
+                                    {
+                                        <option value="@level">@level</option>
+                                    }
+                                </select>
+                            </td>
+                            <td><input type="number" class="form-control form-control-sm" @bind="editAnomalyThreshold" /></td>
+                            <td>
+                                <button class="btn btn-success btn-sm me-1" @onclick="() => SaveEdit(item.Id)">저장</button>
+                                <button class="btn btn-secondary btn-sm" @onclick="CancelEdit">취소</button>
+                            </td>
+                        }
+                        else
+                        {
+                            <td>@item.Name</td>
+                            <td>@item.ItemType</td>
+                            <td>@item.Description</td>
+                            <td>@item.AuditLevel</td>
+                            <td>@item.AnomalyThreshold</td>
+                            <td>
+                                <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => StartEdit(item)">수정</button>
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => RequestDelete(item.Id)">삭제</button>
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    @if (listMessage != null)
+    {
+        <p class="text-danger">@listMessage</p>
+    }
+</section>
