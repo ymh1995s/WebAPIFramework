@@ -29,7 +29,10 @@
             <input type="text" class="form-control" @bind="newDescription" placeholder="설명" style="width:180px;" />
         </div>
         <div>
-            <label class="form-label" title="Full: 모든 변동 기록 / AnomalyOnly: 이상치만 기록">감사 레벨</label>
+            <label class="form-label">
+                감사 레벨
+                <HelpIcon Text="Full: 모든 변동을 기록합니다. 유료 재화·레어 아이템 등 중요도 높은 항목에 사용하세요. / AnomalyOnly: 이상치 임계값을 초과하는 변동만 기록합니다. 골드·경험치 등 일반 재화에 사용하세요." />
+            </label>
             <select class="form-select" @bind="newAuditLevel">
                 @foreach (var level in Enum.GetValues<AuditLevel>())
                 {
@@ -38,7 +41,10 @@
             </select>
         </div>
         <div>
-            <label class="form-label" title="AnomalyOnly에서 이 값 초과 변동 시 이상치 기록. 0이면 검사 안 함">이상치 임계값</label>
+            <label class="form-label">
+                이상치 임계값
+                <HelpIcon Text="1회 변동량이 이 값을 초과하면 이상치로 기록됩니다. AnomalyOnly 레벨에서만 동작하며, 0으로 두면 이상치 검사를 하지 않습니다." />
+            </label>
             <input type="number" class="form-control" @bind="newAnomalyThreshold" style="width:120px;" />
         </div>
         <button class="btn btn-primary mb-0" @onclick="CreateItem">추가</button>
@@ -94,8 +100,8 @@
                     <th>이름</th>
                     <th>타입</th>
                     <th>설명</th>
-                    <th>감사 레벨</th>
-                    <th>이상치 임계값</th>
+                    <th>감사 레벨 <HelpIcon Text="Full: 모든 변동 기록 / AnomalyOnly: 이상치 임계값 초과분만 기록" /></th>
+                    <th>이상치 임계값 <HelpIcon Text="1회 변동량이 이 값을 초과하면 이상치로 기록됩니다. 0이면 검사 안 함" /></th>
                     <th></th>
                 </tr>
             </thead>

@@ -1,0 +1,57 @@
+@* 도움말 아이콘 — hover 시 툴팁 표시 (JS 없이 CSS만 사용) *@
+<span class="help-icon-wrapper">
+    <span class="help-icon" tabindex="0">?</span>
+    <span class="help-icon-tooltip">@Text</span>
+</span>
+
+@code {
+    // 툴팁에 표시할 설명 텍스트
+    [Parameter, EditorRequired] public string Text { get; set; } = string.Empty;
+}
+
+<style>
+    .help-icon-wrapper {
+        position: relative;
+        display: inline-block;
+        margin-left: 4px;
+        vertical-align: middle;
+    }
+
+    .help-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background-color: #6c757d;
+        color: white;
+        font-size: 11px;
+        font-weight: bold;
+        cursor: help;
+        user-select: none;
+    }
+
+    .help-icon-tooltip {
+        display: none;
+        position: absolute;
+        bottom: 125%;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #212529;
+        color: #fff;
+        font-size: 0.75rem;
+        padding: 6px 10px;
+        border-radius: 4px;
+        white-space: normal;
+        width: 260px;
+        z-index: 1000;
+        line-height: 1.5;
+    }
+
+    /* hover 또는 키보드 포커스 시 툴팁 표시 */
+    .help-icon-wrapper:hover .help-icon-tooltip,
+    .help-icon:focus + .help-icon-tooltip {
+        display: block;
+    }
+</style>
