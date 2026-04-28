@@ -2,7 +2,7 @@ using Framework.Admin.Components;
 using Framework.Admin.Constants;
 using Microsoft.AspNetCore.Components;
 
-namespace Framework.Admin.Components.Pages.Players;
+namespace Framework.Admin.Components.Pages.Ranking;
 
 /// <summary>
 /// 랭킹 조회 페이지 코드-비하인드.
