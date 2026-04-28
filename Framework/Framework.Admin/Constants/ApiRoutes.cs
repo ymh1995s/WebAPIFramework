@@ -42,6 +42,9 @@ public static class ApiRoutes
 
         /// <summary>플레이어 밴 해제 (POST)</summary>
         public static string Unban(int id) => $"{Base}/{id}/unban";
+
+        /// <summary>플레이어 영구 삭제 (DELETE)</summary>
+        public static string Delete(int id) => $"{Base}/{id}";
     }
 
     // ── 플레이어 기록 (PlayerRecordsController: Route = "api/playerrecords") ──

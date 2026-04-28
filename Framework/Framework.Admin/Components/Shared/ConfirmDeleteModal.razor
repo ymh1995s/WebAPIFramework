@@ -1,0 +1,79 @@
+@* 재사용 가능한 삭제 확인 모달 컴포넌트 *@
+@* "삭제" 텍스트를 직접 입력해야만 확인 버튼이 활성화되어 실수로 인한 영구 삭제를 방지 *@
+@* Bootstrap 모달 구조를 JS 없이 순수 Blazor 조건 렌더링으로 구현 *@
+
+@if (IsVisible)
+{
+    @* 반투명 백드롭 — 전체 화면을 덮어 모달 뒤 UI 클릭 방지 *@
+    <div style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1040;"></div>
+
+    @* 모달 본체 *@
+    <div class="modal d-block" tabindex="-1" style="z-index:1050;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+
+                @* 모달 헤더 *@
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">플레이어 영구 삭제</h5>
+                </div>
+
+                @* 모달 바디 — 경고 문구 및 확인 입력란 *@
+                <div class="modal-body">
+                    <p class="text-danger fw-bold">이 작업은 되돌릴 수 없습니다.</p>
+                    <p>대상 플레이어: <strong>@PlayerInfo</strong></p>
+                    <p class="text-muted small">확인을 위해 아래 입력란에 <strong>삭제</strong> 를 입력하세요.</p>
+                    @* 확인 텍스트 입력란 — "삭제" 입력 여부로 버튼 활성화 제어 *@
+                    <input type="text"
+                           class="form-control"
+                           placeholder="삭제"
+                           @bind="confirmInput"
+                           @bind:event="oninput" />
+                </div>
+
+                @* 모달 푸터 — 취소/확인 버튼 *@
+                <div class="modal-footer">
+                    @* 취소 버튼 — confirmInput 초기화 후 OnCancel 콜백 호출 *@
+                    <button class="btn btn-secondary" @onclick="HandleCancel">취소</button>
+                    @* 확인 버튼 — "삭제" 입력 시에만 활성화 *@
+                    <button class="btn btn-danger"
+                            @onclick="HandleConfirm"
+                            disabled="@(confirmInput != "삭제")">
+                        영구 삭제
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>모달 표시 여부</summary>
+    [Parameter] public bool IsVisible { get; set; }
+
+    /// <summary>삭제 대상 플레이어 정보 문자열 (예: "ID: 1 / 닉네임: 홍길동")</summary>
+    [Parameter] public string PlayerInfo { get; set; } = "";
+
+    /// <summary>삭제 확인 시 호출되는 콜백</summary>
+    [Parameter] public EventCallback OnConfirm { get; set; }
+
+    /// <summary>삭제 취소 시 호출되는 콜백</summary>
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    // 확인 입력란 상태 — "삭제" 일치 여부로 버튼 활성화 제어
+    private string confirmInput = "";
+
+    // 취소 버튼 클릭 — 입력 초기화 후 부모에 취소 이벤트 전달
+    private async Task HandleCancel()
+    {
+        confirmInput = "";
+        await OnCancel.InvokeAsync();
+    }
+
+    // 확인 버튼 클릭 — 입력 초기화 후 부모에 확인 이벤트 전달
+    private async Task HandleConfirm()
+    {
+        confirmInput = "";
+        await OnConfirm.InvokeAsync();
+    }
+}

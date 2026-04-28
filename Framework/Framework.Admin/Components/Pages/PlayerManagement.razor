@@ -88,7 +88,7 @@
                         <td>@(p.IsDeleted ? "true" : "false")</td>
                         <!-- MergedIntoPlayerId 원시 값 (병합 흡수된 대상 PlayerA의 int Id) -->
                         <td>@(p.MergedIntoPlayerId?.ToString() ?? "-")</td>
-                        <!-- 밴/밴 해제 버튼 (소프트 딜리트 계정은 비활성화) -->
+                        <!-- 밴/밴 해제/삭제 버튼 (소프트 딜리트 계정은 비활성화) -->
                         <td>
                             @if (p.IsDeleted)
                             {
@@ -97,16 +97,26 @@
                             else if (!p.IsBanned)
                             {
                                 <button class="btn btn-danger btn-sm" @onclick="() => BanPlayer(p.Id, null)">밴</button>
+                                @* 삭제 버튼 — IsDeleted가 false인 경우에만 표시 *@
+                                <button class="btn btn-outline-danger btn-sm ms-1" @onclick="() => OpenDeleteModal(p)">삭제</button>
                             }
                             else
                             {
                                 <button class="btn btn-outline-secondary btn-sm" @onclick="() => UnbanPlayer(p.Id)">밴 해제</button>
+                                @* 밴 상태에서도 삭제 가능 *@
+                                <button class="btn btn-outline-danger btn-sm ms-1" @onclick="() => OpenDeleteModal(p)">삭제</button>
                             }
                         </td>
                     </tr>
                 }
             </tbody>
         </table>
+
+        @* 삭제 확인 모달 *@
+        <ConfirmDeleteModal IsVisible="showDeleteModal"
+                            PlayerInfo="deletingPlayerInfo"
+                            OnConfirm="ConfirmDelete"
+                            OnCancel="CancelDelete" />
 
         <!-- 페이지네이션 -->
         <div class="d-flex align-items-center gap-2">
@@ -176,7 +186,7 @@
                             <td>@(p.IsDeleted ? "true" : "false")</td>
                             <!-- MergedIntoPlayerId 원시 값 -->
                             <td>@(p.MergedIntoPlayerId?.ToString() ?? "-")</td>
-                            <!-- 밴/밴 해제 버튼 (소프트 딜리트 계정은 비활성화) -->
+                            <!-- 밴/밴 해제/삭제 버튼 (소프트 딜리트 계정은 비활성화) -->
                             <td>
                                 @if (p.IsDeleted)
                                 {
@@ -185,10 +195,14 @@
                                 else if (!p.IsBanned)
                                 {
                                     <button class="btn btn-danger btn-sm" @onclick="() => BanPlayer(p.Id, null)">밴</button>
+                                    @* 삭제 버튼 — IsDeleted가 false인 경우에만 표시 *@
+                                    <button class="btn btn-outline-danger btn-sm ms-1" @onclick="() => OpenDeleteModal(p)">삭제</button>
                                 }
                                 else
                                 {
                                     <button class="btn btn-outline-secondary btn-sm" @onclick="() => UnbanPlayer(p.Id)">밴 해제</button>
+                                    @* 밴 상태에서도 삭제 가능 *@
+                                    <button class="btn btn-outline-danger btn-sm ms-1" @onclick="() => OpenDeleteModal(p)">삭제</button>
                                 }
                             </td>
                         </tr>
@@ -261,6 +275,11 @@
     private string newDeviceId = "";
     private string? registerMessage;
     private bool registerSuccess;
+
+    // 삭제 확인 모달 상태
+    private bool showDeleteModal = false;
+    private string deletingPlayerInfo = "";
+    private int deletingPlayerId = 0;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -341,6 +360,42 @@
         var response = await client.PostAsJsonAsync(ApiRoutes.AdminPlayers.Unban(playerId), new { });
         if (response.IsSuccessStatusCode)
         {
+            await LoadPaged();
+            if (isSearchMode && !string.IsNullOrWhiteSpace(searchKeyword))
+                await SearchByKeyword();
+        }
+    }
+
+    // 삭제 모달 열기 — 대상 플레이어 정보를 상태에 저장
+    private void OpenDeleteModal(PlayerDto p)
+    {
+        deletingPlayerId = p.Id;
+        deletingPlayerInfo = $"ID: {p.Id} / 닉네임: {p.Nickname}";
+        showDeleteModal = true;
+    }
+
+    // 삭제 취소 — 모달 닫기 및 상태 초기화
+    private void CancelDelete()
+    {
+        showDeleteModal = false;
+        deletingPlayerId = 0;
+        deletingPlayerInfo = "";
+    }
+
+    // 삭제 확인 — API 호출 후 목록 갱신
+    private async Task ConfirmDelete()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var response = await client.DeleteAsync(ApiRoutes.AdminPlayers.Delete(deletingPlayerId));
+
+        // 모달 닫기 및 상태 초기화
+        showDeleteModal = false;
+        deletingPlayerId = 0;
+        deletingPlayerInfo = "";
+
+        if (response.IsSuccessStatusCode)
+        {
+            // 삭제 성공 시 전체 목록 및 검색 결과 갱신
             await LoadPaged();
             if (isSearchMode && !string.IsNullOrWhiteSpace(searchKeyword))
                 await SearchByKeyword();

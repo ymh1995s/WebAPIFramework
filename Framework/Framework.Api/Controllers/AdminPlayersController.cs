@@ -123,5 +123,18 @@ public class AdminPlayersController : ControllerBase
         return Ok(new { message = "밴 해제 완료" });
     }
 
+    // 플레이어 영구 삭제 (Hard Delete) — DB에서 완전히 제거, 복구 불가
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        // 대상 플레이어 존재 여부 확인
+        var player = await _playerRepository.GetByIdAsync(id);
+        if (player is null) return NotFound();
+
+        // IPlayerRepository.DeleteAsync 는 Player 객체를 받는 시그니처
+        await _playerRepository.DeleteAsync(player);
+        return Ok(new { message = "플레이어가 영구 삭제되었습니다." });
+    }
+
     // 밴 요청 DTO — BannedUntil이 null이면 영구 밴, 값이 있으면 기간 밴
 }
