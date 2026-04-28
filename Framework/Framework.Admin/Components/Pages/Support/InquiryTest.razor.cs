@@ -18,7 +18,7 @@ public partial class InquiryTest : Microsoft.AspNetCore.Components.ComponentBase
     // 로그인 상태
     private string deviceId = "";
     private string? accessToken;
-    private int loggedInPlayerId;
+    private Guid loggedInPlayerId;
     private bool isLoggedIn;
     private string? loginError;
 
@@ -58,7 +58,7 @@ public partial class InquiryTest : Microsoft.AspNetCore.Components.ComponentBase
     {
         accessToken = null;
         isLoggedIn = false;
-        loggedInPlayerId = 0;
+        loggedInPlayerId = Guid.Empty;
         myInquiries = [];
     }
 
@@ -104,7 +104,7 @@ public partial class InquiryTest : Microsoft.AspNetCore.Components.ComponentBase
     }
 
     // 로그인 응답 역직렬화용 로컬 레코드
-    private record TokenResponse(string AccessToken, string RefreshToken, int PlayerId, bool IsNewPlayer);
+    private record TokenResponse(string AccessToken, string RefreshToken, Guid PlayerId, bool IsNewPlayer);
 
     // 문의 응답 역직렬화용 로컬 레코드
     private record InquiryDto(int Id, string Content, string? AdminReply, DateTime? RepliedAt, DateTime CreatedAt);

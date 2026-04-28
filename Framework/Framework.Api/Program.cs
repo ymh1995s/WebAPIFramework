@@ -128,11 +128,17 @@ app.UseAuthentication();
 #if DEBUG
 // 디버그 빌드 전용 - 릴리즈 빌드에서는 이 코드가 컴파일되지 않음
 // PlayerId = 1 로 고정된 가짜 인증을 주입하여 토큰 없이 API 테스트 가능
+// 적용 대상: Swagger, Admin 어드민 직접 호출 등 토큰 없이 플레이어 API를 테스트할 때
+// 미적용 대상: Admin > 문의 관리 > 문의 테스트처럼 실제 Bearer 토큰을 발급·사용하는 시나리오
 app.Use(async (context, next) =>
 {
-    var claims = new[] { new System.Security.Claims.Claim("playerId", "1") };
-    var identity = new System.Security.Claims.ClaimsIdentity(claims, "DebugBypass");
-    context.User = new System.Security.Claims.ClaimsPrincipal(identity);
+    // 이미 인증된 요청(Bearer 토큰 등)은 건드리지 않음 — 미인증 요청에만 우회 적용
+    if (context.User?.Identity?.IsAuthenticated != true)
+    {
+        var claims = new[] { new System.Security.Claims.Claim("playerId", "1") };
+        var identity = new System.Security.Claims.ClaimsIdentity(claims, "DebugBypass");
+        context.User = new System.Security.Claims.ClaimsPrincipal(identity);
+    }
     await next();
 });
 #endif
