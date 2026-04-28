@@ -1,48 +1,96 @@
 using Framework.Application.DTOs;
 using Framework.Application.Interfaces;
 using Framework.Domain.Entities;
+using Framework.Domain.Enums;
 using Framework.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace Framework.Application.Services;
 
-// 일일 로그인 보상 서비스 구현체
+// 일일 로그인 보상 서비스 구현체 — Current/Next 2슬롯 방식
 public class DailyLoginService : IDailyLoginService
 {
     private readonly IDailyLoginLogRepository _loginLogRepository;
-    private readonly IDailyRewardConfigRepository _rewardConfigRepository;
+    private readonly IDailyRewardSlotRepository _slotRepository;
+    private readonly IDailyRewardSlotService _slotService;
     private readonly IMailService _mailService;
-    private readonly IPlayerRecordRepository _playerRepository;
+    private readonly IPlayerRepository _playerRepository;
     private readonly ISystemConfigService _systemConfigService;
+
+    // KST 오프셋 상수 (UTC+9)
+    private static readonly TimeSpan KstOffset = TimeSpan.FromHours(9);
 
     public DailyLoginService(
         IDailyLoginLogRepository loginLogRepository,
-        IDailyRewardConfigRepository rewardConfigRepository,
+        IDailyRewardSlotRepository slotRepository,
+        IDailyRewardSlotService slotService,
         IMailService mailService,
-        IPlayerRecordRepository playerRepository,
+        IPlayerRepository playerRepository,
         ISystemConfigService systemConfigService)
     {
         _loginLogRepository = loginLogRepository;
-        _rewardConfigRepository = rewardConfigRepository;
+        _slotRepository = slotRepository;
+        _slotService = slotService;
         _mailService = mailService;
         _playerRepository = playerRepository;
         _systemConfigService = systemConfigService;
     }
 
-    // 클라이언트 로그인 시 - 오늘 보상 미수령 시 우편 발송
-    // [순서] 로그를 먼저 저장하여 (PlayerId, LoginDate) 유니크 인덱스로 동시 요청 중복 지급을 차단한 뒤 메일 발송
+    // 클라이언트 로그인 시 — 오늘 보상 미수령 시 우편 발송
+    // [순서] 로그를 먼저 저장하여 (PlayerId, LoginDate) 유니크 인덱스로 동시 요청 중복 지급 차단 후 메일 발송
     public async Task<bool> ProcessLoginRewardAsync(int playerId)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        // 관리자 설정 기준 시각(KST)으로 게임 날짜 계산
+        var boundaryHour = await _systemConfigService.GetDailyRewardDayBoundaryHourKstAsync();
+        var boundaryMinute = await _systemConfigService.GetDailyRewardDayBoundaryMinuteKstAsync();
+        var today = GetGameDay(DateTime.UtcNow, boundaryHour, boundaryMinute);
+
+        // 오늘 이미 수령했으면 중단
         if (await _loginLogRepository.ExistsAsync(playerId, today)) return false;
 
-        var reward = await _rewardConfigRepository.GetDefaultAsync();
-        if (reward is null) return false;
+        // 플레이어 조회
+        var player = await _playerRepository.GetByIdAsync(playerId);
+        if (player is null) return false;
 
-        // 로그를 먼저 기록 — 동시 요청이 들어와도 유니크 인덱스로 한 쪽만 성공
+        // 월 전환 체크 — 필요하면 Next → Current 복사 및 활성 연월 갱신
+        await _slotService.EnsureMonthTransitionAsync();
+
+        // 이번 달 로그인 횟수로 cycleDay 결정 (로그 기록 전이므로 현재까지의 누적 횟수)
+        var monthlyCount = await _loginLogRepository.CountByPlayerAndMonthAsync(playerId, today.Year, today.Month);
+
+        int? rewardItemId;
+        int rewardItemCount;
+        int rewardDayForLog;
+        string mailBody;
+
+        if (monthlyCount >= 28)
+        {
+            // 이번 달 28회 초과 — Admin 설정 기본 보상 지급
+            rewardItemId = await _systemConfigService.GetDailyRewardDefaultItemIdAsync();
+            rewardItemCount = await _systemConfigService.GetDailyRewardDefaultItemCountAsync();
+            rewardDayForLog = 0;
+            mailBody = "기본 보상입니다.";
+        }
+        else
+        {
+            // 슬롯 보상 — 이번 달 N번째 로그인 = Day N 보상 (monthlyCount + 1)
+            var cycleDay = monthlyCount + 1;
+            var slot = await _slotRepository.GetSlotDayAsync(RewardSlotKind.Current, cycleDay);
+            rewardItemId = slot?.ItemId;
+            rewardItemCount = slot?.ItemCount ?? 0;
+            rewardDayForLog = cycleDay;
+            mailBody = $"출석 {cycleDay}일차 보상입니다.";
+        }
+
+        // 로그를 먼저 기록 — (PlayerId, LoginDate) 유니크 인덱스로 동시 요청 중복 차단
         try
         {
-            await _loginLogRepository.AddAsync(new DailyLoginLog { PlayerId = playerId, LoginDate = today });
+            await _loginLogRepository.AddAsync(new DailyLoginLog
+            {
+                PlayerId = playerId,
+                LoginDate = today,
+                RewardDay = rewardDayForLog
+            });
             await _loginLogRepository.SaveChangesAsync();
         }
         catch (DbUpdateException)
@@ -51,20 +99,34 @@ public class DailyLoginService : IDailyLoginService
             return false;
         }
 
-        // 로그 확정 후 메일 발송
-        await _mailService.SendAsync(new SendMailDto(playerId, "일일 로그인 보상", "오늘의 로그인 보상입니다.", reward.ItemId, reward.ItemCount));
+        // 누적 출석 카운터 증가 (통계용)
+        await _playerRepository.IncrementAttendanceCountAsync(new[] { playerId });
+
+        // 보상 아이템이 설정되어 있을 때만 메일 발송
+        if (rewardItemId.HasValue && rewardItemCount > 0)
+        {
+            await _mailService.SendAsync(new SendMailDto(
+                playerId,
+                "일일 로그인 보상",
+                mailBody,
+                rewardItemId.Value,
+                rewardItemCount
+            ));
+        }
+
         return true;
     }
 
-    // 스케줄러 - 자동 발송 활성화 시 전체 플레이어에게 일괄 발송
-    public async Task ProcessDailyRewardForAllAsync()
+    // KST 기준 시각을 적용하여 게임 날짜를 계산한다.
+    // 기준 시각 미만이면 아직 전날로 간주 — 예) 기준 06:00, 현재 KST 05:30 → 어제 날짜 반환
+    private static DateOnly GetGameDay(DateTime utcNow, int boundaryHourKst, int boundaryMinuteKst)
     {
-        var enabled = await _systemConfigService.GetDailyRewardEnabledAsync();
-        if (!enabled) return;
-
-        var reward = await _rewardConfigRepository.GetDefaultAsync();
-        if (reward is null) return;
-
-        await _mailService.BulkSendAsync(new BulkSendMailDto("일일 로그인 보상", "오늘의 로그인 보상입니다.", reward.ItemId, reward.ItemCount));
+        // UTC → KST 변환 (UTC+9)
+        var kstNow = utcNow.AddHours(9);
+        var kstTime = TimeOnly.FromDateTime(kstNow);
+        var kstDate = DateOnly.FromDateTime(kstNow);
+        var boundary = new TimeOnly(boundaryHourKst, boundaryMinuteKst);
+        // 기준 시각 미만이면 전날을 게임 날짜로 반환
+        return kstTime < boundary ? kstDate.AddDays(-1) : kstDate;
     }
 }

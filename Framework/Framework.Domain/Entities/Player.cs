@@ -51,6 +51,9 @@ public class Player
     // 소원수리함 문의 목록
     public ICollection<Inquiry> Inquiries { get; set; } = new List<Inquiry>();
 
+    // 누적 출석 횟수 — 28일 사이클 보상 계산에 사용 (cycleDay = AttendanceCount % 28 + 1)
+    public int AttendanceCount { get; set; } = 0;
+
     // 소프트 딜리트 여부 (계정 병합 시 게스트 계정을 논리적으로 삭제)
     public bool IsDeleted { get; set; } = false;
 

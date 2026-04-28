@@ -1,4 +1,5 @@
 using Framework.Application.DTOs;
+using Framework.Domain.Entities;
 
 namespace Framework.Application.Interfaces;
 
@@ -13,4 +14,6 @@ public interface IMailService
     Task BulkSendAsync(BulkSendMailDto dto);
     // 우편 수령 → 아이템을 인벤토리에 추가 (본인 우편 여부는 playerId로 검증)
     Task<bool> ClaimAsync(int mailId, int playerId);
+    // 다수 Mail 엔티티를 컨텍스트에 추가 (배치 발송 시 사용 — SaveChanges 별도 호출 필요)
+    Task AddRangeMailsAsync(IEnumerable<Mail> mails);
 }

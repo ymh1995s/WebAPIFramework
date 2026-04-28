@@ -19,19 +19,6 @@ public class SystemConfigController : ControllerBase
         _systemConfigService = systemConfigService;
     }
 
-    // 일일 보상 자동 발송 활성화 여부 조회
-    [HttpGet("daily-reward-enabled")]
-    public async Task<IActionResult> GetDailyRewardEnabled()
-        => Ok(new { Enabled = await _systemConfigService.GetDailyRewardEnabledAsync() });
-
-    // 일일 보상 자동 발송 활성화 여부 변경
-    [HttpPut("daily-reward-enabled")]
-    public async Task<IActionResult> SetDailyRewardEnabled([FromBody] bool enabled)
-    {
-        await _systemConfigService.SetDailyRewardEnabledAsync(enabled);
-        return Ok();
-    }
-
     // 점검 모드 활성화 여부 조회 (수동)
     [HttpGet("maintenance-mode")]
     public async Task<IActionResult> GetMaintenanceMode()
@@ -83,6 +70,52 @@ public class SystemConfigController : ControllerBase
     {
         await _systemConfigService.SetClientAppMinVersionAsync(dto.MinVersion);
         await _systemConfigService.SetClientAppLatestVersionAsync(dto.LatestVersion);
+        return Ok();
+    }
+
+    // 일일 보상 하루 기준 시각 조회 (KST 시/분)
+    [HttpGet("daily-reward-day-boundary")]
+    public async Task<IActionResult> GetDailyRewardDayBoundary()
+    {
+        var hourKst = await _systemConfigService.GetDailyRewardDayBoundaryHourKstAsync();
+        var minuteKst = await _systemConfigService.GetDailyRewardDayBoundaryMinuteKstAsync();
+        return Ok(new { HourKst = hourKst, MinuteKst = minuteKst });
+    }
+
+    // 일일 보상 하루 기준 시각 저장 — hourKst: 0~23, minuteKst: 0~59
+    [HttpPut("daily-reward-day-boundary")]
+    public async Task<IActionResult> SetDailyRewardDayBoundary([FromBody] DailyRewardDayBoundaryDto dto)
+    {
+        // 유효 범위 검증
+        if (dto.HourKst < 0 || dto.HourKst > 23)
+            return BadRequest("hourKst는 0~23 사이여야 합니다.");
+        if (dto.MinuteKst < 0 || dto.MinuteKst > 59)
+            return BadRequest("minuteKst는 0~59 사이여야 합니다.");
+
+        await _systemConfigService.SetDailyRewardDayBoundaryHourKstAsync(dto.HourKst);
+        await _systemConfigService.SetDailyRewardDayBoundaryMinuteKstAsync(dto.MinuteKst);
+        return Ok();
+    }
+
+    // 월 28회 초과 시 지급할 기본 보상 설정 조회
+    [HttpGet("daily-reward-default")]
+    public async Task<IActionResult> GetDailyRewardDefault()
+    {
+        var itemId = await _systemConfigService.GetDailyRewardDefaultItemIdAsync();
+        var itemCount = await _systemConfigService.GetDailyRewardDefaultItemCountAsync();
+        return Ok(new DailyRewardDefaultDto(itemId, itemCount));
+    }
+
+    // 월 28회 초과 시 지급할 기본 보상 설정 저장
+    [HttpPut("daily-reward-default")]
+    public async Task<IActionResult> SetDailyRewardDefault([FromBody] DailyRewardDefaultDto dto)
+    {
+        // 수량은 음수 불가
+        if (dto.ItemCount < 0)
+            return BadRequest("ItemCount는 0 이상이어야 합니다.");
+
+        await _systemConfigService.SetDailyRewardDefaultItemIdAsync(dto.ItemId);
+        await _systemConfigService.SetDailyRewardDefaultItemCountAsync(dto.ItemCount);
         return Ok();
     }
 }

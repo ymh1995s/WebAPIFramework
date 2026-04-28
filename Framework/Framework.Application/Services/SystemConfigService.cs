@@ -22,20 +22,6 @@ public class SystemConfigService : ISystemConfigService
         _cache = cache;
     }
 
-    // DB에서 일일 보상 활성화 여부 조회 ("true" 문자열과 비교)
-    public async Task<bool> GetDailyRewardEnabledAsync()
-    {
-        var value = await _repository.GetValueAsync(SystemConfigKeys.DailyLoginRewardEnabled);
-        return value == "true";
-    }
-
-    // 일일 보상 활성화 여부를 DB에 저장
-    public async Task SetDailyRewardEnabledAsync(bool enabled)
-    {
-        await _repository.SetValueAsync(SystemConfigKeys.DailyLoginRewardEnabled, enabled ? "true" : "false");
-        await _repository.SaveChangesAsync();
-    }
-
     // DB에서 점검 모드 활성화 여부 조회 (수동)
     public async Task<bool> GetMaintenanceModeAsync()
     {
@@ -108,6 +94,63 @@ public class SystemConfigService : ISystemConfigService
     public async Task SetClientAppLatestVersionAsync(string version)
     {
         await _repository.SetValueAsync(SystemConfigKeys.ClientAppLatestVersion, version);
+        await _repository.SaveChangesAsync();
+    }
+
+    // 일일 로그인 보상 하루 기준 시각 — 시(KST) 조회 (미설정 시 기본값 0)
+    public async Task<int> GetDailyRewardDayBoundaryHourKstAsync()
+    {
+        var value = await _repository.GetValueAsync(SystemConfigKeys.DailyRewardDayBoundaryHourKst);
+        return int.TryParse(value, out var hour) ? hour : 0;
+    }
+
+    // 일일 로그인 보상 하루 기준 시각 — 분(KST) 조회 (미설정 시 기본값 0)
+    public async Task<int> GetDailyRewardDayBoundaryMinuteKstAsync()
+    {
+        var value = await _repository.GetValueAsync(SystemConfigKeys.DailyRewardDayBoundaryMinuteKst);
+        return int.TryParse(value, out var minute) ? minute : 0;
+    }
+
+    // 일일 로그인 보상 하루 기준 시각 — 시(KST) 저장
+    public async Task SetDailyRewardDayBoundaryHourKstAsync(int hour)
+    {
+        await _repository.SetValueAsync(SystemConfigKeys.DailyRewardDayBoundaryHourKst, hour.ToString());
+        await _repository.SaveChangesAsync();
+    }
+
+    // 일일 로그인 보상 하루 기준 시각 — 분(KST) 저장
+    public async Task SetDailyRewardDayBoundaryMinuteKstAsync(int minute)
+    {
+        await _repository.SetValueAsync(SystemConfigKeys.DailyRewardDayBoundaryMinuteKst, minute.ToString());
+        await _repository.SaveChangesAsync();
+    }
+
+    // 월 28회 초과 시 지급할 기본 보상 아이템 ID 조회 (빈 문자열 또는 미설정 시 null 반환)
+    public async Task<int?> GetDailyRewardDefaultItemIdAsync()
+    {
+        var value = await _repository.GetValueAsync(SystemConfigKeys.DailyRewardDefaultItemId);
+        if (string.IsNullOrEmpty(value)) return null;
+        return int.TryParse(value, out var itemId) ? itemId : null;
+    }
+
+    // 기본 보상 아이템 ID 저장 (null이면 빈 문자열로 저장 = 미설정 상태)
+    public async Task SetDailyRewardDefaultItemIdAsync(int? itemId)
+    {
+        await _repository.SetValueAsync(SystemConfigKeys.DailyRewardDefaultItemId, itemId.HasValue ? itemId.Value.ToString() : "");
+        await _repository.SaveChangesAsync();
+    }
+
+    // 기본 보상 아이템 수량 조회 (미설정 시 0 반환)
+    public async Task<int> GetDailyRewardDefaultItemCountAsync()
+    {
+        var value = await _repository.GetValueAsync(SystemConfigKeys.DailyRewardDefaultItemCount);
+        return int.TryParse(value, out var count) ? count : 0;
+    }
+
+    // 기본 보상 아이템 수량 저장
+    public async Task SetDailyRewardDefaultItemCountAsync(int count)
+    {
+        await _repository.SetValueAsync(SystemConfigKeys.DailyRewardDefaultItemCount, count.ToString());
         await _repository.SaveChangesAsync();
     }
 

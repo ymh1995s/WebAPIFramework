@@ -1,6 +1,7 @@
 using Framework.Domain.Entities;
 using Framework.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Framework.Domain.Interfaces;
 
 namespace Framework.Infrastructure.Repositories;
 
@@ -124,4 +125,16 @@ public class PlayerRepository : IPlayerRepository
     // 소프트 딜리트된 계정을 포함하여 ID로 조회 (Admin 전용)
     public async Task<Player?> GetByIdIncludingDeletedAsync(int id)
         => await _db.Players.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Id == id);
+
+    // 지정 플레이어들의 AttendanceCount를 1씩 일괄 증가 (ExecuteUpdate 배치)
+    public async Task IncrementAttendanceCountAsync(IEnumerable<int> playerIds)
+    {
+        var idList = playerIds.ToList();
+        if (idList.Count == 0) return;
+
+        // EF Core ExecuteUpdate: 트래킹 없이 직접 UPDATE SQL 실행 — 메모리 효율적
+        await _db.Players
+            .Where(p => idList.Contains(p.Id))
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.AttendanceCount, p => p.AttendanceCount + 1));
+    }
 }

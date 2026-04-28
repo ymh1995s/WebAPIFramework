@@ -44,4 +44,7 @@ public interface IPlayerRepository
 
     // 소프트 딜리트된 계정을 포함하여 ID로 조회 (Admin 전용)
     Task<Player?> GetByIdIncludingDeletedAsync(int id);
+
+    // 지정된 플레이어들의 AttendanceCount를 1씩 증가 (배치 처리용 ExecuteUpdate)
+    Task IncrementAttendanceCountAsync(IEnumerable<int> playerIds);
 }

@@ -3,9 +3,6 @@ namespace Framework.Domain.Constants;
 // 시스템 설정 키 상수 (SystemConfig 테이블의 Key 컬럼값)
 public static class SystemConfigKeys
 {
-    // 일일 로그인 보상 자동 발송 활성화 여부
-    public const string DailyLoginRewardEnabled = "daily_login_reward_enabled";
-
     // 점검 모드 활성화 여부 (수동 강제 on/off)
     public const string MaintenanceMode = "maintenance_mode";
 
@@ -23,4 +20,19 @@ public static class SystemConfigKeys
     // 앱스토어에 현재 배포된 클라이언트 앱 최신 버전
     // 강제는 아니지만 소프트 업데이트 안내에 사용
     public const string ClientAppLatestVersion = "client_app_latest_version";
+
+    // 현재 활성 연월 (YYYYMM 문자열, 예: "202604") — 월 전환 감지용
+    public const string DailyRewardActiveMonth = "daily_reward_active_month";
+
+    // 일일 로그인 보상 하루 기준 시각 — 시(KST), 기본값 0 (00:00 KST)
+    public const string DailyRewardDayBoundaryHourKst = "daily_reward_day_boundary_hour_kst";
+
+    // 일일 로그인 보상 하루 기준 시각 — 분(KST), 기본값 0 (00:00 KST)
+    public const string DailyRewardDayBoundaryMinuteKst = "daily_reward_day_boundary_minute_kst";
+
+    // 월 28회 초과 시 지급할 기본 보상 아이템 ID (빈 문자열 = 미설정)
+    public const string DailyRewardDefaultItemId = "daily_reward_default_item_id";
+
+    // 기본 보상 아이템 수량 (기본값 0 = 미발송)
+    public const string DailyRewardDefaultItemCount = "daily_reward_default_item_count";
 }

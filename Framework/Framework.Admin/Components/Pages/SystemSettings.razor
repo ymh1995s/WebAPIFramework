@@ -105,22 +105,6 @@ else
         }
     </section>
 
-    <!-- 일일 보상 토글 -->
-    <section class="mb-5">
-        <h4>일일 로그인 보상 자동 발송</h4>
-        <p class="text-muted small">비활성화하면 매일 00:00 자동 발송이 중단됩니다.</p>
-        <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" role="switch" id="dailyRewardToggle"
-                   checked="@dailyRewardEnabled" @onchange="ToggleDailyReward" />
-            <label class="form-check-label" for="dailyRewardToggle">
-                @(dailyRewardEnabled ? "활성화됨 (매일 00:00 자동 발송)" : "비활성화됨")
-            </label>
-        </div>
-        @if (dailyRewardMessage != null)
-        {
-            <p class="mt-1 text-success">@dailyRewardMessage</p>
-        }
-    </section>
 }
 
 @if (errorMessage != null)
@@ -149,10 +133,6 @@ else
     private string latestVersion = "";
     private string? versionMessage;
 
-    // 일일 보상 상태
-    private bool dailyRewardEnabled;
-    private string? dailyRewardMessage;
-
     // 수동 + 예약 포함 현재 실제 점검 여부
     private bool isUnderMaintenance;
 
@@ -177,14 +157,12 @@ else
 
         var r1 = await client.GetAsync(ApiRoutes.SystemConfig.MaintenanceMode);
         var r2 = await client.GetAsync(ApiRoutes.SystemConfig.MaintenanceSchedule);
-        var r3 = await client.GetAsync(ApiRoutes.SystemConfig.DailyRewardEnabled);
         var r4 = await client.GetAsync(ApiRoutes.SystemConfig.MaintenanceStatus);
         var r5 = await client.GetAsync(ApiRoutes.SystemConfig.Version);
 
-        if (r1.IsSuccessStatusCode && r2.IsSuccessStatusCode && r3.IsSuccessStatusCode && r4.IsSuccessStatusCode && r5.IsSuccessStatusCode)
+        if (r1.IsSuccessStatusCode && r2.IsSuccessStatusCode && r4.IsSuccessStatusCode && r5.IsSuccessStatusCode)
         {
             maintenanceEnabled = (await r1.Content.ReadFromJsonAsync<ToggleDto>())?.Enabled ?? false;
-            dailyRewardEnabled = (await r3.Content.ReadFromJsonAsync<ToggleDto>())?.Enabled ?? false;
             isUnderMaintenance = (await r4.Content.ReadFromJsonAsync<StatusDto>())?.IsUnderMaintenance ?? false;
 
             var schedule = await r2.Content.ReadFromJsonAsync<ScheduleDto>();
@@ -331,25 +309,6 @@ else
         else
         {
             errorMessage = "버전 설정 저장에 실패했습니다.";
-        }
-    }
-
-    // 일일 보상 토글
-    private async Task ToggleDailyReward(ChangeEventArgs e)
-    {
-        dailyRewardMessage = null;
-        var enabled = (bool)(e.Value ?? false);
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.PutAsJsonAsync(ApiRoutes.SystemConfig.DailyRewardEnabled, enabled);
-
-        if (response.IsSuccessStatusCode)
-        {
-            dailyRewardEnabled = enabled;
-            dailyRewardMessage = enabled ? "일일 보상 자동 발송이 활성화되었습니다." : "일일 보상 자동 발송이 비활성화되었습니다.";
-        }
-        else
-        {
-            errorMessage = "일일 보상 설정 변경에 실패했습니다.";
         }
     }
 

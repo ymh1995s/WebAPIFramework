@@ -3,6 +3,7 @@ using Framework.Application.Interfaces;
 using Framework.Domain.Entities;
 using Framework.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
 
 namespace Framework.Application.Services;
 
@@ -120,5 +121,11 @@ public class MailService : IMailService
         }
 
         return true;
+    }
+
+    // 다수 Mail 엔티티를 컨텍스트에 추가 (배치 발송 시 — 호출부에서 SaveChanges 필요)
+    public async Task AddRangeMailsAsync(IEnumerable<Mail> mails)
+    {
+        await _mailRepository.AddRangeAsync(mails);
     }
 }

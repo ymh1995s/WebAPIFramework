@@ -61,9 +61,6 @@ builder.Services.AddRateLimiting();
 // 메모리 캐시 — 점검 모드 등 매 요청마다 확인되는 설정 조회 비용을 줄이기 위해 사용
 builder.Services.AddMemoryCache();
 
-// 스케줄러 등록 (매일 00:00 자동 발송)
-builder.Services.AddHostedService<Framework.Api.Services.DailyRewardScheduler>();
-
 builder.Services.AddControllers();
 // OpenAPI(Swagger) 문서 생성
 builder.Services.AddOpenApi();

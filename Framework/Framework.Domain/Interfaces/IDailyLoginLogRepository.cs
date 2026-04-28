@@ -9,6 +9,10 @@ public interface IDailyLoginLogRepository
     Task<bool> ExistsAsync(int playerId, DateOnly date);
     // 로그인 기록 추가
     Task AddAsync(DailyLoginLog log);
+    // 다수 로그인 기록 일괄 추가 (배치 처리용)
+    Task AddRangeAsync(IEnumerable<DailyLoginLog> logs);
+    // 특정 플레이어의 지정 연/월 로그인 횟수 조회 (기본 보상 분기 판단용)
+    Task<int> CountByPlayerAndMonthAsync(int playerId, int year, int month);
     // 변경사항 저장
     Task SaveChangesAsync();
 }

@@ -128,6 +128,18 @@ public static class ApiRoutes
         }
     }
 
+    // ── 일일 보상 슬롯 Admin (AdminDailyRewardSlotsController) ──────────────
+    public static class AdminDailyRewardSlots
+    {
+        private const string Base = "api/admin/daily-rewards/slots";
+
+        /// <summary>슬롯 전체 28개 Day 조회 (GET) — slot: "current" 또는 "next"</summary>
+        public static string Slot(string slot) => $"{Base}/{slot}";
+
+        /// <summary>특정 슬롯의 특정 Day 보상 수정 (PUT)</summary>
+        public static string SlotDay(string slot, int day) => $"{Base}/{slot}/days/{day}";
+    }
+
     // ── 시스템 설정 Admin (SystemConfigController: Route = "api/admin/systemconfig") ──
     public static class SystemConfig
     {
@@ -142,11 +154,14 @@ public static class ApiRoutes
         /// <summary>수동+예약 포함 현재 실제 점검 여부 조회 (GET)</summary>
         public const string MaintenanceStatus = $"{Base}/maintenance-status";
 
-        /// <summary>일일 보상 자동 발송 활성화 여부 조회(GET) / 변경(PUT)</summary>
-        public const string DailyRewardEnabled = $"{Base}/daily-reward-enabled";
-
         /// <summary>버전 설정 조회(GET) / 저장(PUT)</summary>
         public const string Version = $"{Base}/version";
+
+        /// <summary>일일 보상 하루 기준 시각 조회(GET) / 저장(PUT) — KST 시/분</summary>
+        public const string DailyRewardDayBoundary = $"{Base}/daily-reward-day-boundary";
+
+        /// <summary>월 28회 초과 시 기본 보상 설정 조회(GET) / 저장(PUT)</summary>
+        public const string DailyRewardDefault = $"{Base}/daily-reward-default";
     }
 
     // ── 공지 Admin (AdminNoticesController: Route = "api/admin/notices") ────

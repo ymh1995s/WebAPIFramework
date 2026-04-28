@@ -18,7 +18,9 @@ public class AppDbContext : DbContext
     public DbSet<PlayerItem> PlayerItems { get; set; }
     public DbSet<Mail> Mails { get; set; }
     public DbSet<DailyLoginLog> DailyLoginLogs { get; set; }
-    public DbSet<DailyRewardConfig> DailyRewardConfigs { get; set; }
+
+    // 일일 보상 슬롯 테이블 (Current/Next 2슬롯 × Day 1~28 = 56행 고정)
+    public DbSet<DailyRewardSlot> DailyRewardSlots { get; set; }
 
     // 공통 마스터 테이블
     public DbSet<Item> Items { get; set; }
@@ -40,6 +42,11 @@ public class AppDbContext : DbContext
     {
         // SystemConfig: Key를 PK로 사용
         modelBuilder.Entity<SystemConfig>().HasKey(c => c.Key);
+
+        // Player: AttendanceCount 기본값 0 — 신규 가입 플레이어는 출석 횟수 0에서 시작
+        modelBuilder.Entity<Player>()
+            .Property(p => p.AttendanceCount)
+            .HasDefaultValue(0);
 
         // Player: IsBanned 기본값 false 설정 (DB 컬럼 DEFAULT 보장)
         modelBuilder.Entity<Player>()
@@ -148,6 +155,28 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<DailyLoginLog>()
             .HasIndex(l => new { l.PlayerId, l.LoginDate })
             .IsUnique();
+
+        // DailyLoginLog: RewardDay 기본값 1 (기존 데이터 호환)
+        modelBuilder.Entity<DailyLoginLog>()
+            .Property(l => l.RewardDay)
+            .HasDefaultValue(1);
+
+        // DailyRewardSlot: 복합 PK (Slot, Day)
+        modelBuilder.Entity<DailyRewardSlot>()
+            .HasKey(s => new { s.Slot, s.Day });
+
+        // DailyRewardSlot: ItemId nullable FK → Items (보상 없는 일자는 null)
+        modelBuilder.Entity<DailyRewardSlot>()
+            .HasOne(s => s.Item)
+            .WithMany()
+            .HasForeignKey(s => s.ItemId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // DailyRewardSlot: ItemCount 기본값 0
+        modelBuilder.Entity<DailyRewardSlot>()
+            .Property(s => s.ItemCount)
+            .HasDefaultValue(0);
 
         // Inquiry → Player (N:1), 플레이어 삭제 시 문의도 함께 삭제
         modelBuilder.Entity<Inquiry>()

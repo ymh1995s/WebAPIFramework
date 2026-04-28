@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using Framework.Application.Interfaces;
 using Framework.Application.Options;
 using Framework.Application.Services;
+using Framework.Domain.Constants;
 using Framework.Domain.Entities;
 using Framework.Domain.Interfaces;
 using Framework.Infrastructure.Repositories;
@@ -35,7 +36,7 @@ public static class ServiceExtensions
         services.AddScoped<IMailRepository, MailRepository>();
         services.AddScoped<IRankingRepository, RankingRepository>();
         services.AddScoped<IDailyLoginLogRepository, DailyLoginLogRepository>();
-        services.AddScoped<IDailyRewardConfigRepository, DailyRewardConfigRepository>();
+        services.AddScoped<IDailyRewardSlotRepository, DailyRewardSlotRepository>();
         services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
         services.AddScoped<IAuditLogRepository, AuditLogRepository>();
         return services;
@@ -70,6 +71,7 @@ public static class ServiceExtensions
         services.AddScoped<IPlayerRecordService, PlayerRecordService>();
         services.AddScoped<IMailService, MailService>();
         services.AddScoped<IDailyLoginService, DailyLoginService>();
+        services.AddScoped<IDailyRewardSlotService, DailyRewardSlotService>();
         services.AddScoped<IPlayerItemService, PlayerItemService>();
         services.AddScoped<ISystemConfigService, SystemConfigService>();
         services.AddScoped<IRankingService, RankingService>();
