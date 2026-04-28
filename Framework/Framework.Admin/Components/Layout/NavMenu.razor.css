@@ -148,11 +148,52 @@
     }
 
     .nav-scrollable {
-        /* 사이드바 전체 높이를 flex 컬럼으로 — 로그 패널이 나머지 공간을 채움 */
         display: flex;
         flex-direction: column;
+        /*
+         * 사이드바 높이 = 전체 화면 높이 - 상단 헤더(브랜드 타이틀 영역)
+         *   100vh       : 브라우저 뷰포트 전체 높이
+         *   3.5rem      : NavMenu 상단 "Framework.Admin" 헤더 바 높이 (.top-row min-height)
+         */
         height: calc(100vh - 3.5rem);
         overflow: hidden;
+    }
+
+    /* 메뉴 항목 영역 — 최대 높이 고정, 항목 증가 시 내부 스크롤 */
+    .nav-scrollable .nav {
+        overflow-y: auto;
+        overflow-x: hidden;
+        flex-wrap: nowrap; /* Bootstrap .nav 기본값(flex-wrap:wrap) 재정의 — 다열 줄바꿈 방지, 1열 유지 */
+        flex-shrink: 0;
+        /* Firefox 스크롤바 스타일 */
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255,255,255,0.2) transparent;
+        /*
+         * 메뉴 영역 최대 높이 = 전체 화면 - 상단 헤더 - HTTP 로그 패널 최소 확보 높이
+         *   100vh       : 뷰포트 전체 높이
+         *   3.5rem      : NavMenu 상단 헤더 바 (위와 동일)
+         *   300px       : HTTP 로그 패널에 항상 확보할 최소 높이 ← 이 값을 조정하세요
+         *                 크게 할수록 로그 패널이 넓어지고 메뉴 영역이 일찍 스크롤됨
+         */
+        max-height: calc(100vh - 3.5rem - 300px);
+    }
+
+    /* Chrome / Edge 스크롤바 — 얇고 반투명한 핸들 */
+    .nav-scrollable .nav::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .nav-scrollable .nav::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .nav-scrollable .nav::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 2px;
+    }
+
+    .nav-scrollable .nav::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.4);
     }
 }
 
