@@ -122,11 +122,14 @@ public static class ServiceExtensions
         return services;
     }
 
-    // Rate Limiter 정책 등록
-    public static IServiceCollection AddRateLimiting(this IServiceCollection services)
+    // Rate Limiter 정책 등록 — 한도값은 appsettings.json RateLimiting 섹션에서 관리
+    public static IServiceCollection AddRateLimiting(this IServiceCollection services, IConfiguration config)
     {
         // RateLimitLogRepository는 OnRejected 콜백에서 직접 생성하므로 Scoped 등록
         services.AddScoped<RateLimitLogRepository>();
+
+        // appsettings.json의 RateLimiting:AuthPermitLimit 값 사용 — 미설정 시 60 기본값
+        var authPermitLimit = config.GetValue<int>("RateLimiting:AuthPermitLimit", 60);
 
         services.AddRateLimiter(options =>
         {
@@ -135,27 +138,15 @@ public static class ServiceExtensions
             // 로그인 API처럼 별도 제한이 필요한 엔드포인트에 사용
             options.AddFixedWindowLimiter("auth", limiter =>
             {
-                limiter.PermitLimit = 10;
+                limiter.PermitLimit = authPermitLimit;
                 limiter.Window = TimeSpan.FromMinutes(1);
                 limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
                 limiter.QueueLimit = 0;
             });
 
-            // GlobalLimiter: 이름 없이 모든 요청에 자동 적용되는 기본 정책
-            // [EnableRateLimiting] 어트리뷰트 없이도 전체 API에 깔리며
-            // IP 기준으로 요청자를 직접 구분(파티션)하는 로직을 작성해야 함
-            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    factory: _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 60,
-                        Window = TimeSpan.FromMinutes(1),
-                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                        QueueLimit = 0
-                    }));
-
-            // 429 발생 시 DB에 로그 기록
+            // HTTP 429 Too Many Requests — Rate Limit 초과 시 서버가 반환하는 상태 코드
+            // 현재 적용 정책: auth 엔드포인트(/auth/*) IP 기준 authPermitLimit회/분
+            // 발생 즉시 RateLimitLog DB에 기록하여 보안 감시 페이지에서 확인 가능
             options.OnRejected = async (context, cancellationToken) =>
             {
                 context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
@@ -171,6 +162,16 @@ public static class ServiceExtensions
 
                 try
                 {
+                    // JWT 클레임에서 PlayerId 추출 — 인증된 요청이면 설정, 비인증이면 null
+                    int? playerId = null;
+                    var playerIdClaim = context.HttpContext.User.FindFirst("playerId")?.Value;
+                    if (int.TryParse(playerIdClaim, out var parsedId))
+                        playerId = parsedId;
+
+                    // User-Agent 256자 제한 — 봇 탐지 보조
+                    var userAgent = context.HttpContext.Request.Headers.UserAgent.ToString();
+                    if (userAgent.Length > 256) userAgent = userAgent[..256];
+
                     var repo = context.HttpContext.RequestServices
                         .GetRequiredService<RateLimitLogRepository>();
                     await repo.AddAsync(new RateLimitLog
@@ -178,7 +179,9 @@ public static class ServiceExtensions
                         IpAddress = ip,
                         Path = path,
                         Policy = policy,
-                        OccurredAt = DateTime.UtcNow
+                        OccurredAt = DateTime.UtcNow,
+                        PlayerId = playerId,
+                        UserAgent = string.IsNullOrEmpty(userAgent) ? null : userAgent
                     });
                 }
                 catch (Exception ex)

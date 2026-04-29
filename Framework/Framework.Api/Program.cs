@@ -57,7 +57,7 @@ builder.Services.AddMatchMakingServices(builder.Configuration);
 builder.Services.AddJwtAuthentication(builder.Configuration);
 
 // Rate Limiter 정책 등록
-builder.Services.AddRateLimiting();
+builder.Services.AddRateLimiting(builder.Configuration);
 
 // 메모리 캐시 — 점검 모드 등 매 요청마다 확인되는 설정 조회 비용을 줄이기 위해 사용
 builder.Services.AddMemoryCache();

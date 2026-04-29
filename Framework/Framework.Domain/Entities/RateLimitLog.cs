@@ -19,4 +19,10 @@ public class RateLimitLog
 
     /// <summary>발생 시각 (UTC)</summary>
     public DateTime OccurredAt { get; set; }
+
+    /// <summary>요청자 플레이어 ID — JWT 인증된 요청이면 클레임에서 추출, 비인증이면 null</summary>
+    public int? PlayerId { get; set; }
+
+    /// <summary>User-Agent 헤더 (최대 256자) — 봇 탐지 보조용</summary>
+    public string? UserAgent { get; set; }
 }

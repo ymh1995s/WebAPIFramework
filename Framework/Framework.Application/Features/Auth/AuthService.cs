@@ -33,10 +33,10 @@ public class AuthService : IAuthService
         var player = await _playerRepo.GetByDeviceIdAsync(deviceId);
         var isNew = player is null;
 
-        // TODO: 밴 체크 — 로그인 허용 전 IsBanned 및 BannedUntil 검증 필요
-        //   예) if (player?.IsBanned == true && (player.BannedUntil == null || player.BannedUntil > DateTime.UtcNow))
-        //       throw new UnauthorizedAccessException("밴된 계정입니다.");
-        //   → 이 범위는 별도 작업으로 구현 예정
+        // 기존 플레이어인 경우 밴 여부 확인 — 신규 가입(isNew)은 밴 대상 없음
+        if (player is not null && player.IsBanned &&
+            (player.BannedUntil == null || player.BannedUntil > DateTime.UtcNow))
+            throw new UnauthorizedAccessException("정지된 계정입니다.");
 
         if (isNew)
         {
@@ -113,6 +113,10 @@ public class AuthService : IAuthService
         // [분기 B] 비인증 요청(currentPlayerId == null) → 기존 계정으로 정상 재로그인
         if (currentPlayerId is null)
         {
+            // 밴 여부 확인 — 정지 기간이 남아있으면 로그인 거부
+            if (existing.IsBanned && (existing.BannedUntil == null || existing.BannedUntil > DateTime.UtcNow))
+                throw new UnauthorizedAccessException("정지된 계정입니다.");
+
             existing.LastLoginAt = DateTime.UtcNow;
             await _playerRepo.UpdateAsync(existing);
             return await IssueTokensAsync(existing, false);

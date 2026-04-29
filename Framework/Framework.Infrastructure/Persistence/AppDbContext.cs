@@ -189,5 +189,14 @@ public class AppDbContext : DbContext
             .HasIndex(l => l.PlayerId);
         modelBuilder.Entity<AuditLog>()
             .HasIndex(l => l.CreatedAt);
+
+        // AuditLog: ActorType 인덱스 — Admin 행위 빠른 필터링
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(l => l.ActorType);
+
+        // RateLimitLog: PlayerId 부분 인덱스 — 인증 유저 요청만 추적 (null 제외)
+        modelBuilder.Entity<RateLimitLog>()
+            .HasIndex(l => l.PlayerId)
+            .HasFilter("\"PlayerId\" IS NOT NULL");
     }
 }

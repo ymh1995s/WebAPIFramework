@@ -31,8 +31,16 @@ public class AuthController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.DeviceId))
             return BadRequest("DeviceId가 필요합니다.");
 
-        var result = await _authService.GuestLoginAsync(request.DeviceId);
-        return Ok(result);
+        try
+        {
+            var result = await _authService.GuestLoginAsync(request.DeviceId);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            // 밴된 계정 로그인 시도 — 403 반환 (인증은 됐으나 접근 거부)
+            return StatusCode(403, ex.Message);
+        }
     }
 
     // AccessToken 재발급

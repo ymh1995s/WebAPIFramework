@@ -115,6 +115,26 @@ public static class ApiRoutes
         public const string Collection = "api/admin/rate-limit-logs";
     }
 
+    // ── 보안 통합 타임라인 Admin (AdminSecurityController) ────────────────
+    public static class AdminSecurity
+    {
+        private const string Base = "api/admin/security";
+
+        /// <summary>Rate Limit 정책 현재 설정값 조회 (GET)</summary>
+        public const string RateLimitConfig = $"{Base}/rate-limit-config";
+
+        /// <summary>통합 보안 타임라인 조회 — 파라미터: from, to, playerId, ip</summary>
+        public static string Timeline(DateTime? from, DateTime? to, int? playerId, string? ip)
+        {
+            var parts = new List<string>();
+            if (from.HasValue)     parts.Add($"from={Uri.EscapeDataString(from.Value.ToString("o"))}");
+            if (to.HasValue)       parts.Add($"to={Uri.EscapeDataString(to.Value.ToString("o"))}");
+            if (playerId.HasValue) parts.Add($"playerId={playerId.Value}");
+            if (!string.IsNullOrEmpty(ip)) parts.Add($"ip={Uri.EscapeDataString(ip)}");
+            return parts.Count > 0 ? $"{Base}/timeline?{string.Join("&", parts)}" : $"{Base}/timeline";
+        }
+    }
+
     // ── 감사 로그 Admin (AdminAuditLogsController: Route = "api/admin/audit-logs") ──
     public static class AdminAuditLogs
     {

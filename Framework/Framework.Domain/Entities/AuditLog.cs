@@ -1,3 +1,5 @@
+using Framework.Domain.Enums;
+
 namespace Framework.Domain.Entities;
 
 // 플레이어 재화/아이템 변동 감사 로그
@@ -26,6 +28,12 @@ public class AuditLog
 
     // 이상치 여부 — AnomalyThreshold 초과 시 true
     public bool IsAnomaly { get; set; }
+
+    // 변동을 일으킨 주체 유형 (Player / Admin / System)
+    public AuditActorType ActorType { get; set; } = AuditActorType.Player;
+
+    // 주체가 Admin일 때 식별자 (미래 확장용, 현재는 null 허용)
+    public int? ActorId { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

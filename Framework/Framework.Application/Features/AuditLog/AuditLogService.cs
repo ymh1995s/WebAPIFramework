@@ -3,6 +3,7 @@ using Framework.Domain.Entities;
 using Framework.Domain.Enums;
 using Framework.Domain.Interfaces;
 
+
 namespace Framework.Application.Features.AuditLog;
 
 // 감사 로그 서비스 구현체
@@ -19,7 +20,8 @@ public class AuditLogService : IAuditLogService
     }
 
     // 변동 기록 — Item.AuditLevel 값에 따라 저장 여부/이상치 여부 결정
-    public async Task RecordAsync(int playerId, int itemId, string reason, int changeAmount, int balanceBefore, int balanceAfter)
+    public async Task RecordAsync(int playerId, int itemId, string reason, int changeAmount, int balanceBefore, int balanceAfter,
+        AuditActorType actorType = AuditActorType.Player, int? actorId = null)
     {
         var item = await _itemRepository.GetByIdAsync(itemId);
         if (item is null) return;
@@ -40,6 +42,8 @@ public class AuditLogService : IAuditLogService
             BalanceBefore = balanceBefore,
             BalanceAfter = balanceAfter,
             IsAnomaly = isAnomaly,
+            ActorType = actorType,
+            ActorId = actorId,
             CreatedAt = DateTime.UtcNow
         };
         await _auditLogRepository.AddAsync(log);

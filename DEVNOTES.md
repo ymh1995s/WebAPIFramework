@@ -15,7 +15,7 @@
 | 아이템 마스터 관리 | Admin CRUD (추가/수정/소프트삭제), 보유 유저 수 확인 |
 | Admin 인증 | X-Admin-Key 헤더 기반 API 접근 제어, 미들웨어에서 Admin Key 인증 시 모든 [Authorize] 엔드포인트 접근 허용 |
 | 시스템 설정 | 점검 모드, 앱 버전, 일일 보상 기준 시각 등 SystemConfig Admin 제어 |
-| 어뷰징 방어 | Rate Limiting (IP 기준), 429 발생 시 DB 로그, Admin 보안 감시 페이지 |
+| 어뷰징 방어 | auth 엔드포인트 Rate Limiting (IP 기준, `RateLimiting:AuthPermitLimit` 설정), 429 발생 시 PlayerId·UserAgent 포함 DB 로그. Admin 보안 감시 — 통합 타임라인(Rate Limit 초과 / 재화 이상치 / 계정 정지 이벤트 병합), IP 집계, 타임라인에서 직접 영구밴 가능 |
 | 점검 모드 | 수동 ON/OFF 및 시각 예약, 미들웨어에서 503 차단, Admin은 점검 중에도 접근 가능 |
 | 계정 탈퇴 | DELETE /auth/withdraw, 플레이어 즉시 하드 삭제, CASCADE로 모든 연관 데이터 삭제 (개인정보보호법 제21조 준수) |
 | 클라이언트 앱 버전 체크 | GET /api/version/check, 강제 업데이트 여부 반환, Admin에서 최소/최신 버전 설정 (서버 버전 아님 — 앱스토어 배포 Unity 빌드 기준) |
@@ -70,6 +70,7 @@ cycleDay는 이번 달 로그인 횟수 기반 (1번째 로그인 = Day 1, 28번
 ## [미구현] 추가 개발 필요 항목
 - **공지사항 페이지** [선택] — 현재는 1회성 텍스트 공지만 구현됨. 공지 이력 열람, 카테고리 분류 등 게시판 형태가 필요해지면 별도 페이지 추가 고려
 - **감사 로그 훅 확장** — 현재는 `MailService.ClaimAsync`에만 훅 적용됨. 상점 구매/스테이지 보상/Admin 직접 지급 등 기능 구현 시 `IAuditLogService.RecordAsync` 호출 추가 필요
+- **밴/밴해제 로그** — `AdminPlayersController`의 Ban/Unban 엔드포인트 처리 후 별도 로그 기록 필요. 누가(Admin), 언제, 어떤 플레이어를 밴/해제했는지 감사 추적이 현재 없음. AuditLog 또는 전용 BanLog 테이블 중 택일하여 구현 필요
 - **백업 정책** — DB 백업은 애플리케이션 관할 아님. Docker로 운영 중인 PostgreSQL 컨테이너/볼륨 레벨에서 별도 설정 필요 (pg_dump, 볼륨 스냅샷 등). 최소 1일 1회 백업, 30일 보관 권장
 - **광고 보상 서버사이드 검증(SSV)** — 광고 시청 보상 지급 시 클라이언트 조작 방지를 위해 구글/애플 서버 검증 필요
 - **인앱 결제 영수증 검증** — Google Play / Apple IAP 결제 후 서버에서 영수증 진위 검증 필요
