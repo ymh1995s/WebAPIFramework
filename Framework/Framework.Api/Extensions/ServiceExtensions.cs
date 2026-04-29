@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using Framework.Application.Common;
 using Framework.Application.Features.AdPolicy;
 using Framework.Application.Features.AdReward;
+using Framework.Application.Features.IapProduct;
 using Framework.Application.Features.AuditLog;
 using Framework.Application.Features.Auth;
 using Framework.Application.Features.DailyLogin;
@@ -27,6 +28,8 @@ using Framework.Infrastructure.Repositories;
 using Framework.Api.Notifications;
 using Framework.Api.Services;
 using Framework.Api.Services.AdNetwork;
+using Framework.Api.Services.IapStore;
+using Framework.Application.Features.Iap;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
@@ -64,6 +67,10 @@ public static class ServiceExtensions
 
         // 광고 보상 저장소 등록
         services.AddScoped<IAdPolicyRepository, AdPolicyRepository>();
+
+        // 인앱결제 저장소 등록
+        services.AddScoped<IIapProductRepository, IapProductRepository>();
+        services.AddScoped<IIapPurchaseRepository, IapPurchaseRepository>();
 
         return services;
     }
@@ -103,6 +110,10 @@ public static class ServiceExtensions
 
         // 광고 정책 Admin 서비스 등록
         services.AddScoped<IAdPolicyService, AdPolicyService>();
+
+        // 인앱결제 Admin 서비스 등록
+        services.AddScoped<IIapProductService, IapProductService>();
+        services.AddScoped<IIapPurchaseAdminService, IapPurchaseAdminService>();
 
         return services;
     }
@@ -166,6 +177,10 @@ public static class ServiceExtensions
         // 미설정 시 300 기본값 (광고 네트워크 서버는 합법적으로 많은 요청 발송)
         var adsCallbackPermitLimit = config.GetValue<int>("RateLimiting:AdsCallbackPermitLimit", 300);
 
+        // RTDN 수신 Rate Limit — Google Pub/Sub 재시도 정책을 감안하여 충분히 높게 설정
+        // 미설정 시 600 기본값 (Google은 비-200 응답 시 최대 7일간 재시도)
+        var iapRtdnPermitLimit = config.GetValue<int>("RateLimiting:IapRtdnPermitLimit", 600);
+
         services.AddRateLimiter(options =>
         {
             // AddFixedWindowLimiter: 이름("auth")을 붙여 등록하는 방식
@@ -184,6 +199,16 @@ public static class ServiceExtensions
             options.AddFixedWindowLimiter("ads-callback", limiter =>
             {
                 limiter.PermitLimit = adsCallbackPermitLimit;
+                limiter.Window = TimeSpan.FromMinutes(1);
+                limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                limiter.QueueLimit = 0;
+            });
+
+            // Google Pub/Sub RTDN 수신 Rate Limit — Google 서버가 직접 호출
+            // 재시도 감안하여 충분히 높게 설정, 과도한 트래픽 차단 목적
+            options.AddFixedWindowLimiter("iap-rtdn", limiter =>
+            {
+                limiter.PermitLimit = iapRtdnPermitLimit;
                 limiter.Window = TimeSpan.FromMinutes(1);
                 limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
                 limiter.QueueLimit = 0;
@@ -252,6 +277,27 @@ public static class ServiceExtensions
 
         // 광고 보상 처리 서비스 등록
         services.AddScoped<IAdRewardService, AdRewardService>();
+
+        return services;
+    }
+
+    // 인앱결제(IAP) 서비스 등록 — Google Play 검증기 + 메인 구매 처리 서비스
+    public static IServiceCollection AddIapServices(this IServiceCollection services)
+    {
+        // Google Play 영수증 검증기 등록 (IIapStoreVerifier Strategy 구현체)
+        services.AddScoped<IIapStoreVerifier, GooglePlayStoreVerifier>();
+
+        // 스토어 검증기 팩토리 (Resolver) 등록
+        services.AddScoped<IIapStoreVerifierResolver, IapStoreVerifierResolver>();
+
+        // 인앱결제 메인 검증+지급 서비스 등록
+        services.AddScoped<IIapPurchaseService, IapPurchaseService>();
+
+        // RTDN 알림 처리 서비스 등록
+        services.AddScoped<IIapRtdnService, IapRtdnService>();
+
+        // Google Pub/Sub OIDC 검증기 — Singleton: 내부 JWKS ConfigurationManager 캐시 공유
+        services.AddSingleton<GooglePubSubAuthenticator>();
 
         return services;
     }

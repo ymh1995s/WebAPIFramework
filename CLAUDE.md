@@ -132,8 +132,13 @@ Every task follows: **Question -> Options -> Decision -> Draft -> Approval**
 
 ## Agent Auto-Dispatch Rules
 
-- 신규 기능 설계 요청 → architect 에이전트 자동 사용
-- 코드 구현 요청 → programmer 에이전트 자동 사용
-- 검증/테스트 요청 → qa-reviewer 에이전트 자동 사용
-- 보안 검토 요청 → security-master 에이전트 자동 사용
-- 설계 완료 후 구현/검증은 순차 실행, qa-reviewer + security-master는 병렬 실행 가능
+- 설계 요청 → architect / 구현 요청 → programmer / 검증 요청 → qa-reviewer / 보안 검토 → security-master
+- 설계→구현→검증은 순차, qa-reviewer + security-master는 병렬 가능
+
+### programmer→qa-reviewer 자동 루프 (오케스트레이터 MUST)
+programmer 종료 즉시 아래를 자율 실행. 유저에게 묻지 않는다.
+1. qa-reviewer 호출 (programmer가 보고한 변경 파일만 전달)
+2. 승인 → 루프 종료, 유저에게 결과 1~3줄 보고
+3. 반려 → programmer 재호출(반려 사유 전달) → 1번부터. **상한 3회**, 초과 시 미해결 이슈 보고 후 중단
+- 루프 중 Collaboration Protocol의 Write/Edit 승인 게이트는 면제 (단, 최초 승인 파일 목록 외 신규 파일은 별도 확인)
+- 루프 중간 과정은 유저에게 보고하지 않는다

@@ -24,6 +24,8 @@
 | 플레이어 문의 | POST /api/inquiries 제출, GET /api/inquiries 내 목록 조회. Admin 답변 등록. 소원수리함 형태(자유 텍스트). Blazor 테스트 페이지 포함 |
 | 감사 로그 | 재화/아이템 변동 추적. Item.AuditLevel(AnomalyOnly/Full) + AnomalyThreshold 기준으로 저장 범위 차별화. Admin `/audit-logs` 페이지에서 플레이어·아이템·기간·이상치 필터 조회. 현재 훅은 `MailService.ClaimAsync` 적용 |
 | 광고 SSV 보상 | Unity Ads / IronSource SSV(Server Side Verification) 콜백 검증 및 보상 지급. Strategy 패턴으로 모듈화 — 새 네트워크 추가 시 검증기 클래스 1개 + DI 등록 1줄. HMAC-SHA256 서명 검증, 일일 한도 제한, RewardDispatcher 멱등성 보장. Admin `/ad-policies` 페이지에서 PlacementId별 보상 정책 CRUD 관리. 콜백 URL: `GET /api/ads/callback/unity-ads`, `GET /api/ads/callback/ironsource` |
+| 트랜잭션 추상화 | `IUnitOfWork` 인터페이스(Domain) + `UnitOfWork` 구현체(Infrastructure). RewardDispatcher가 IUnitOfWork를 통해 전체 보상 지급을 단일 트랜잭션으로 보장 |
+| 인앱 결제(IAP) | Google Play 영수증 서버 검증 및 보상 지급. Strategy 패턴으로 스토어별 모듈화(현재 Google Play 구현, Apple 예약). OIDC 기반 RTDN(환불 알림) 수신 및 자동 환불 처리. Admin `/iap-products` 상품 관리, `/iap-purchases` 구매 이력 조회. API: `POST /api/iap/google/verify`, `POST /api/iap/google/rtdn`. Rate Limit: iap-rtdn 600회/분 |
 
 ---
 
@@ -38,6 +40,19 @@
 | `ConnectionStrings:Default` | `POSTGRES_PASSWORD` | 운영 DB 비밀번호 설정 |
 | `AdNetworks:UnityAds:SecretKey` | `UNITY_ADS_SECRET_KEY` | Unity Ads 대시보드 > 수익화 > 광고 > SSV 설정에서 발급 |
 | `AdNetworks:IronSource:SecretKey` | `IRONSOURCE_SECRET_KEY` | IronSource 대시보드 > SDK 네트워크 > 고급 설정에서 발급 |
+| `Iap:Google:PackageName` | `IAP_GOOGLE_PACKAGE_NAME` | 실제 앱 패키지명 (예: com.yourcompany.yourgame) |
+| `Iap:Google:ServiceAccountJsonPath` | `IAP_GOOGLE_SERVICE_ACCOUNT_JSON_PATH` | Google Play 서비스 계정 JSON 파일 경로 (Git 커밋 금지) |
+| `Iap:Google:RtdnAudience` | `IAP_GOOGLE_RTDN_AUDIENCE` | RTDN Push subscription 수신 URL (예: https://api.yourdomain.com/api/iap/google/rtdn) |
+
+> `secrets/google-play-service-account.json` — Google Cloud Console에서 발급한 서비스 계정 JSON. 절대 Git에 커밋하지 말 것 (.gitignore 확인)
+
+## [필수] Google Play 연동 준비 사항
+라이브 배포 전 Google Cloud / Play Console 설정이 필요합니다.
+
+1. **서비스 계정 생성** — Google Cloud Console > IAM > 서비스 계정 생성 후 JSON 키 발급
+2. **Play Console 권한 부여** — Play Console > 설정 > API 액세스 > 서비스 계정에 "주문 관리" 권한 부여
+3. **Pub/Sub 설정** — Google Cloud Pub/Sub > Topic 생성 + Push subscription 대상을 `/api/iap/google/rtdn`으로 설정
+4. **License Testers 등록** — Play Console > 설정 > License Testers에 테스트 계정 등록 (테스트 환경)
 
 ## [필수] Framework.Admin/appsettings.json 교체값
 - `ApiBaseUrl` — 현재 `https://api.overture.io.kr`. 도메인 변경 시 교체 필요
@@ -115,11 +130,12 @@ cycleDay는 이번 달 로그인 횟수 기반 (1번째 로그인 = Day 1, 28번
 - **일괄 우편 발송 성능** — `MailService.BulkSendAsync`가 전체 플레이어를 메모리 로드 후 단일 트랜잭션으로 N건 INSERT. 유저 수 증가 시 메모리 압박 + DB 락 시간 문제 발생. 배치 분할(500건씩 끊어서 INSERT + SaveChanges) 도입 필요
 
 ## [미구현] 추가 개발 필요 항목
+- **스테이지 클리어 보상 엔드포인트** — `RewardSourceType.StageComplete`, `RewardTable` 마스터, `IRewardDispatcher` 모두 구현되어 있으나 플레이어용 API 엔드포인트(`POST /api/stage/complete` 등) 미구현. 컨트롤러 + Application Feature 추가 필요
 - **공지사항 페이지** [선택] — 현재는 1회성 텍스트 공지만 구현됨. 공지 이력 열람, 카테고리 분류 등 게시판 형태가 필요해지면 별도 페이지 추가 고려
 - **감사 로그 훅 확장** — 현재는 `MailService.ClaimAsync`에만 훅 적용됨. 상점 구매/스테이지 보상/Admin 직접 지급 등 기능 구현 시 `IAuditLogService.RecordAsync` 호출 추가 필요
 - **밴/밴해제 로그** — `AdminPlayersController`의 Ban/Unban 엔드포인트 처리 후 별도 로그 기록 필요. 누가(Admin), 언제, 어떤 플레이어를 밴/해제했는지 감사 추적이 현재 없음. AuditLog 또는 전용 BanLog 테이블 중 택일하여 구현 필요
 - **백업 정책** — DB 백업은 애플리케이션 관할 아님. Docker로 운영 중인 PostgreSQL 컨테이너/볼륨 레벨에서 별도 설정 필요 (pg_dump, 볼륨 스냅샷 등). 최소 1일 1회 백업, 30일 보관 권장
-- **광고 보상 서버사이드 검증(SSV)** — 광고 시청 보상 지급 시 클라이언트 조작 방지를 위해 구글/애플 서버 검증 필요
-- **인앱 결제 영수증 검증** — Google Play / Apple IAP 결제 후 서버에서 영수증 진위 검증 필요
+- **IAP Consumable consume API 호출** — `GooglePlayStoreVerifier`에서 소모성 상품 검증 후 Google Play `purchases.products.consume` API 호출이 TODO 상태로 남아있음. 미호출 시 동일 purchaseToken으로 재구매 불가. 구현 위치: `Framework.Infrastructure/Iap/GooglePlayStoreVerifier.cs`
+- **Apple IAP 검증기** — `IapStore.Apple(=2)` Enum은 예약되어 있으나 `AppleStoreVerifier` 구현체 미존재. Apple 플랫폼 출시 시 추가 필요
 - **이벤트 기간 관리** [중요도 낮음] — 기간 한정 이벤트 시작/종료 관리. 클라이언트가 현재 이벤트 진행 여부를 서버에 질의. 게임마다 구조가 달라 범용 설계 필요
 - **로그/APM 도구 연동** [중요도 낮음] — 현재 파일 로그(Serilog) 기반. 유저 증가 시 ELK Stack + Elastic APM 연동 권장 (APM이 ELK 위에서 동작하므로 세트로 도입). 가벼운 대안으로 Seq(컨테이너 1개, .NET 친화적) 또는 Grafana+Loki 가능. Serilog 싱크 추가 + Program.cs 한 줄로 연동 가능

@@ -332,6 +332,52 @@ public static class ApiRoutes
         }
     }
 
+    // ── 인앱결제 상품 Admin (AdminIapProductsController: Route = "api/admin/iap/products") ──
+    public static class AdminIapProducts
+    {
+        private const string Base = "api/admin/iap/products";
+
+        /// <summary>목록 조회 (GET) / 생성 (POST)</summary>
+        public const string Collection = Base;
+
+        /// <summary>단건 수정 (PUT) / 소프트 삭제 (DELETE)</summary>
+        public static string ById(int id) => $"{Base}/{id}";
+
+        /// <summary>필터 + 페이지네이션 검색</summary>
+        public static string Search(int? store, int? productType, bool? isEnabled, int page, int pageSize)
+        {
+            var parts = new List<string>();
+            if (store.HasValue)       parts.Add($"store={store.Value}");
+            if (productType.HasValue) parts.Add($"productType={productType.Value}");
+            if (isEnabled.HasValue)   parts.Add($"isEnabled={isEnabled.Value.ToString().ToLower()}");
+            parts.Add($"page={page}");
+            parts.Add($"pageSize={pageSize}");
+            return $"{Base}?{string.Join("&", parts)}";
+        }
+    }
+
+    // ── 인앱결제 구매 이력 Admin (AdminIapPurchasesController: Route = "api/admin/iap/purchases") ──
+    public static class AdminIapPurchases
+    {
+        private const string Base = "api/admin/iap/purchases";
+
+        /// <summary>필터 + 페이지네이션 검색</summary>
+        public static string Search(int? playerId, int? store, string? productId, int? status,
+            DateTime? from, DateTime? to, int page, int pageSize)
+        {
+            var parts = new List<string>();
+            if (playerId.HasValue)             parts.Add($"playerId={playerId.Value}");
+            if (store.HasValue)                parts.Add($"store={store.Value}");
+            if (!string.IsNullOrEmpty(productId)) parts.Add($"productId={Uri.EscapeDataString(productId)}");
+            if (status.HasValue)               parts.Add($"status={status.Value}");
+            if (from.HasValue)                 parts.Add($"from={Uri.EscapeDataString(from.Value.ToString("o"))}");
+            if (to.HasValue)                   parts.Add($"to={Uri.EscapeDataString(to.Value.ToString("o"))}");
+            parts.Add($"page={page}");
+            parts.Add($"pageSize={pageSize}");
+            return $"{Base}?{string.Join("&", parts)}";
+        }
+    }
+
     // ── SignalR 허브 경로 ──────────────────────────────────────────────────
     public static class Hubs
     {

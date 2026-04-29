@@ -137,6 +137,25 @@
             </NavLink>
         </div>
 
+        @* 인앱결제 그룹 — 상품 관리 + 구매 이력 *@
+        <div class="nav-item px-3">
+            <details class="nav-group">
+                <summary class="nav-link nav-group-summary">
+                    <span class="bi bi-cart-fill-nav-menu" aria-hidden="true"></span> 인앱결제
+                </summary>
+                <div class="nav-item" style="padding-left: 1.25rem;">
+                    <NavLink class="nav-link" href="iap-products">
+                        <span class="bi bi-cart-fill-nav-menu" aria-hidden="true"></span> 상품 관리
+                    </NavLink>
+                </div>
+                <div class="nav-item" style="padding-left: 1.25rem;">
+                    <NavLink class="nav-link" href="iap-purchases">
+                        <span class="bi bi-list-ul-nav-menu" aria-hidden="true"></span> 구매 이력
+                    </NavLink>
+                </div>
+            </details>
+        </div>
+
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="system-settings">
                 <span class="bi bi-gear-fill-nav-menu" aria-hidden="true"></span> 시스템 설정

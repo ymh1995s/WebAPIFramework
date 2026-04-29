@@ -51,6 +51,10 @@ public class AppDbContext : DbContext
     // 광고 보상 정책 테이블 — 광고 네트워크별 PlacementId → 보상 규칙 매핑
     public DbSet<AdPolicy> AdPolicies { get; set; }
 
+    // 인앱결제 테이블 — 상품 마스터 및 구매 이력
+    public DbSet<IapProduct> IapProducts { get; set; }
+    public DbSet<IapPurchase> IapPurchases { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // SystemConfig: Key를 PK로 사용
@@ -310,5 +314,75 @@ public class AppDbContext : DbContext
             .HasIndex(p => new { p.Network, p.PlacementId })
             .IsUnique()
             .HasFilter("\"IsDeleted\" = false");
+
+        // IapProduct: IsEnabled/IsDeleted 기본값
+        modelBuilder.Entity<IapProduct>()
+            .Property(p => p.IsEnabled)
+            .HasDefaultValue(true);
+
+        modelBuilder.Entity<IapProduct>()
+            .Property(p => p.IsDeleted)
+            .HasDefaultValue(false);
+
+        // IapProduct: 컬럼 최대 길이 설정
+        modelBuilder.Entity<IapProduct>()
+            .Property(p => p.ProductId)
+            .HasMaxLength(128);
+
+        modelBuilder.Entity<IapProduct>()
+            .Property(p => p.Description)
+            .HasMaxLength(512);
+
+        // IapProduct → RewardTable (N:1, nullable) — 보상 없는 상품도 허용
+        modelBuilder.Entity<IapProduct>()
+            .HasOne(p => p.RewardTable)
+            .WithMany()
+            .HasForeignKey(p => p.RewardTableId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // IapProduct: UNIQUE(Store, ProductId) WHERE IsDeleted=false
+        // 소프트 딜리트된 상품은 동일 SKU로 신규 상품 생성 가능
+        modelBuilder.Entity<IapProduct>()
+            .HasIndex(p => new { p.Store, p.ProductId })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = false");
+
+        // IapPurchase: 컬럼 최대 길이 설정
+        modelBuilder.Entity<IapPurchase>()
+            .Property(p => p.ProductId)
+            .HasMaxLength(128);
+
+        modelBuilder.Entity<IapPurchase>()
+            .Property(p => p.PurchaseToken)
+            .HasMaxLength(512);
+
+        modelBuilder.Entity<IapPurchase>()
+            .Property(p => p.OrderId)
+            .HasMaxLength(128);
+
+        modelBuilder.Entity<IapPurchase>()
+            .Property(p => p.FailureReason)
+            .HasMaxLength(256);
+
+        modelBuilder.Entity<IapPurchase>()
+            .Property(p => p.ClientIp)
+            .HasMaxLength(64);
+
+        // IapPurchase → Player (N:1, Restrict) — 플레이어 삭제 시 구매 이력 보존
+        modelBuilder.Entity<IapPurchase>()
+            .HasOne(p => p.Player)
+            .WithMany()
+            .HasForeignKey(p => p.PlayerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // IapPurchase: UNIQUE(Store, PurchaseToken) — 동일 결제 토큰 중복 처리 방지
+        modelBuilder.Entity<IapPurchase>()
+            .HasIndex(p => new { p.Store, p.PurchaseToken })
+            .IsUnique();
+
+        // IapPurchase: INDEX(PlayerId, CreatedAt desc) — 플레이어별 구매 이력 조회 최적화
+        modelBuilder.Entity<IapPurchase>()
+            .HasIndex(p => new { p.PlayerId, p.CreatedAt });
     }
 }

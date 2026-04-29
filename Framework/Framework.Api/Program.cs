@@ -56,6 +56,9 @@ builder.Services.AddMatchMakingServices(builder.Configuration);
 // 광고 SSV 보상 서비스 등록 (UnityAds, IronSource 검증기 포함)
 builder.Services.AddAdRewardServices();
 
+// 인앱결제(IAP) 서비스 등록 (Google Play 검증기 포함)
+builder.Services.AddIapServices();
+
 // JWT 인증 설정
 builder.Services.AddJwtAuthentication(builder.Configuration);
 

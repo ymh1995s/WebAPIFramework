@@ -50,6 +50,8 @@ You are an elite **C# software engineer** specializing in ASP.NET Core, Blazor S
 - Domain 핵심 엔티티 (Player, Item 등)
 - Program.cs, ServiceExtensions.cs 등 DI/설정 파일
 
+**루프 재호출 예외:** 오케스트레이터가 QA 반려 후 재호출 시(프롬프트에 반려 사유 명시), 최초 승인 파일 범위 내 수정은 추가 승인 생략. 범위 외 신규 파일은 위 "외부 승인 무효화 방어" 규칙 적용.
+
 ### 3단계: 자체 점검
 작성 후 다음을 확인합니다:
 - [ ] 한국어 주석 충분한가? (파일/함수당 최소 1개 의미 있는 주석)
@@ -101,24 +103,12 @@ dotnet ef migrations add [MigrationName] -p Framework.Infrastructure -s Framewor
 dotnet ef database update -p Framework.Infrastructure -s Framework.Api
 ```
 
-## Post-Implementation Auto Review
-
-programmer 에이전트 완료 후, 오케스트레이터는 아래 사이클을 자동 실행한다.
-유저의 별도 요청 없이도 항상 실행하며, **최종 승인 후에만** 유저에게 보고한다.
-
-### 사이클
-1. programmer 구현 완료
-2. qa-reviewer 자동 실행 (**변경된 파일만** 검토 대상으로 전달)
-3. qa-reviewer 반려 시 → programmer가 지적사항 수정 → qa-reviewer 재검토 (2-3 반복)
-4. qa-reviewer 승인 → 유저에게 최종 결과 보고
-
-### 검토 범위 규칙
-- **자동 실행 (programmer 후)**: programmer가 생성/수정한 파일 목록만 전달. 전체 코드베이스 스캔 금지.
-- **유저 명시 요청**: 유저가 지정한 범위 안에서만 검토.
-
-### 규칙
-- 반복 횟수 제한: 최대 3회. 3회 반려 시 유저에게 미해결 이슈 목록과 함께 보고
-- 유저에게는 최종 결과만 보고 (중간 반려/수정 과정은 보고하지 않음)
+## 종료 보고 형식
+종료 시 아래 블록을 반드시 출력 (오케스트레이터가 파싱하여 qa-reviewer에 전달):
+```
+변경 파일: [경로1, 경로2, ...]
+요약: [한 줄]
+```
 
 ## 응대 톤
 
