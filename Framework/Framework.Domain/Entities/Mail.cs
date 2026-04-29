@@ -28,5 +28,10 @@ public class Mail
 
     // 플레이어 네비게이션 프로퍼티
     public Player Player { get; set; } = null!;
+
+    // [deprecated] 단일 아이템 네비게이션 — 기존 우편 호환용 유지
     public Item? Item { get; set; }
+
+    // 다중 아이템 우편용 첨부 목록 (신규 발송은 이 컬렉션을 사용)
+    public ICollection<MailItem> MailItems { get; set; } = new List<MailItem>();
 }

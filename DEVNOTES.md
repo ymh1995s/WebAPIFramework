@@ -12,6 +12,7 @@
 | 우편 시스템 | 우편 수신/수령 API, Admin 단건·일괄 발송 |
 | 일일 로그인 보상 | 로그인 시 당일 보상 우편 발송 (이번 달 로그인 횟수 기반, 매월 리셋). 빈 일자는 보상 없음. Current/Next 2슬롯 방식으로 이번 달·다음 달 보상 예약 관리. KST 하루 기준 시각(기본 00:00) Admin 설정 가능 |
 | 매치메이킹 | SignalR 기반 실시간 매칭, 대기열 관리 |
+| 보상 프레임워크 | 범용 보상 파이프라인 — 모든 보상 경로를 단일 IRewardDispatcher로 통합. 선기록 멱등성, Direct/Mail/Auto 분기, RewardTable 마스터 관리, Admin 수동 지급/우편 발송 통합 페이지 |
 | 아이템 마스터 관리 | Admin CRUD (추가/수정/소프트삭제), 보유 유저 수 확인 |
 | Admin 인증 | X-Admin-Key 헤더 기반 API 접근 제어, 미들웨어에서 Admin Key 인증 시 모든 [Authorize] 엔드포인트 접근 허용 |
 | 시스템 설정 | 점검 모드, 앱 버전, 일일 보상 기준 시각 등 SystemConfig Admin 제어 |
@@ -47,7 +48,6 @@
 
 | 테이블 | 컬럼 | 사용 쿼리 | 예상 효과 |
 |---|---|---|---|
-| `PlayerRecords` | `Score` | 랭킹 정렬 (`ORDER BY Score DESC`) | 랭킹 조회 속도 개선 |
 | `Mails` | `PlayerId` + `IsClaimed` | 미수령 우편 조회 | 우편함 조회 속도 개선 |
 | `Mails` | `ExpiresAt` | 만료 우편 정리 | 만료 처리 속도 개선 |
 
@@ -64,8 +64,52 @@
 기준 시각(00:00 기본) 미만이면 전날 날짜로 게임 날짜 계산. Admin 시스템 설정 페이지에서 변경 가능.
 cycleDay는 이번 달 로그인 횟수 기반 (1번째 로그인 = Day 1, 28번째 = Day 28, 29번째 이후 = 기본 보상).
 
+## [설계 결정] 보상 프레임워크
+
+### 확정 사항
+
+| # | 결정 | 근거 |
+|---|---|---|
+| 1 | Gold/Gems — PlayerProfile 컬럼 유지, Item 마스터는 정의(이름·아이콘)용만 | 아이템 마스터는 조회용, 보유량은 PlayerProfile이 정원 |
+| 2 | MailItems 테이블 도입 — 1통에 N종 아이템 묶음 발송 | 다중 보상 UX·트랜잭션 일관성 |
+| 3 | PlayerRecord 즉시 폐기 → GameMatchParticipants로 대체 | 랭킹 데이터 미존재, 매치 식별자 없는 기존 구조 한계 |
+| 4 | DailyLoginLog + RewardGrants 이중보호 유지 | DailyLoginLog는 로그인 통계 겸용, RewardGrants는 범용 멱등성 |
+
+### 공통 파이프라인
+
+```
+[Source 발생] → [Validate(권한·중복)] → [RewardBundle 결정]
+  → [RewardGrants 선기록(멱등)] → [Dispatcher: Direct/Mail 분기]
+  → [AuditLog 기록] → [Result 반환]
+```
+
+### 신규 DB 테이블
+
+| 테이블 | 핵심 컬럼 | 인덱스 | 비고 |
+|---|---|---|---|
+| `RewardGrants` | PlayerId, SourceType, SourceKey, GrantedAt, MailId?, BundleSnapshot(jsonb) | UNIQUE(PlayerId, SourceType, SourceKey) | 멱등성 보장 |
+| `MailItems` | MailId(FK), ItemId, Quantity | FK MailId | 다중 아이템 우편 지원 |
+| `RewardTables` | SourceType, Code, Description | UNIQUE(SourceType, Code) | 보상 마스터 |
+| `RewardTableEntries` | RewardTableId(FK), ItemId, Count, Weight? | FK | 1보상 = N행 |
+| `GameResults` | Id(Guid), Tier, StartedAt, EndedAt?, State | PK Guid | 게임 결과 저장 |
+| `GameResultParticipants` | GameResultId(FK Guid), PlayerId, HumanType, Score?, Result? | UNIQUE(GameResultId, PlayerId) | 게임 참가자별 결과 |
+
+### 변경/폐기 테이블
+
+| 테이블 | 변경 내용 |
+|---|---|
+| `Mail` | ItemId/ItemCount → deprecated, MailItems FK로 전환. 기존 행은 마이그레이션으로 MailItems 이전 |
+| `PlayerRecords` | 즉시 폐기 → GameMatchParticipants로 대체. 랭킹 집계도 신규 테이블 기반으로 전환 |
+
+### 레벨업 처리
+
+- Exp는 PlayerProfile 컬럼 유지 (Item화하지 않음)
+- RewardDispatcher 외부에서 별도 `IExpService`가 Exp 임계값 초과 시 Level 증가 + 레벨업 보상을 다시 RewardDispatcher 호출
+- SourceKey="levelup:{level}" 로 멱등 보장
+
 ## [기술 부채] 검토 항목
 - **Admin 컨트롤러 익명 객체 응답** — 일부 Admin 컨트롤러가 DTO 없이 익명 객체로 응답을 구성함. Admin 전용 단순 조회라 즉각 위험은 낮으나, 신규 Admin 기능 구현 시에는 DTO 정의 원칙 준수 필요
+- **일괄 우편 발송 성능** — `MailService.BulkSendAsync`가 전체 플레이어를 메모리 로드 후 단일 트랜잭션으로 N건 INSERT. 유저 수 증가 시 메모리 압박 + DB 락 시간 문제 발생. 배치 분할(500건씩 끊어서 INSERT + SaveChanges) 도입 필요
 
 ## [미구현] 추가 개발 필요 항목
 - **공지사항 페이지** [선택] — 현재는 1회성 텍스트 공지만 구현됨. 공지 이력 열람, 카테고리 분류 등 게시판 형태가 필요해지면 별도 페이지 추가 고려

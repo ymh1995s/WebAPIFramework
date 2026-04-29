@@ -14,20 +14,30 @@
             </NavLink>
         </div>
 
-        @* 보상 관리 그룹 *@
+        @* 보상 관리 그룹 (4개) — /rewards 삭제, 일일 보상 설정은 시스템 설정으로 이전 *@
         <div class="nav-item px-3">
             <details class="nav-group">
                 <summary class="nav-link nav-group-summary">
                     <span class="bi bi-gift-fill-nav-menu" aria-hidden="true"></span> 보상
                 </summary>
                 <div class="nav-item" style="padding-left: 1.25rem;">
-                    <NavLink class="nav-link" href="rewards">
-                        <span class="bi bi-gift-fill-nav-menu" aria-hidden="true"></span> 보상 관리
+                    <NavLink class="nav-link" href="reward-slots">
+                        <span class="bi bi-calendar2-week-fill-nav-menu" aria-hidden="true"></span> 월별 보상 설정
                     </NavLink>
                 </div>
                 <div class="nav-item" style="padding-left: 1.25rem;">
-                    <NavLink class="nav-link" href="reward-slots">
-                        <span class="bi bi-calendar2-week-fill-nav-menu" aria-hidden="true"></span> 월별 보상 설정
+                    <NavLink class="nav-link" href="reward-tables">
+                        <span class="bi bi-table-nav-menu" aria-hidden="true"></span> 보상 테이블
+                    </NavLink>
+                </div>
+                <div class="nav-item" style="padding-left: 1.25rem;">
+                    <NavLink class="nav-link" href="reward-grants">
+                        <span class="bi bi-list-ul-nav-menu" aria-hidden="true"></span> 지급 이력
+                    </NavLink>
+                </div>
+                <div class="nav-item" style="padding-left: 1.25rem;">
+                    <NavLink class="nav-link" href="reward-dispatch">
+                        <span class="bi bi-send-fill-nav-menu" aria-hidden="true"></span> 수동 지급/우편
                     </NavLink>
                 </div>
             </details>
@@ -83,10 +93,23 @@
             </details>
         </div>
 
+        @* 매칭 그룹 (단일 → 그룹 전환) *@
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="matchmaking">
-                <span class="bi bi-people-fill-nav-menu" aria-hidden="true"></span> 매칭 테스트
-            </NavLink>
+            <details class="nav-group">
+                <summary class="nav-link nav-group-summary">
+                    <span class="bi bi-people-fill-nav-menu" aria-hidden="true"></span> 매칭
+                </summary>
+                <div class="nav-item" style="padding-left: 1.25rem;">
+                    <NavLink class="nav-link" href="matchmaking">
+                        <span class="bi bi-people-fill-nav-menu" aria-hidden="true"></span> 매칭 테스트
+                    </NavLink>
+                </div>
+                <div class="nav-item" style="padding-left: 1.25rem;">
+                    <NavLink class="nav-link" href="matches">
+                        <span class="bi bi-list-ul-nav-menu" aria-hidden="true"></span> 매치 이력
+                    </NavLink>
+                </div>
+            </details>
         </div>
 
         @* 모니터링 그룹 *@

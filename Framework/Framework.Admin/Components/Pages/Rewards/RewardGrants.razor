@@ -1,0 +1,161 @@
+@page "/reward-grants"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits SafeComponentBase
+@using Framework.Admin.Constants
+
+<PageTitle>보상 지급 이력</PageTitle>
+
+<h2 class="mb-2">보상 지급 이력</h2>
+
+<div class="alert alert-info py-2 small mb-3">
+    모든 보상 지급 기록을 조회합니다. 각 행의 <strong>상세</strong> 버튼으로 지급 당시 번들 스냅샷(JSON)을 확인할 수 있습니다.
+</div>
+
+<!-- 검색 필터 카드 -->
+<section class="card mb-3">
+    <div class="card-header py-2"><strong>검색 필터</strong></div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">플레이어 ID</label>
+                <input type="number" class="form-control form-control-sm" @bind="filterPlayerId" placeholder="예: 12345" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">SourceType</label>
+                <select class="form-select form-select-sm" @bind="filterSourceType">
+                    <option value="">전체</option>
+                    @foreach (var st in SourceTypeOptions)
+                    {
+                        <option value="@st.Value">@st.Label</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">SourceKey (부분 일치)</label>
+                <input type="text" class="form-control form-control-sm" @bind="filterSourceKey" placeholder="예: 2026-04-29, match:guid" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">페이지 크기</label>
+                <input type="number" class="form-control form-control-sm" @bind="pageSize" min="10" max="200" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small mb-1">시작 일시 (KST)</label>
+                <input type="datetime-local" class="form-control form-control-sm" @bind="filterFromLocal" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small mb-1">종료 일시 (KST)</label>
+                <input type="datetime-local" class="form-control form-control-sm" @bind="filterToLocal" />
+            </div>
+        </div>
+    </div>
+    <div class="card-footer py-2 d-flex gap-2">
+        <button class="btn btn-primary btn-sm" @onclick="Search">조회</button>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="Reset">초기화</button>
+    </div>
+</section>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger py-2 small">@errorMessage</div>
+}
+
+@if (isLoading)
+{
+    <p class="text-muted">불러오는 중...</p>
+}
+else if (result == null)
+{
+    <p class="text-muted">상단 필터를 설정한 후 <strong>조회</strong> 버튼을 눌러주세요.</p>
+}
+else if (!result.Items.Any())
+{
+    <p class="text-muted">조건에 맞는 지급 이력이 없습니다.</p>
+}
+else
+{
+    <div class="d-flex align-items-center mb-2">
+        <span class="small text-muted ms-auto">총 <strong>@result.TotalCount</strong> 건</span>
+    </div>
+
+    <table class="table table-sm table-striped table-hover">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>PlayerId</th>
+                <th>SourceType</th>
+                <th>SourceKey</th>
+                <th>지급일시 (KST)</th>
+                <th title="직접 지급 또는 우편 지급 여부">방식</th>
+                <th>MailId</th>
+                <th>상세</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var g in result.Items)
+            {
+                <tr>
+                    <td>@g.Id</td>
+                    <td>@g.PlayerId</td>
+                    <td><span class="badge bg-secondary">@g.SourceType</span></td>
+                    <td class="small text-break">@g.SourceKey</td>
+                    <td class="small text-nowrap">@ToKst(g.GrantedAt)</td>
+                    <td>
+                        @if (g.IsMailGrant)
+                        {
+                            <span class="badge bg-info text-dark">Mail</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success">Direct</span>
+                        }
+                    </td>
+                    <td>@(g.MailId.HasValue ? g.MailId.Value.ToString() : "-")</td>
+                    <td>
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="() => OpenSnapshot(g.Id)">상세</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <!-- 페이지네이션 -->
+    <div class="d-flex gap-2 align-items-center">
+        <button class="btn btn-outline-secondary btn-sm" @onclick="PrevPage" disabled="@(page <= 1)">이전</button>
+        <span class="small">@(page) / @(result.TotalPages) 페이지</span>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@(page >= result.TotalPages)">다음</button>
+    </div>
+}
+
+<!-- BundleSnapshot 상세 모달 -->
+@if (showSnapshotModal && snapshotDetail != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.4)">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">지급 이력 상세 — ID: @snapshotDetail.Id</h5>
+                    <button type="button" class="btn-close" @onclick="CloseSnapshot"></button>
+                </div>
+                <div class="modal-body">
+                    <dl class="row small">
+                        <dt class="col-4">PlayerId</dt><dd class="col-8">@snapshotDetail.PlayerId</dd>
+                        <dt class="col-4">SourceType</dt><dd class="col-8">@snapshotDetail.SourceType</dd>
+                        <dt class="col-4">SourceKey</dt><dd class="col-8">@snapshotDetail.SourceKey</dd>
+                        <dt class="col-4">지급일시 (KST)</dt><dd class="col-8">@ToKst(snapshotDetail.GrantedAt)</dd>
+                        <dt class="col-4">방식</dt><dd class="col-8">@(snapshotDetail.IsMailGrant ? "Mail" : "Direct")</dd>
+                        @if (snapshotDetail.MailId.HasValue)
+                        {
+                            <dt class="col-4">MailId</dt><dd class="col-8">@snapshotDetail.MailId</dd>
+                        }
+                    </dl>
+                    <hr />
+                    <label class="form-label small fw-bold">BundleSnapshot (JSON)</label>
+                    <pre class="bg-light p-2 rounded small" style="max-height:300px;overflow:auto">@snapshotDetail.BundleSnapshot</pre>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseSnapshot">닫기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}

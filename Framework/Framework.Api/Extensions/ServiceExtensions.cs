@@ -10,8 +10,12 @@ using Framework.Application.Features.Item;
 using Framework.Application.Features.Mail;
 using Framework.Application.Features.Matchmaking;
 using Framework.Application.Features.Notice;
+using Framework.Application.Features.AdminMatch;
 using Framework.Application.Features.AdminPlayer;
 using Framework.Application.Features.Ranking;
+using Framework.Application.Features.Reward;
+using Framework.Application.Features.RewardGrant;
+using Framework.Application.Features.RewardTable;
 using Framework.Application.Features.SystemConfig;
 using Framework.Domain.Constants;
 using Framework.Domain.Entities;
@@ -40,7 +44,6 @@ public static class ServiceExtensions
     // 저장소 등록 - 인게임 관련
     public static IServiceCollection AddGameRepositories(this IServiceCollection services)
     {
-        services.AddScoped<IPlayerRecordRepository, PlayerRecordRepository>();
         services.AddScoped<IItemRepository, ItemRepository>();
         services.AddScoped<IPlayerItemRepository, PlayerItemRepository>();
         services.AddScoped<IMailRepository, MailRepository>();
@@ -49,6 +52,12 @@ public static class ServiceExtensions
         services.AddScoped<IDailyRewardSlotRepository, DailyRewardSlotRepository>();
         services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
         services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+
+        // 보상 프레임워크 저장소 등록
+        services.AddScoped<IRewardGrantRepository, RewardGrantRepository>();
+        services.AddScoped<IGameResultRepository, GameResultRepository>();
+        services.AddScoped<IRewardTableRepository, RewardTableRepository>();
+
         return services;
     }
 
@@ -79,13 +88,18 @@ public static class ServiceExtensions
     public static IServiceCollection AddAdminServices(this IServiceCollection services)
     {
         services.AddScoped<IAdminPlayerService, AdminPlayerService>();
+
+        // 보상 프레임워크 Admin 서비스 등록
+        services.AddScoped<IRewardTableService, RewardTableService>();
+        services.AddScoped<IRewardGrantQueryService, RewardGrantQueryService>();
+        services.AddScoped<IAdminMatchService, AdminMatchService>();
+
         return services;
     }
 
     // 서비스 등록 - 인게임 관련
     public static IServiceCollection AddGameServices(this IServiceCollection services)
     {
-        services.AddScoped<IPlayerRecordService, PlayerRecordService>();
         services.AddScoped<IMailService, MailService>();
         services.AddScoped<IDailyLoginService, DailyLoginService>();
         services.AddScoped<IDailyRewardSlotService, DailyRewardSlotService>();
@@ -94,6 +108,10 @@ public static class ServiceExtensions
         services.AddScoped<IRankingService, RankingService>();
         services.AddScoped<IItemMasterService, ItemMasterService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+
+        // 보상 디스패처 등록 — 모든 보상 경로의 단일 진입점
+        services.AddScoped<IRewardDispatcher, RewardDispatcher>();
+
         return services;
     }
 

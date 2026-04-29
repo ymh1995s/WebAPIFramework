@@ -45,8 +45,8 @@ public class Player
     // 일일 로그인 기록
     public ICollection<DailyLoginLog> LoginLogs { get; set; } = new List<DailyLoginLog>();
 
-    // 게임 플레이 기록
-    public ICollection<PlayerRecord> Records { get; set; } = new List<PlayerRecord>();
+    // 게임 결과 참가 기록 (GameMatchParticipant에서 이름 변경)
+    public ICollection<GameResultParticipant> MatchParticipants { get; set; } = new List<GameResultParticipant>();
 
     // 소원수리함 문의 목록
     public ICollection<Inquiry> Inquiries { get; set; } = new List<Inquiry>();

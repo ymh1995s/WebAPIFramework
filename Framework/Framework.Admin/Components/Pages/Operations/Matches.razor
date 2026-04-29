@@ -1,0 +1,180 @@
+@page "/matches"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits SafeComponentBase
+@using Framework.Admin.Constants
+
+<PageTitle>매치 이력</PageTitle>
+
+<h2 class="mb-2">매치 이력</h2>
+
+<div class="alert alert-info py-2 small mb-3">
+    완료된 매치 이력을 조회합니다. <strong>상세</strong> 버튼으로 참가자 목록(닉네임, 점수, 결과)을 확인할 수 있습니다.
+</div>
+
+<!-- 검색 필터 카드 -->
+<section class="card mb-3">
+    <div class="card-header py-2"><strong>검색 필터</strong></div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">MatchId (Guid)</label>
+                <input type="text" class="form-control form-control-sm" @bind="filterMatchId" placeholder="예: xxxxxxxx-xxxx-..." />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">플레이어 ID</label>
+                <input type="number" class="form-control form-control-sm" @bind="filterPlayerId" placeholder="예: 123" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Tier</label>
+                <select class="form-select form-select-sm" @bind="filterTier">
+                    <option value="">전체</option>
+                    @foreach (var t in TierOptions)
+                    {
+                        <option value="@t.Value">@t.Label</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">State</label>
+                <select class="form-select form-select-sm" @bind="filterState">
+                    <option value="">전체</option>
+                    @foreach (var s in StateOptions)
+                    {
+                        <option value="@s.Value">@s.Label</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-1">
+                <label class="form-label small mb-1">페이지 크기</label>
+                <input type="number" class="form-control form-control-sm" @bind="pageSize" min="10" max="100" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small mb-1">시작 일시 (KST)</label>
+                <input type="datetime-local" class="form-control form-control-sm" @bind="filterFromLocal" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small mb-1">종료 일시 (KST)</label>
+                <input type="datetime-local" class="form-control form-control-sm" @bind="filterToLocal" />
+            </div>
+        </div>
+    </div>
+    <div class="card-footer py-2 d-flex gap-2">
+        <button class="btn btn-primary btn-sm" @onclick="Search">조회</button>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="Reset">초기화</button>
+    </div>
+</section>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger py-2 small">@errorMessage</div>
+}
+
+@if (isLoading)
+{
+    <p class="text-muted">불러오는 중...</p>
+}
+else if (result == null)
+{
+    <p class="text-muted">상단 필터를 설정한 후 <strong>조회</strong> 버튼을 눌러주세요.</p>
+}
+else if (!result.Items.Any())
+{
+    <p class="text-muted">조건에 맞는 매치가 없습니다.</p>
+}
+else
+{
+    <div class="d-flex align-items-center mb-2">
+        <span class="small text-muted ms-auto">총 <strong>@result.TotalCount</strong> 건</span>
+    </div>
+
+    <table class="table table-sm table-striped table-hover">
+        <thead>
+            <tr>
+                <th title="매치 고유 ID (축약)">MatchId</th>
+                <th>Tier</th>
+                <th>State</th>
+                <th>시작 (KST)</th>
+                <th>종료 (KST)</th>
+                <th title="참가자 수">참가자</th>
+                <th>상세</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var m in result.Items)
+            {
+                <tr>
+                    <td class="small text-nowrap" title="@m.Id">@m.Id.ToString()[..8]...</td>
+                    <td><span class="badge bg-secondary">@m.Tier</span></td>
+                    <td><span class="badge @StateBadgeClass(m.State)">@m.State</span></td>
+                    <td class="small text-nowrap">@ToKst(m.StartedAt)</td>
+                    <td class="small text-nowrap">@(m.EndedAt.HasValue ? ToKst(m.EndedAt.Value) : "-")</td>
+                    <td>@m.ParticipantCount</td>
+                    <td>
+                        <button class="btn btn-outline-primary btn-sm" @onclick="() => ToggleDetail(m.Id)">
+                            @(expandedMatchId == m.Id ? "접기" : "상세")
+                        </button>
+                    </td>
+                </tr>
+                @* 참가자 상세 인라인 펼침 *@
+                @if (expandedMatchId == m.Id && matchDetail != null)
+                {
+                    <tr>
+                        <td colspan="7" class="bg-light">
+                            <div class="p-2">
+                                <strong class="small">참가자 목록 — MatchId: @matchDetail.Id</strong>
+                                <table class="table table-sm table-bordered mt-2 mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>PlayerId</th>
+                                            <th>닉네임</th>
+                                            <th>유형</th>
+                                            <th>점수</th>
+                                            <th>결과</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var p in matchDetail.Participants)
+                                        {
+                                            <tr>
+                                                <td>@p.PlayerId</td>
+                                                <td>@p.Nickname</td>
+                                                <td>
+                                                    @if (p.HumanType == "Human")
+                                                    {
+                                                        <span class="badge bg-primary">플레이어</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-secondary">봇</span>
+                                                    }
+                                                </td>
+                                                <td>@(p.Score.HasValue ? p.Score.Value.ToString() : "-")</td>
+                                                <td>
+                                                    @if (p.Result is not null)
+                                                    {
+                                                        <span class="badge @ResultBadgeClass(p.Result)">@p.Result</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted">-</span>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+
+    <!-- 페이지네이션 -->
+    <div class="d-flex gap-2 align-items-center">
+        <button class="btn btn-outline-secondary btn-sm" @onclick="PrevPage" disabled="@(page <= 1)">이전</button>
+        <span class="small">@(page) / @(result.TotalPages) 페이지</span>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@(page >= result.TotalPages)">다음</button>
+    </div>
+}

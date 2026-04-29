@@ -1,4 +1,5 @@
 using Framework.Domain.Entities;
+using Framework.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Framework.Infrastructure.Persistence;
@@ -14,10 +15,19 @@ public class AppDbContext : DbContext
 
     // 인게임 데이터 테이블
     public DbSet<PlayerProfile> PlayerProfiles { get; set; }
-    public DbSet<PlayerRecord> PlayerRecords { get; set; }
     public DbSet<PlayerItem> PlayerItems { get; set; }
     public DbSet<Mail> Mails { get; set; }
+    public DbSet<MailItem> MailItems { get; set; }
     public DbSet<DailyLoginLog> DailyLoginLogs { get; set; }
+
+    // 보상 프레임워크 테이블
+    public DbSet<RewardGrant> RewardGrants { get; set; }
+    public DbSet<RewardTable> RewardTables { get; set; }
+    public DbSet<RewardTableEntry> RewardTableEntries { get; set; }
+
+    // 게임 결과 테이블 (GameMatches → GameResults로 이름 변경)
+    public DbSet<GameResult> GameResults { get; set; }
+    public DbSet<GameResultParticipant> GameResultParticipants { get; set; }
 
     // 일일 보상 슬롯 테이블 (Current/Next 2슬롯 × Day 1~28 = 56행 고정)
     public DbSet<DailyRewardSlot> DailyRewardSlots { get; set; }
@@ -105,11 +115,81 @@ public class AppDbContext : DbContext
             .WithOne(p => p.Profile)
             .HasForeignKey<PlayerProfile>(pp => pp.PlayerId);
 
-        // PlayerRecord → Player (N:1)
-        modelBuilder.Entity<PlayerRecord>()
-            .HasOne(r => r.Player)
-            .WithMany(p => p.Records)
-            .HasForeignKey(r => r.PlayerId);
+        // MailItem → Mail (N:1) — 다중 아이템 우편 지원
+        modelBuilder.Entity<MailItem>()
+            .HasOne(mi => mi.Mail)
+            .WithMany(m => m.MailItems)
+            .HasForeignKey(mi => mi.MailId);
+
+        // MailItem → Item (N:1)
+        modelBuilder.Entity<MailItem>()
+            .HasOne(mi => mi.Item)
+            .WithMany()
+            .HasForeignKey(mi => mi.ItemId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // RewardGrant → Player (N:1)
+        modelBuilder.Entity<RewardGrant>()
+            .HasOne(g => g.Player)
+            .WithMany()
+            .HasForeignKey(g => g.PlayerId);
+
+        // RewardGrant → Mail (N:1, nullable) — 우편 지급 시에만 연결
+        modelBuilder.Entity<RewardGrant>()
+            .HasOne(g => g.Mail)
+            .WithMany()
+            .HasForeignKey(g => g.MailId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // RewardGrant: UNIQUE(PlayerId, SourceType, SourceKey) — 동일 보상 중복 지급 방지
+        modelBuilder.Entity<RewardGrant>()
+            .HasIndex(g => new { g.PlayerId, g.SourceType, g.SourceKey })
+            .IsUnique();
+
+        // RewardTable: IsDeleted 기본값 false
+        modelBuilder.Entity<RewardTable>()
+            .Property(t => t.IsDeleted)
+            .HasDefaultValue(false);
+
+        // RewardTable: UNIQUE(SourceType, Code)
+        modelBuilder.Entity<RewardTable>()
+            .HasIndex(t => new { t.SourceType, t.Code })
+            .IsUnique();
+
+        // RewardTableEntry → RewardTable (N:1)
+        modelBuilder.Entity<RewardTableEntry>()
+            .HasOne(e => e.RewardTable)
+            .WithMany(t => t.Entries)
+            .HasForeignKey(e => e.RewardTableId);
+
+        // RewardTableEntry → Item (N:1)
+        modelBuilder.Entity<RewardTableEntry>()
+            .HasOne(e => e.Item)
+            .WithMany()
+            .HasForeignKey(e => e.ItemId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // GameResult: Guid PK
+        modelBuilder.Entity<GameResult>()
+            .HasKey(m => m.Id);
+
+        // GameResultParticipant → GameResult (N:1)
+        modelBuilder.Entity<GameResultParticipant>()
+            .HasOne(p => p.Match)
+            .WithMany(m => m.Participants)
+            .HasForeignKey(p => p.MatchId);
+
+        // GameResultParticipant → Player (N:1)
+        modelBuilder.Entity<GameResultParticipant>()
+            .HasOne(p => p.Player)
+            .WithMany(pl => pl.MatchParticipants)
+            .HasForeignKey(p => p.PlayerId);
+
+        // GameResultParticipant: UNIQUE(MatchId, PlayerId) — 한 매치에 동일 플레이어 중복 방지
+        modelBuilder.Entity<GameResultParticipant>()
+            .HasIndex(p => new { p.MatchId, p.PlayerId })
+            .IsUnique();
 
         // PlayerItem → Player (N:1)
         modelBuilder.Entity<PlayerItem>()

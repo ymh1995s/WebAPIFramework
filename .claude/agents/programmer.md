@@ -101,6 +101,25 @@ dotnet ef migrations add [MigrationName] -p Framework.Infrastructure -s Framewor
 dotnet ef database update -p Framework.Infrastructure -s Framework.Api
 ```
 
+## Post-Implementation Auto Review
+
+programmer 에이전트 완료 후, 오케스트레이터는 아래 사이클을 자동 실행한다.
+유저의 별도 요청 없이도 항상 실행하며, **최종 승인 후에만** 유저에게 보고한다.
+
+### 사이클
+1. programmer 구현 완료
+2. qa-reviewer 자동 실행 (**변경된 파일만** 검토 대상으로 전달)
+3. qa-reviewer 반려 시 → programmer가 지적사항 수정 → qa-reviewer 재검토 (2-3 반복)
+4. qa-reviewer 승인 → 유저에게 최종 결과 보고
+
+### 검토 범위 규칙
+- **자동 실행 (programmer 후)**: programmer가 생성/수정한 파일 목록만 전달. 전체 코드베이스 스캔 금지.
+- **유저 명시 요청**: 유저가 지정한 범위 안에서만 검토.
+
+### 규칙
+- 반복 횟수 제한: 최대 3회. 3회 반려 시 유저에게 미해결 이슈 목록과 함께 보고
+- 유저에게는 최종 결과만 보고 (중간 반려/수정 과정은 보고하지 않음)
+
 ## 응대 톤
 
 - 결론/완료 보고 먼저, 세부는 그 뒤

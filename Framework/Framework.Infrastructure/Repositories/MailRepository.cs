@@ -23,6 +23,12 @@ public class MailRepository : IMailRepository
     public async Task<Mail?> GetByIdAsync(int id)
         => await _context.Mails.FindAsync(id);
 
+    // ID로 단건 조회 (MailItems 포함 — 다중 아이템 우편 수령 시 사용)
+    public async Task<Mail?> GetByIdWithItemsAsync(int id)
+        => await _context.Mails
+            .Include(m => m.MailItems)
+            .FirstOrDefaultAsync(m => m.Id == id);
+
     // 단건 우편 추가
     public async Task AddAsync(Mail mail)
         => await _context.Mails.AddAsync(mail);

@@ -1,0 +1,260 @@
+@page "/reward-tables"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits SafeComponentBase
+@using Framework.Admin.Constants
+
+<PageTitle>보상 테이블 관리</PageTitle>
+
+<h2 class="mb-2">보상 테이블 관리</h2>
+
+<div class="alert alert-info py-2 small mb-3">
+    <p class="mb-1">게임 이벤트(스테이지 클리어, 매치 승리, 퀘스트 완료 등)에서 지급할 보상 묶음을 미리 정의합니다.<br />
+    게임 서버는 <strong>(SourceType + Code)</strong> 조합으로 이 테이블을 찾아 보상을 지급합니다.</p>
+
+    <p class="mb-1"><strong>[예시]</strong> 스테이지별 확률 보상을 설정하려면:<br />
+    &bull; SourceType = "StageComplete", Code = "stage_1" → 아이템 A(40%), B(30%), C(15%), D(10%), E(5%)<br />
+    &bull; SourceType = "StageComplete", Code = "stage_2" → 아이템 C(35%), D(25%), E(20%), F(12%), G(8%)<br />
+    스테이지가 100개여도 코드 변경 없이 이 페이지에서 보상 구성/확률을 관리할 수 있습니다.</p>
+
+    <p class="mb-1"><strong>[중요]</strong> Code는 자유 텍스트가 아닙니다. 게임 코드가 사용하는 정해진 키를 입력해야 합니다.<br />
+    형식: 소문자 + 숫자 + _ + : 만 허용, 최대 50자 (예: stage_1, match_win_ranked, quest_main_ch1)</p>
+
+    <p class="mb-0"><strong>[Weight]</strong> 비워두면 모든 항목 고정 지급, 값을 넣으면 가중치 확률 추첨 지급.</p>
+</div>
+
+<!-- 검색 필터 카드 -->
+<section class="card mb-3">
+    <div class="card-header py-2"><strong>검색 필터</strong></div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label small mb-1">SourceType</label>
+                <select class="form-select form-select-sm" @bind="filterSourceType">
+                    <option value="">전체</option>
+                    @foreach (var st in SourceTypeOptions)
+                    {
+                        <option value="@st.Value">@st.Label</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small mb-1">Code (부분 일치)</label>
+                <input type="text" class="form-control form-control-sm" @bind="filterCode" placeholder="예: day1, tier_gold" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">페이지 크기</label>
+                <input type="number" class="form-control form-control-sm" @bind="pageSize" min="10" max="100" />
+            </div>
+        </div>
+    </div>
+    <div class="card-footer py-2 d-flex gap-2">
+        <button class="btn btn-primary btn-sm" @onclick="Search">조회</button>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="Reset">초기화</button>
+        <button class="btn btn-success btn-sm ms-auto" @onclick="OpenCreateModal">+ 보상 테이블 추가</button>
+    </div>
+</section>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger py-2 small">@errorMessage</div>
+}
+@if (!string.IsNullOrEmpty(successMessage))
+{
+    <div class="alert alert-success py-2 small">@successMessage</div>
+}
+
+@if (isLoading)
+{
+    <p class="text-muted">불러오는 중...</p>
+}
+else if (result == null)
+{
+    <p class="text-muted">상단 필터를 설정한 후 <strong>조회</strong> 버튼을 눌러주세요.</p>
+}
+else if (!result.Items.Any())
+{
+    <p class="text-muted">조건에 맞는 보상 테이블이 없습니다.</p>
+}
+else
+{
+    <div class="d-flex align-items-center mb-2">
+        <span class="small text-muted ms-auto">총 <strong>@result.TotalCount</strong> 건</span>
+    </div>
+
+    <table class="table table-sm table-striped table-hover">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>SourceType</th>
+                <th>Code</th>
+                <th>Description</th>
+                <th title="보상 항목 수">항목 수</th>
+                <th>관리</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var t in result.Items)
+            {
+                <tr>
+                    <td>@t.Id</td>
+                    <td><span class="badge bg-secondary">@t.SourceType</span></td>
+                    <td><code>@t.Code</code></td>
+                    <td>@t.Description</td>
+                    <td>@t.EntryCount</td>
+                    <td>
+                        <button class="btn btn-outline-primary btn-sm" @onclick="() => OpenDetail(t.Id)">상세/편집</button>
+                        <button class="btn btn-outline-danger btn-sm" @onclick="() => OpenDeleteModal(t)">삭제</button>
+                    </td>
+                </tr>
+                @* 상세 편집 영역 — 선택된 테이블만 펼침 *@
+                @if (expandedId == t.Id && detail != null)
+                {
+                    <tr>
+                        <td colspan="6" class="bg-light">
+                            <div class="p-2">
+                                <div class="d-flex gap-2 align-items-center mb-2">
+                                    <strong>항목 편집 — @detail.SourceType / @detail.Code</strong>
+                                    <button class="btn btn-sm btn-outline-secondary ms-auto" @onclick="CloseDetail">닫기</button>
+                                </div>
+
+                                <!-- 설명 수정 -->
+                                <div class="row g-2 mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label small mb-1">Description</label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="text" class="form-control" @bind="editDescription" />
+                                            <button class="btn btn-outline-primary" @onclick="SaveDescription">저장</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 항목 목록 편집 테이블 -->
+                                <table class="table table-sm table-bordered mb-2">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>ItemId</th>
+                                            <th>Count</th>
+                                            <th title="null이면 고정 지급, 값 있으면 가중치 확률 지급">Weight</th>
+                                            <th>삭제</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var entry in editEntries)
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <input type="number" class="form-control form-control-sm" @bind="entry.ItemId" style="width:100px" />
+                                                </td>
+                                                <td>
+                                                    <input type="number" class="form-control form-control-sm" @bind="entry.Count" min="1" style="width:80px" />
+                                                </td>
+                                                <td>
+                                                    <input type="number" class="form-control form-control-sm" @bind="entry.Weight" placeholder="비워두면 고정" style="width:100px" />
+                                                </td>
+                                                <td>
+                                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => RemoveEntry(entry)">×</button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="AddEntry">+ 항목 추가</button>
+                                    <button class="btn btn-primary btn-sm" @onclick="SaveEntries">일괄 저장</button>
+                                </div>
+                                @if (!string.IsNullOrEmpty(detailMessage))
+                                {
+                                    <div class="alert @(detailSuccess ? "alert-success" : "alert-danger") py-1 small mt-2">@detailMessage</div>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+
+    <!-- 페이지네이션 -->
+    <div class="d-flex gap-2 align-items-center">
+        <button class="btn btn-outline-secondary btn-sm" @onclick="PrevPage" disabled="@(page <= 1)">이전</button>
+        <span class="small">@(page) / @(result.TotalPages) 페이지</span>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@(page >= result.TotalPages)">다음</button>
+    </div>
+}
+
+<!-- 생성 모달 -->
+@if (showCreateModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">보상 테이블 추가</h5>
+                    <button type="button" class="btn-close" @onclick="CloseCreateModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2">
+                        <label class="form-label small">SourceType <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-sm" @bind="newSourceType">
+                            <option value="">선택...</option>
+                            @foreach (var st in SourceTypeOptions)
+                            {
+                                <option value="@st.Value">@st.Label</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">Code <span class="text-danger">*</span></label>
+                        @* 소문자, 숫자, 언더스코어, 콜론만 허용 — 서버 검증과 동일한 패턴 *@
+                        <input type="text"
+                               class="form-control form-control-sm"
+                               @bind="newCode"
+                               pattern="^[a-z0-9_:]+$"
+                               maxlength="50"
+                               placeholder="소문자, 숫자, _, : 만 허용 (예: stage_1, match_win_ranked)" />
+                        @* SourceType 선택 시 해당 SourceType에 맞는 Code 예시 동적 표시 *@
+                        @if (!string.IsNullOrEmpty(CurrentCodeExample))
+                        {
+                            <div class="form-text text-muted">예시: @CurrentCodeExample</div>
+                        }
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">Description</label>
+                        <input type="text" class="form-control form-control-sm" @bind="newDescription" placeholder="보상 테이블 설명" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(createError))
+                    {
+                        <div class="alert alert-danger py-1 small">@createError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseCreateModal">취소</button>
+                    <button class="btn btn-success btn-sm" @onclick="Create">생성</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- 삭제 확인 모달 -->
+@if (showDeleteModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">보상 테이블 삭제 확인</h5>
+                </div>
+                <div class="modal-body">
+                    <p><strong>@deletingInfo</strong> 테이블을 삭제하시겠습니까?</p>
+                    <p class="text-muted small">소프트 삭제로 처리됩니다. (DB 행은 유지)</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CancelDelete">취소</button>
+                    <button class="btn btn-danger btn-sm" @onclick="ConfirmDelete">삭제</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}

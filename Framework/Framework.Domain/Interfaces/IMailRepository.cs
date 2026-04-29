@@ -9,6 +9,8 @@ public interface IMailRepository
     Task<List<Mail>> GetByPlayerIdAsync(int playerId);
     // ID로 단건 조회
     Task<Mail?> GetByIdAsync(int id);
+    // ID로 단건 조회 (MailItems 포함 — 다중 아이템 수령 시 사용)
+    Task<Mail?> GetByIdWithItemsAsync(int id);
     // 단건 우편 추가
     Task AddAsync(Mail mail);
     // 다수 우편 일괄 추가 (전체 발송 시 사용)

@@ -47,21 +47,6 @@ public static class ApiRoutes
         public static string Delete(int id) => $"{Base}/{id}";
     }
 
-    // ── 플레이어 기록 Admin (AdminPlayerRecordsController: Route = "api/admin/playerrecords") ──
-    public static class PlayerRecords
-    {
-        private const string Base = "api/admin/playerrecords";
-
-        /// <summary>전체 목록 페이지네이션 조회</summary>
-        public static string Paged(int page, int pageSize) => $"{Base}?page={page}&pageSize={pageSize}";
-
-        /// <summary>ID로 단건 조회</summary>
-        public static string ById(int id) => $"{Base}/{id}";
-
-        /// <summary>신규 기록 등록 (POST)</summary>
-        public const string Create = Base;
-    }
-
     // ── 랭킹 (RankingController: Route = "api/ranking") ───────────────────
     public static class Ranking
     {
@@ -241,6 +226,88 @@ public static class ApiRoutes
 
         /// <summary>문의 답변 등록 (POST)</summary>
         public static string Reply(int id) => $"{Base}/{id}/reply";
+    }
+
+    // ── 보상 테이블 Admin (AdminRewardTablesController: Route = "api/admin/reward-tables") ──
+    public static class AdminRewardTables
+    {
+        private const string Base = "api/admin/reward-tables";
+
+        /// <summary>목록 조회 (GET) / 생성 (POST)</summary>
+        public const string Collection = Base;
+
+        /// <summary>단건 조회 (GET) / 수정 (PUT) / 소프트 삭제 (DELETE)</summary>
+        public static string ById(int id) => $"{Base}/{id}";
+
+        /// <summary>항목 일괄 교체 (PUT)</summary>
+        public static string Entries(int id) => $"{Base}/{id}/entries";
+
+        /// <summary>필터 + 페이지네이션 검색</summary>
+        public static string Search(int? sourceType, string? code, int page, int pageSize)
+        {
+            var parts = new List<string>();
+            if (sourceType.HasValue) parts.Add($"sourceType={sourceType.Value}");
+            if (!string.IsNullOrEmpty(code)) parts.Add($"code={Uri.EscapeDataString(code)}");
+            parts.Add($"page={page}");
+            parts.Add($"pageSize={pageSize}");
+            return $"{Base}?{string.Join("&", parts)}";
+        }
+    }
+
+    // ── 보상 지급 이력 Admin (AdminRewardGrantsController: Route = "api/admin/reward-grants") ──
+    public static class AdminRewardGrants
+    {
+        private const string Base = "api/admin/reward-grants";
+
+        /// <summary>단건 상세 조회 (GET)</summary>
+        public static string ById(int id) => $"{Base}/{id}";
+
+        /// <summary>필터 + 페이지네이션 검색</summary>
+        public static string Search(int? playerId, int? sourceType, string? sourceKey,
+            DateTime? from, DateTime? to, int page, int pageSize)
+        {
+            var parts = new List<string>();
+            if (playerId.HasValue) parts.Add($"playerId={playerId.Value}");
+            if (sourceType.HasValue) parts.Add($"sourceType={sourceType.Value}");
+            if (!string.IsNullOrEmpty(sourceKey)) parts.Add($"sourceKey={Uri.EscapeDataString(sourceKey)}");
+            if (from.HasValue) parts.Add($"from={Uri.EscapeDataString(from.Value.ToString("o"))}");
+            if (to.HasValue) parts.Add($"to={Uri.EscapeDataString(to.Value.ToString("o"))}");
+            parts.Add($"page={page}");
+            parts.Add($"pageSize={pageSize}");
+            return $"{Base}?{string.Join("&", parts)}";
+        }
+    }
+
+    // ── 수동 보상 지급 Admin (AdminRewardDispatchController: Route = "api/admin/reward-dispatch") ──
+    public static class AdminRewardDispatch
+    {
+        /// <summary>단일 수동 보상 지급 (POST)</summary>
+        public const string Grant = "api/admin/reward-dispatch/grant";
+    }
+
+    // ── 매치 이력 Admin (AdminMatchesController: Route = "api/admin/matches") ──
+    public static class AdminMatches
+    {
+        private const string Base = "api/admin/matches";
+
+        /// <summary>매치 단건 상세 조회 (GET)</summary>
+        public static string ById(Guid id) => $"{Base}/{id}";
+
+        /// <summary>필터 + 페이지네이션 검색</summary>
+        public static string Search(Guid? matchId, int? playerId, int? tier, int? state,
+            DateTime? from, DateTime? to, int page, int pageSize)
+        {
+            var parts = new List<string>();
+            if (matchId.HasValue) parts.Add($"matchId={matchId.Value}");
+            if (playerId.HasValue) parts.Add($"playerId={playerId.Value}");
+            if (tier.HasValue) parts.Add($"tier={tier.Value}");
+            if (state.HasValue) parts.Add($"state={state.Value}");
+            if (from.HasValue) parts.Add($"from={Uri.EscapeDataString(from.Value.ToString("o"))}");
+            if (to.HasValue) parts.Add($"to={Uri.EscapeDataString(to.Value.ToString("o"))}");
+            parts.Add($"page={page}");
+            parts.Add($"pageSize={pageSize}");
+            return $"{Base}?{string.Join("&", parts)}";
+        }
     }
 
     // ── SignalR 허브 경로 ──────────────────────────────────────────────────

@@ -125,6 +125,62 @@ namespace Framework.Infrastructure.Migrations
                     b.ToTable("DailyRewardSlots");
                 });
 
+            modelBuilder.Entity("Framework.Domain.Entities.GameResult", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("State")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Tier")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("GameResults");
+                });
+
+            modelBuilder.Entity("Framework.Domain.Entities.GameResultParticipant", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("HumanType")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("MatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Result")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Score")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlayerId");
+
+                    b.HasIndex("MatchId", "PlayerId")
+                        .IsUnique();
+
+                    b.ToTable("GameResultParticipants");
+                });
+
             modelBuilder.Entity("Framework.Domain.Entities.Inquiry", b =>
                 {
                     b.Property<int>("Id")
@@ -234,6 +290,32 @@ namespace Framework.Infrastructure.Migrations
                     b.HasIndex("PlayerId");
 
                     b.ToTable("Mails");
+                });
+
+            modelBuilder.Entity("Framework.Domain.Entities.MailItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MailId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemId");
+
+                    b.HasIndex("MailId");
+
+                    b.ToTable("MailItems");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.Notice", b =>
@@ -392,33 +474,6 @@ namespace Framework.Infrastructure.Migrations
                     b.ToTable("PlayerProfiles");
                 });
 
-            modelBuilder.Entity("Framework.Domain.Entities.PlayerRecord", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<float>("PlayTime")
-                        .HasColumnType("real");
-
-                    b.Property<int>("PlayerId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Score")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PlayerId");
-
-                    b.ToTable("PlayerRecords");
-                });
-
             modelBuilder.Entity("Framework.Domain.Entities.RateLimitLog", b =>
                 {
                     b.Property<int>("Id")
@@ -487,6 +542,105 @@ namespace Framework.Infrastructure.Migrations
                     b.ToTable("RefreshTokens");
                 });
 
+            modelBuilder.Entity("Framework.Domain.Entities.RewardGrant", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BundleSnapshot")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("GrantedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("MailId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourceKey")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SourceType")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MailId");
+
+                    b.HasIndex("PlayerId", "SourceType", "SourceKey")
+                        .IsUnique();
+
+                    b.ToTable("RewardGrants");
+                });
+
+            modelBuilder.Entity("Framework.Domain.Entities.RewardTable", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("SourceType")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceType", "Code")
+                        .IsUnique();
+
+                    b.ToTable("RewardTables");
+                });
+
+            modelBuilder.Entity("Framework.Domain.Entities.RewardTableEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Count")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RewardTableId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Weight")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemId");
+
+                    b.HasIndex("RewardTableId");
+
+                    b.ToTable("RewardTableEntries");
+                });
+
             modelBuilder.Entity("Framework.Domain.Entities.SystemConfig", b =>
                 {
                     b.Property<string>("Key")
@@ -522,6 +676,25 @@ namespace Framework.Infrastructure.Migrations
                     b.Navigation("Item");
                 });
 
+            modelBuilder.Entity("Framework.Domain.Entities.GameResultParticipant", b =>
+                {
+                    b.HasOne("Framework.Domain.Entities.GameResult", "Match")
+                        .WithMany("Participants")
+                        .HasForeignKey("MatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Framework.Domain.Entities.Player", "Player")
+                        .WithMany("MatchParticipants")
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Match");
+
+                    b.Navigation("Player");
+                });
+
             modelBuilder.Entity("Framework.Domain.Entities.Inquiry", b =>
                 {
                     b.HasOne("Framework.Domain.Entities.Player", "Player")
@@ -548,6 +721,25 @@ namespace Framework.Infrastructure.Migrations
                     b.Navigation("Item");
 
                     b.Navigation("Player");
+                });
+
+            modelBuilder.Entity("Framework.Domain.Entities.MailItem", b =>
+                {
+                    b.HasOne("Framework.Domain.Entities.Item", "Item")
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Framework.Domain.Entities.Mail", "Mail")
+                        .WithMany("MailItems")
+                        .HasForeignKey("MailId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Item");
+
+                    b.Navigation("Mail");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.Player", b =>
@@ -588,17 +780,6 @@ namespace Framework.Infrastructure.Migrations
                     b.Navigation("Player");
                 });
 
-            modelBuilder.Entity("Framework.Domain.Entities.PlayerRecord", b =>
-                {
-                    b.HasOne("Framework.Domain.Entities.Player", "Player")
-                        .WithMany("Records")
-                        .HasForeignKey("PlayerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Player");
-                });
-
             modelBuilder.Entity("Framework.Domain.Entities.RefreshToken", b =>
                 {
                     b.HasOne("Framework.Domain.Entities.Player", "Player")
@@ -608,6 +789,53 @@ namespace Framework.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Player");
+                });
+
+            modelBuilder.Entity("Framework.Domain.Entities.RewardGrant", b =>
+                {
+                    b.HasOne("Framework.Domain.Entities.Mail", "Mail")
+                        .WithMany()
+                        .HasForeignKey("MailId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Framework.Domain.Entities.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Mail");
+
+                    b.Navigation("Player");
+                });
+
+            modelBuilder.Entity("Framework.Domain.Entities.RewardTableEntry", b =>
+                {
+                    b.HasOne("Framework.Domain.Entities.Item", "Item")
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Framework.Domain.Entities.RewardTable", "RewardTable")
+                        .WithMany("Entries")
+                        .HasForeignKey("RewardTableId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Item");
+
+                    b.Navigation("RewardTable");
+                });
+
+            modelBuilder.Entity("Framework.Domain.Entities.GameResult", b =>
+                {
+                    b.Navigation("Participants");
+                });
+
+            modelBuilder.Entity("Framework.Domain.Entities.Mail", b =>
+                {
+                    b.Navigation("MailItems");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.Player", b =>
@@ -620,11 +848,16 @@ namespace Framework.Infrastructure.Migrations
 
                     b.Navigation("Mails");
 
+                    b.Navigation("MatchParticipants");
+
                     b.Navigation("Profile");
 
-                    b.Navigation("Records");
-
                     b.Navigation("RefreshTokens");
+                });
+
+            modelBuilder.Entity("Framework.Domain.Entities.RewardTable", b =>
+                {
+                    b.Navigation("Entries");
                 });
 #pragma warning restore 612, 618
         }
