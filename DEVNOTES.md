@@ -23,6 +23,7 @@
 | 공지 시스템 | GET /api/notices/latest, 최신 활성 공지 1개 반환. 클라이언트가 NoticeId를 PlayerPrefs에 저장해 1회성 표시. Admin CRUD 관리 페이지 포함 |
 | 플레이어 문의 | POST /api/inquiries 제출, GET /api/inquiries 내 목록 조회. Admin 답변 등록. 소원수리함 형태(자유 텍스트). Blazor 테스트 페이지 포함 |
 | 감사 로그 | 재화/아이템 변동 추적. Item.AuditLevel(AnomalyOnly/Full) + AnomalyThreshold 기준으로 저장 범위 차별화. Admin `/audit-logs` 페이지에서 플레이어·아이템·기간·이상치 필터 조회. 현재 훅은 `MailService.ClaimAsync` 적용 |
+| 광고 SSV 보상 | Unity Ads / IronSource SSV(Server Side Verification) 콜백 검증 및 보상 지급. Strategy 패턴으로 모듈화 — 새 네트워크 추가 시 검증기 클래스 1개 + DI 등록 1줄. HMAC-SHA256 서명 검증, 일일 한도 제한, RewardDispatcher 멱등성 보장. Admin `/ad-policies` 페이지에서 PlacementId별 보상 정책 CRUD 관리. 콜백 URL: `GET /api/ads/callback/unity-ads`, `GET /api/ads/callback/ironsource` |
 
 ---
 
@@ -35,6 +36,8 @@
 | `Admin:ApiKey` | `ADMIN_API_KEY` | 랜덤 문자열로 교체 |
 | `Google:ClientId` | `GOOGLE_CLIENT_ID` | Google Cloud Console에서 OAuth 클라이언트 ID 발급 |
 | `ConnectionStrings:Default` | `POSTGRES_PASSWORD` | 운영 DB 비밀번호 설정 |
+| `AdNetworks:UnityAds:SecretKey` | `UNITY_ADS_SECRET_KEY` | Unity Ads 대시보드 > 수익화 > 광고 > SSV 설정에서 발급 |
+| `AdNetworks:IronSource:SecretKey` | `IRONSOURCE_SECRET_KEY` | IronSource 대시보드 > SDK 네트워크 > 고급 설정에서 발급 |
 
 ## [필수] Framework.Admin/appsettings.json 교체값
 - `ApiBaseUrl` — 현재 `https://api.overture.io.kr`. 도메인 변경 시 교체 필요

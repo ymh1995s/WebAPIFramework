@@ -1,6 +1,8 @@
 using System.Text;
 using System.Threading.RateLimiting;
 using Framework.Application.Common;
+using Framework.Application.Features.AdPolicy;
+using Framework.Application.Features.AdReward;
 using Framework.Application.Features.AuditLog;
 using Framework.Application.Features.Auth;
 using Framework.Application.Features.DailyLogin;
@@ -20,9 +22,11 @@ using Framework.Application.Features.SystemConfig;
 using Framework.Domain.Constants;
 using Framework.Domain.Entities;
 using Framework.Domain.Interfaces;
+using Framework.Infrastructure.Persistence;
 using Framework.Infrastructure.Repositories;
 using Framework.Api.Notifications;
 using Framework.Api.Services;
+using Framework.Api.Services.AdNetwork;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
@@ -57,6 +61,9 @@ public static class ServiceExtensions
         services.AddScoped<IRewardGrantRepository, RewardGrantRepository>();
         services.AddScoped<IGameResultRepository, GameResultRepository>();
         services.AddScoped<IRewardTableRepository, RewardTableRepository>();
+
+        // 광고 보상 저장소 등록
+        services.AddScoped<IAdPolicyRepository, AdPolicyRepository>();
 
         return services;
     }
@@ -94,6 +101,9 @@ public static class ServiceExtensions
         services.AddScoped<IRewardGrantQueryService, RewardGrantQueryService>();
         services.AddScoped<IAdminMatchService, AdminMatchService>();
 
+        // 광고 정책 Admin 서비스 등록
+        services.AddScoped<IAdPolicyService, AdPolicyService>();
+
         return services;
     }
 
@@ -111,6 +121,9 @@ public static class ServiceExtensions
 
         // 보상 디스패처 등록 — 모든 보상 경로의 단일 진입점
         services.AddScoped<IRewardDispatcher, RewardDispatcher>();
+
+        // 작업 단위 등록 — 보상 지급 트랜잭션 원자성 보장
+        services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         return services;
     }
@@ -149,6 +162,10 @@ public static class ServiceExtensions
         // appsettings.json의 RateLimiting:AuthPermitLimit 값 사용 — 미설정 시 60 기본값
         var authPermitLimit = config.GetValue<int>("RateLimiting:AuthPermitLimit", 60);
 
+        // 광고 콜백 Rate Limit — 광고 네트워크 서버 IP 기준 분당 요청 수 제한
+        // 미설정 시 300 기본값 (광고 네트워크 서버는 합법적으로 많은 요청 발송)
+        var adsCallbackPermitLimit = config.GetValue<int>("RateLimiting:AdsCallbackPermitLimit", 300);
+
         services.AddRateLimiter(options =>
         {
             // AddFixedWindowLimiter: 이름("auth")을 붙여 등록하는 방식
@@ -157,6 +174,16 @@ public static class ServiceExtensions
             options.AddFixedWindowLimiter("auth", limiter =>
             {
                 limiter.PermitLimit = authPermitLimit;
+                limiter.Window = TimeSpan.FromMinutes(1);
+                limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                limiter.QueueLimit = 0;
+            });
+
+            // 광고 SSV 콜백 Rate Limit — 광고 네트워크 서버가 직접 호출하는 엔드포인트
+            // DDoS/어뷰징 방지용, 정상적인 광고 네트워크 트래픽보다 충분히 높게 설정
+            options.AddFixedWindowLimiter("ads-callback", limiter =>
+            {
+                limiter.PermitLimit = adsCallbackPermitLimit;
                 limiter.Window = TimeSpan.FromMinutes(1);
                 limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
                 limiter.QueueLimit = 0;
@@ -208,6 +235,23 @@ public static class ServiceExtensions
                 }
             };
         });
+
+        return services;
+    }
+
+    // 광고 SSV(Server Side Verification) 서비스 등록
+    // 검증기는 IAdNetworkVerifier를 구현하는 모든 타입이 IEnumerable로 주입됨 (Strategy 패턴)
+    public static IServiceCollection AddAdRewardServices(this IServiceCollection services)
+    {
+        // 검증기 전략 구현체 등록 (새 네트워크 추가 시 여기에 한 줄만 추가)
+        services.AddScoped<IAdNetworkVerifier, UnityAdsVerifier>();
+        services.AddScoped<IAdNetworkVerifier, IronSourceVerifier>();
+
+        // 검증기 팩토리 (Resolver) 등록
+        services.AddScoped<IAdNetworkVerifierResolver, AdNetworkVerifierResolver>();
+
+        // 광고 보상 처리 서비스 등록
+        services.AddScoped<IAdRewardService, AdRewardService>();
 
         return services;
     }

@@ -310,6 +310,28 @@ public static class ApiRoutes
         }
     }
 
+    // ── 광고 정책 Admin (AdminAdPoliciesController: Route = "api/admin/ad-policies") ──
+    public static class AdminAdPolicies
+    {
+        private const string Base = "api/admin/ad-policies";
+
+        /// <summary>목록 조회 (GET) / 생성 (POST)</summary>
+        public const string Collection = Base;
+
+        /// <summary>단건 조회 (GET) / 수정 (PUT) / 소프트 삭제 (DELETE)</summary>
+        public static string ById(int id) => $"{Base}/{id}";
+
+        /// <summary>필터 + 페이지네이션 검색</summary>
+        public static string Search(int? network, int page, int pageSize)
+        {
+            var parts = new List<string>();
+            if (network.HasValue) parts.Add($"network={network.Value}");
+            parts.Add($"page={page}");
+            parts.Add($"pageSize={pageSize}");
+            return $"{Base}?{string.Join("&", parts)}";
+        }
+    }
+
     // ── SignalR 허브 경로 ──────────────────────────────────────────────────
     public static class Hubs
     {

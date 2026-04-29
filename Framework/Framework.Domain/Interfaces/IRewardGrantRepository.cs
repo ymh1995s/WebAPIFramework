@@ -23,6 +23,10 @@ public interface IRewardGrantRepository
     // ID로 단건 조회
     Task<RewardGrant?> GetByIdAsync(int id);
 
+    // 오늘(UTC 기준) 특정 플레이어의 SourceType + SourceKey 패턴 지급 건수 조회
+    // 광고 일일 한도 체크에 사용 — SourceKey가 특정 prefix로 시작하는 건수 카운트
+    Task<int> CountTodayAsync(int playerId, RewardSourceType sourceType, string sourceKeyPrefix, DateTime utcDayStart);
+
     // 변경사항 저장
     Task SaveChangesAsync();
 }

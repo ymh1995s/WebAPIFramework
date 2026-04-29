@@ -1,0 +1,250 @@
+@page "/ad-policies"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits SafeComponentBase
+@using Framework.Admin.Constants
+
+<PageTitle>광고 정책 관리</PageTitle>
+
+<h2 class="mb-2">광고 정책 관리</h2>
+
+<div class="alert alert-info py-2 small mb-3">
+    <p class="mb-1">광고 네트워크별 PlacementId에 대한 보상 규칙을 정의합니다.<br />
+    SSV(Server Side Verification) 콜백이 수신되면 이 정책을 기반으로 보상을 지급합니다.</p>
+    <p class="mb-1"><strong>[DailyLimit]</strong> 0이면 무제한, 1 이상이면 하루 최대 보상 지급 횟수를 제한합니다.</p>
+    <p class="mb-0"><strong>[IsEnabled]</strong> false이면 콜백이 수신되어도 보상을 지급하지 않습니다.</p>
+</div>
+
+<!-- 검색 필터 카드 -->
+<section class="card mb-3">
+    <div class="card-header py-2"><strong>검색 필터</strong></div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label small mb-1">광고 네트워크</label>
+                <select class="form-select form-select-sm" @bind="filterNetwork">
+                    <option value="">전체</option>
+                    @foreach (var n in NetworkOptions)
+                    {
+                        <option value="@n.Value">@n.Label</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">페이지 크기</label>
+                <input type="number" class="form-control form-control-sm" @bind="pageSize" min="10" max="100" />
+            </div>
+        </div>
+    </div>
+    <div class="card-footer py-2 d-flex gap-2">
+        <button class="btn btn-primary btn-sm" @onclick="Search">조회</button>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="Reset">초기화</button>
+        <button class="btn btn-success btn-sm ms-auto" @onclick="OpenCreateModal">+ 광고 정책 추가</button>
+    </div>
+</section>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger py-2 small">@errorMessage</div>
+}
+@if (!string.IsNullOrEmpty(successMessage))
+{
+    <div class="alert alert-success py-2 small">@successMessage</div>
+}
+
+@if (isLoading)
+{
+    <p class="text-muted">불러오는 중...</p>
+}
+else if (result == null)
+{
+    <p class="text-muted">상단 필터를 설정한 후 <strong>조회</strong> 버튼을 눌러주세요.</p>
+}
+else if (!result.Items.Any())
+{
+    <p class="text-muted">조건에 맞는 광고 정책이 없습니다.</p>
+}
+else
+{
+    <div class="d-flex align-items-center mb-2">
+        <span class="small text-muted ms-auto">총 <strong>@result.TotalCount</strong> 건</span>
+    </div>
+
+    <table class="table table-sm table-striped table-hover">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>네트워크</th>
+                <th>PlacementId</th>
+                <th>타입</th>
+                <th>RewardTableId</th>
+                <th title="일일 최대 보상 횟수 (0=무제한)">DailyLimit</th>
+                <th>활성</th>
+                <th>설명</th>
+                <th>관리</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in result.Items)
+            {
+                <tr>
+                    <td>@p.Id</td>
+                    <td><span class="badge bg-primary">@p.Network</span></td>
+                    <td><code>@p.PlacementId</code></td>
+                    <td><span class="badge bg-secondary">@p.PlacementType</span></td>
+                    <td>@(p.RewardTableId?.ToString() ?? "없음")</td>
+                    <td>@(p.DailyLimit == 0 ? "무제한" : p.DailyLimit.ToString())</td>
+                    <td>
+                        @if (p.IsEnabled)
+                        {
+                            <span class="badge bg-success">활성</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-warning text-dark">비활성</span>
+                        }
+                    </td>
+                    <td>@p.Description</td>
+                    <td>
+                        <button class="btn btn-outline-primary btn-sm" @onclick="() => OpenEditModal(p)">편집</button>
+                        <button class="btn btn-outline-danger btn-sm" @onclick="() => OpenDeleteModal(p)">삭제</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <!-- 페이지네이션 -->
+    <div class="d-flex gap-2 align-items-center">
+        <button class="btn btn-outline-secondary btn-sm" @onclick="PrevPage" disabled="@(page <= 1)">이전</button>
+        <span class="small">@(page) / @(result.TotalPages) 페이지</span>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@(page >= result.TotalPages)">다음</button>
+    </div>
+}
+
+<!-- 생성 모달 -->
+@if (showCreateModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">광고 정책 추가</h5>
+                    <button type="button" class="btn-close" @onclick="CloseCreateModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2">
+                        <label class="form-label small">광고 네트워크 <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-sm" @bind="newNetwork">
+                            <option value="">선택...</option>
+                            @foreach (var n in NetworkOptions)
+                            {
+                                <option value="@n.Value">@n.Label</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">PlacementId <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-sm" @bind="newPlacementId"
+                               placeholder="예: Rewarded_MainMenu, Rewarded_GameOver" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">PlacementType <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-sm" @bind="newPlacementType">
+                            <option value="1">RewardedVideo</option>
+                            <option value="2">Interstitial</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">RewardTableId</label>
+                        <input type="number" class="form-control form-control-sm" @bind="newRewardTableId"
+                               placeholder="비워두면 보상 없음" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">DailyLimit <span class="text-muted">(0=무제한)</span></label>
+                        <input type="number" class="form-control form-control-sm" @bind="newDailyLimit" min="0" />
+                    </div>
+                    <div class="mb-2 form-check">
+                        <input type="checkbox" class="form-check-input" id="newIsEnabled" @bind="newIsEnabled" />
+                        <label class="form-check-label small" for="newIsEnabled">활성화</label>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">설명</label>
+                        <input type="text" class="form-control form-control-sm" @bind="newDescription" placeholder="정책 설명 (선택)" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(createError))
+                    {
+                        <div class="alert alert-danger py-1 small">@createError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseCreateModal">취소</button>
+                    <button class="btn btn-success btn-sm" @onclick="Create">생성</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- 편집 모달 -->
+@if (showEditModal && editingPolicy != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">광고 정책 편집 — @editingPolicy.Network / @editingPolicy.PlacementId</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEditModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2">
+                        <label class="form-label small">RewardTableId</label>
+                        <input type="number" class="form-control form-control-sm" @bind="editRewardTableId"
+                               placeholder="비워두면 보상 없음" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">DailyLimit <span class="text-muted">(0=무제한)</span></label>
+                        <input type="number" class="form-control form-control-sm" @bind="editDailyLimit" min="0" />
+                    </div>
+                    <div class="mb-2 form-check">
+                        <input type="checkbox" class="form-check-input" id="editIsEnabled" @bind="editIsEnabled" />
+                        <label class="form-check-label small" for="editIsEnabled">활성화</label>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">설명</label>
+                        <input type="text" class="form-control form-control-sm" @bind="editDescription" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(editError))
+                    {
+                        <div class="alert alert-danger py-1 small">@editError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseEditModal">취소</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveEdit">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- 삭제 확인 모달 -->
+@if (showDeleteModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">광고 정책 삭제 확인</h5>
+                </div>
+                <div class="modal-body">
+                    <p><strong>@deletingInfo</strong> 정책을 삭제하시겠습니까?</p>
+                    <p class="text-muted small">소프트 삭제로 처리됩니다. (DB 행은 유지)</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CancelDelete">취소</button>
+                    <button class="btn btn-danger btn-sm" @onclick="ConfirmDelete">삭제</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}

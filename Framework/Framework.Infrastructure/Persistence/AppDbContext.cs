@@ -48,6 +48,9 @@ public class AppDbContext : DbContext
     // 감사 로그 테이블 — 재화/아이템 변동 추적
     public DbSet<AuditLog> AuditLogs { get; set; }
 
+    // 광고 보상 정책 테이블 — 광고 네트워크별 PlacementId → 보상 규칙 매핑
+    public DbSet<AdPolicy> AdPolicies { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // SystemConfig: Key를 PK로 사용
@@ -278,5 +281,34 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<RateLimitLog>()
             .HasIndex(l => l.PlayerId)
             .HasFilter("\"PlayerId\" IS NOT NULL");
+
+        // AdPolicy: IsEnabled/IsDeleted 기본값
+        modelBuilder.Entity<AdPolicy>()
+            .Property(p => p.IsEnabled)
+            .HasDefaultValue(true);
+
+        modelBuilder.Entity<AdPolicy>()
+            .Property(p => p.IsDeleted)
+            .HasDefaultValue(false);
+
+        // AdPolicy: DailyLimit 기본값 0 (무제한)
+        modelBuilder.Entity<AdPolicy>()
+            .Property(p => p.DailyLimit)
+            .HasDefaultValue(0);
+
+        // AdPolicy → RewardTable (N:1, nullable) — 보상 없는 정책도 허용
+        modelBuilder.Entity<AdPolicy>()
+            .HasOne(p => p.RewardTable)
+            .WithMany()
+            .HasForeignKey(p => p.RewardTableId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // AdPolicy: UNIQUE(Network, PlacementId) WHERE !IsDeleted
+        // 소프트 딜리트된 정책은 동일 PlacementId로 신규 정책 생성 가능
+        modelBuilder.Entity<AdPolicy>()
+            .HasIndex(p => new { p.Network, p.PlacementId })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = false");
     }
 }

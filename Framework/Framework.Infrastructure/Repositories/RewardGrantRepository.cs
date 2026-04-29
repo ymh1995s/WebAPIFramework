@@ -74,6 +74,17 @@ public class RewardGrantRepository : IRewardGrantRepository
     public async Task<RewardGrant?> GetByIdAsync(int id)
         => await _db.RewardGrants.FirstOrDefaultAsync(g => g.Id == id);
 
+    // 오늘 광고 보상 지급 건수 조회 — 일일 한도 체크용
+    // sourceKeyPrefix: "{network}:{placementId}:" 형태로 PlacementId별 카운트
+    public async Task<int> CountTodayAsync(
+        int playerId, RewardSourceType sourceType, string sourceKeyPrefix, DateTime utcDayStart)
+        => await _db.RewardGrants
+            .CountAsync(g =>
+                g.PlayerId == playerId &&
+                g.SourceType == sourceType &&
+                g.SourceKey.StartsWith(sourceKeyPrefix) &&
+                g.GrantedAt >= utcDayStart);
+
     // 변경사항 저장
     public async Task SaveChangesAsync()
         => await _db.SaveChangesAsync();
