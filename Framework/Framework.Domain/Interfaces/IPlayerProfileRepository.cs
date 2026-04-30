@@ -11,4 +11,7 @@ public interface IPlayerProfileRepository
 
     // 프로필 수정
     Task UpdateAsync(PlayerProfile profile);
+
+    // 변경사항을 DB에 반영 — 호출자(Service)가 명시적으로 호출
+    Task SaveChangesAsync();
 }

@@ -63,6 +63,7 @@ public class AuthService : IAuthService
             // 마지막 로그인 시간 갱신
             player!.LastLoginAt = DateTime.UtcNow;
             await _playerRepo.UpdateAsync(player);
+            await _playerRepo.SaveChangesAsync();
         }
 
         return await IssueTokensAsync(player, isNew);
@@ -76,12 +77,14 @@ public class AuthService : IAuthService
 
         if (stored.ExpiresAt < DateTime.UtcNow)
         {
-            // 만료된 토큰 삭제 후 에러
+            // 만료된 토큰 삭제 후 즉시 flush (예외 전 DB 정리)
             await _refreshTokenRepo.DeleteAsync(stored);
+            await _refreshTokenRepo.SaveChangesAsync();
             throw new UnauthorizedAccessException("리프래시 토큰이 만료되었습니다.");
         }
 
         // 기존 토큰 삭제 후 새 토큰 발급 (토큰 교체 방식)
+        // DeleteAsync는 ChangeTracker에만 등록 — IssueTokensAsync의 SaveChanges에서 Delete + Add 함께 flush
         await _refreshTokenRepo.DeleteAsync(stored);
         return await IssueTokensAsync(stored.Player, false);
     }
@@ -91,7 +94,10 @@ public class AuthService : IAuthService
     {
         var stored = await _refreshTokenRepo.GetByTokenAsync(refreshToken);
         if (stored is not null)
+        {
             await _refreshTokenRepo.DeleteAsync(stored);
+            await _refreshTokenRepo.SaveChangesAsync();
+        }
     }
 
     // 구글 로그인 - IdToken 검증 후 GoogleId로 플레이어 조회 또는 신규 생성
@@ -133,6 +139,7 @@ public class AuthService : IAuthService
 
             existing.LastLoginAt = DateTime.UtcNow;
             await _playerRepo.UpdateAsync(existing);
+            await _playerRepo.SaveChangesAsync();
             return await IssueTokensAsync(existing, false);
         }
 
@@ -141,6 +148,7 @@ public class AuthService : IAuthService
         {
             existing.LastLoginAt = DateTime.UtcNow;
             await _playerRepo.UpdateAsync(existing);
+            await _playerRepo.SaveChangesAsync();
             return await IssueTokensAsync(existing, false);
         }
 
@@ -163,6 +171,7 @@ public class AuthService : IAuthService
             ?? throw new InvalidOperationException("플레이어를 찾을 수 없습니다.");
 
         await _playerRepo.DeleteAsync(player);
+        await _playerRepo.SaveChangesAsync();
     }
 
     // 게스트 계정에 구글 연동 - 기존 데이터 유지하면서 GoogleId 추가
@@ -189,6 +198,7 @@ public class AuthService : IAuthService
         // 기존 플레이어에 GoogleId 연결
         player.GoogleId = googleId;
         await _playerRepo.UpdateAsync(player);
+        await _playerRepo.SaveChangesAsync();
     }
 
     // 구글 계정 충돌 해소 — 게스트 계정을 소프트 딜리트하고 구글 연동 계정으로 토큰 발급
@@ -211,12 +221,16 @@ public class AuthService : IAuthService
         if (playerB.GoogleId is not null)
             throw new InvalidOperationException("게스트 계정이 이미 다른 구글 계정에 연동되어 있어 병합할 수 없습니다.");
 
-        // 소프트 딜리트 + 게스트 세션 토큰 삭제 + 기존 계정 LastLoginAt 갱신
-        await _playerRepo.SoftDeleteAsync(playerB, playerA.Id);
-        await _refreshTokenRepo.DeleteAllByPlayerIdAsync(playerB.Id);
+        // 소프트 딜리트 + 게스트 세션 토큰 삭제 + 기존 계정 LastLoginAt 갱신을 단일 트랜잭션으로 처리
+        // 중간 실패 시 부분 적용 방지 (예: SoftDelete 후 토큰 삭제 실패로 게스트 토큰이 살아있는 상태)
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            await _playerRepo.SoftDeleteAsync(playerB, playerA.Id);
+            await _refreshTokenRepo.DeleteAllByPlayerIdAsync(playerB.Id);
 
-        playerA.LastLoginAt = DateTime.UtcNow;
-        await _playerRepo.UpdateAsync(playerA);
+            playerA.LastLoginAt = DateTime.UtcNow;
+            await _playerRepo.UpdateAsync(playerA);
+        });
 
         return await IssueTokensAsync(playerA, false);
     }
@@ -228,13 +242,14 @@ public class AuthService : IAuthService
         var accessToken = _jwtProvider.GenerateAccessToken(player.Id, player.PublicId);
         var (refreshTokenValue, expiresAt) = _jwtProvider.GenerateRefreshToken();
 
-        // 리프래시 토큰 DB 저장
+        // 리프래시 토큰 DB 저장 후 flush
         await _refreshTokenRepo.AddAsync(new RefreshToken
         {
             PlayerId = player.Id,
             Token = refreshTokenValue,
             ExpiresAt = expiresAt
         });
+        await _refreshTokenRepo.SaveChangesAsync();
 
         // 응답의 PlayerId는 외부 공개용 Guid (내부 정수 Id 미노출)
         return new TokenResponseDto(accessToken, refreshTokenValue, player.PublicId, isNew);

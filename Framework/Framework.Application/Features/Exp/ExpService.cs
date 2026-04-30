@@ -70,6 +70,7 @@ public class ExpService : IExpService
 
         // 프로필 저장 (Exp + Level 반영)
         await _profileRepo.UpdateAsync(profile);
+        await _profileRepo.SaveChangesAsync();
 
         // 레벨업 보상 지급 — 레벨별로 RewardTable 조회 후 지급
         foreach (var level in leveledUp)

@@ -47,4 +47,7 @@ public interface IPlayerRepository
 
     // 지정된 플레이어들의 AttendanceCount를 1씩 증가 (배치 처리용 ExecuteUpdate)
     Task IncrementAttendanceCountAsync(IEnumerable<int> playerIds);
+
+    // 변경사항을 DB에 반영 — 호출자(Service)가 명시적으로 호출
+    Task SaveChangesAsync();
 }

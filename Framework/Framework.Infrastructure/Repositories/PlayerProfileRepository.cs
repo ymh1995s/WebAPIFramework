@@ -18,17 +18,19 @@ public class PlayerProfileRepository : IPlayerProfileRepository
     public async Task<PlayerProfile?> GetByPlayerIdAsync(int playerId)
         => await _db.PlayerProfiles.FirstOrDefaultAsync(p => p.PlayerId == playerId);
 
-    // 프로필 추가
+    // 프로필 추가 — SaveChanges는 호출자(Service)가 명시적으로 호출
     public async Task AddAsync(PlayerProfile profile)
     {
         await _db.PlayerProfiles.AddAsync(profile);
-        await _db.SaveChangesAsync();
     }
 
-    // 프로필 수정
-    public async Task UpdateAsync(PlayerProfile profile)
+    // 프로필 수정 — SaveChanges는 호출자(Service)가 명시적으로 호출
+    public Task UpdateAsync(PlayerProfile profile)
     {
         _db.PlayerProfiles.Update(profile);
-        await _db.SaveChangesAsync();
+        return Task.CompletedTask;
     }
+
+    // 변경사항을 DB에 반영 — 호출자(Service)가 명시적으로 호출
+    public async Task SaveChangesAsync() => await _db.SaveChangesAsync();
 }

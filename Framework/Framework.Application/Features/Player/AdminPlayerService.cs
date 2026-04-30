@@ -69,6 +69,7 @@ public class AdminPlayerService : IAdminPlayerService
         if (player is null) return false;
 
         await _playerRepository.BanAsync(id, bannedUntil);
+        await _playerRepository.SaveChangesAsync();
         return true;
     }
 
@@ -79,6 +80,7 @@ public class AdminPlayerService : IAdminPlayerService
         if (player is null) return false;
 
         await _playerRepository.UnbanAsync(id);
+        await _playerRepository.SaveChangesAsync();
         return true;
     }
 
@@ -89,6 +91,7 @@ public class AdminPlayerService : IAdminPlayerService
         if (player is null) return false;
 
         await _playerRepository.DeleteAsync(player);
+        await _playerRepository.SaveChangesAsync();
         return true;
     }
 }

@@ -18,25 +18,27 @@ public class RefreshTokenRepository : IRefreshTokenRepository
     public async Task<RefreshToken?> GetByTokenAsync(string token)
         => await _db.RefreshTokens.Include(r => r.Player).FirstOrDefaultAsync(r => r.Token == token);
 
-    // 토큰 추가
+    // 토큰 추가 — SaveChanges는 호출자(Service)가 명시적으로 호출
     public async Task AddAsync(RefreshToken refreshToken)
     {
         await _db.RefreshTokens.AddAsync(refreshToken);
-        await _db.SaveChangesAsync();
     }
 
-    // 단일 토큰 삭제 (로그아웃)
-    public async Task DeleteAsync(RefreshToken refreshToken)
+    // 단일 토큰 삭제 (로그아웃) — SaveChanges는 호출자(Service)가 명시적으로 호출
+    public Task DeleteAsync(RefreshToken refreshToken)
     {
         _db.RefreshTokens.Remove(refreshToken);
-        await _db.SaveChangesAsync();
+        return Task.CompletedTask;
     }
 
-    // 특정 플레이어의 모든 토큰 삭제 (강제 로그아웃)
-    public async Task DeleteAllByPlayerIdAsync(int playerId)
+    // 특정 플레이어의 모든 토큰 삭제 (강제 로그아웃) — SaveChanges는 호출자(Service)가 명시적으로 호출
+    public Task DeleteAllByPlayerIdAsync(int playerId)
     {
         var tokens = _db.RefreshTokens.Where(r => r.PlayerId == playerId);
         _db.RefreshTokens.RemoveRange(tokens);
-        await _db.SaveChangesAsync();
+        return Task.CompletedTask;
     }
+
+    // 변경사항을 DB에 반영 — 호출자(Service)가 명시적으로 호출
+    public async Task SaveChangesAsync() => await _db.SaveChangesAsync();
 }
