@@ -11,17 +11,23 @@ public class MailService : IMailService
     private readonly IMailRepository _mailRepository;
     private readonly IPlayerRepository _playerRepository;
     private readonly IPlayerItemRepository _playerItemRepository;
+    private readonly IPlayerProfileRepository _playerProfileRepository;
+    private readonly IExpService _expService;
     private readonly IAuditLogService _auditLogService;
 
     public MailService(
         IMailRepository mailRepository,
         IPlayerRepository playerRepository,
         IPlayerItemRepository playerItemRepository,
+        IPlayerProfileRepository playerProfileRepository,
+        IExpService expService,
         IAuditLogService auditLogService)
     {
         _mailRepository = mailRepository;
         _playerRepository = playerRepository;
         _playerItemRepository = playerItemRepository;
+        _playerProfileRepository = playerProfileRepository;
+        _expService = expService;
         _auditLogService = auditLogService;
     }
 
@@ -32,7 +38,8 @@ public class MailService : IMailService
         return mails.Select(m => new MailDto(
             m.Id, m.PlayerId, m.Title, m.Body,
             m.ItemId, m.Item?.Name, m.ItemCount,
-            m.IsRead, m.IsClaimed, m.CreatedAt, m.ExpiresAt
+            m.IsRead, m.IsClaimed, m.CreatedAt, m.ExpiresAt,
+            m.Gold, m.Gems, m.Exp
         )).ToList();
     }
 
@@ -46,6 +53,10 @@ public class MailService : IMailService
             Body = dto.Body,
             ItemId = dto.ItemId,
             ItemCount = dto.ItemCount,
+            // 우편 첨부 재화 저장 — 수령 시 ClaimAsync에서 PlayerProfile에 직접 지급
+            Gold = dto.Gold,
+            Gems = dto.Gems,
+            Exp = dto.Exp,
             ExpiresAt = DateTime.UtcNow.AddDays(dto.ExpiresInDays)
         };
         await _mailRepository.AddAsync(mail);
@@ -63,13 +74,17 @@ public class MailService : IMailService
             Body = dto.Body,
             ItemId = dto.ItemId,
             ItemCount = dto.ItemCount,
+            // 우편 첨부 재화 저장 — 수령 시 ClaimAsync에서 PlayerProfile에 직접 지급
+            Gold = dto.Gold,
+            Gems = dto.Gems,
+            Exp = dto.Exp,
             ExpiresAt = DateTime.UtcNow.AddDays(dto.ExpiresInDays)
         });
         await _mailRepository.AddRangeAsync(mails);
         await _mailRepository.SaveChangesAsync();
     }
 
-    // 우편 수령 → 인벤토리에 아이템 추가
+    // 우편 수령 → 인벤토리에 아이템 추가 + 재화 지급
     // [보안] playerId로 본인 우편 여부 검증 — 타 유저 mailId로 남의 우편 조작 불가
     // [동시성] Mail.IsClaimed에 동시성 토큰이 걸려 있어, 동시 요청 중 한 쪽만 성공하고 나머지는 DbUpdateConcurrencyException
     // [원자성] 아이템 지급과 우편 상태 변경을 단일 SaveChanges로 묶어 부분 적용 방지
@@ -85,6 +100,20 @@ public class MailService : IMailService
         mail.IsRead = true;
 
         var balanceBefore = 0;
+
+        // 우편에 첨부된 재화 지급 (Gold/Gems는 PlayerProfile, Exp는 IExpService를 통해 처리)
+        // Gold/Gems는 SaveChanges 전에 처리 — 동일 DbContext 공유로 한 번에 커밋
+        if (mail.Gold > 0 || mail.Gems > 0)
+        {
+            var profile = await _playerProfileRepository.GetByPlayerIdAsync(mail.PlayerId);
+            if (profile is not null)
+            {
+                if (mail.Gold > 0) profile.Gold += mail.Gold;
+                if (mail.Gems > 0) profile.Gems += mail.Gems;
+                profile.UpdatedAt = DateTime.UtcNow;
+                await _playerProfileRepository.UpdateAsync(profile);
+            }
+        }
 
         // [신규] MailItems 기반 다중 아이템 수령 처리
         if (mail.MailItems.Count > 0)
@@ -154,6 +183,11 @@ public class MailService : IMailService
                 mail.PlayerId, mail.ItemId.Value, "MailClaim",
                 mail.ItemCount, balanceBefore, balanceBefore + mail.ItemCount);
         }
+
+        // Exp는 레벨업 처리가 포함되어 있으므로 SaveChanges 완료 후 별도로 처리
+        // TODO: 감사 로그 구조 개선 시 Currency(Gold/Gems) 로그도 기록 필요
+        if (mail.Exp > 0)
+            await _expService.AddExpAsync(mail.PlayerId, mail.Exp, $"mail:{mail.Id}");
 
         return true;
     }

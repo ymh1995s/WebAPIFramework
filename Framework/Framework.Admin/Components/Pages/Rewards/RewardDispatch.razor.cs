@@ -207,12 +207,16 @@ public partial class RewardDispatch : SafeComponentBase
         // Bulk는 아이템을 첫 번째 항목만 사용 (API 스펙에 따라 단일 아이템)
         var firstItem = items.FirstOrDefault(i => i.ItemId > 0 && i.Quantity > 0);
 
+        // Bulk 우편 payload — Gold/Gems/Exp도 포함하여 발송 (수령 시 ClaimAsync에서 지급)
         var payload = new
         {
             Title = mailTitle,
             Body = mailBody,
             ItemId = firstItem?.ItemId,
             ItemCount = firstItem?.Quantity ?? 0,
+            Gold = gold ?? 0,
+            Gems = gems ?? 0,
+            Exp = exp ?? 0,
             ExpiresInDays = mailExpiresInDays
         };
 

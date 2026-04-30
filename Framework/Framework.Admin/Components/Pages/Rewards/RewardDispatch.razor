@@ -36,8 +36,7 @@ else
 {
     <!-- 전체 플레이어 Bulk 우편 발송 안내 -->
     <div class="alert alert-info py-2 small mb-3">
-        <strong>전체 발송:</strong> 현재 가입된 모든 플레이어에게 우편을 발송합니다.
-        재화(Gold/Gems/Exp) 지급은 지원되지 않습니다. 아이템만 포함하거나 내용만 발송할 수 있습니다.
+        <strong>전체 발송:</strong> 전체 플레이어에게 우편(Gold/Gems/Exp + 아이템)을 발송합니다.
     </div>
 }
 
@@ -89,29 +88,26 @@ else
                     }
                 </div>
 
-                <!-- 재화 지급 — Bulk 모드에서는 숨김 (Bulk 재화 미지원) -->
-                @if (targetMode == "single")
-                {
-                    <div class="card mb-3">
-                        <div class="card-header py-1 small"><strong>재화</strong></div>
-                        <div class="card-body py-2">
-                            <div class="row g-2">
-                                <div class="col-4">
-                                    <label class="form-label small mb-1">Gold</label>
-                                    <input type="number" class="form-control form-control-sm" @bind="gold" min="0" />
-                                </div>
-                                <div class="col-4">
-                                    <label class="form-label small mb-1">Gems</label>
-                                    <input type="number" class="form-control form-control-sm" @bind="gems" min="0" />
-                                </div>
-                                <div class="col-4">
-                                    <label class="form-label small mb-1">Exp</label>
-                                    <input type="number" class="form-control form-control-sm" @bind="exp" min="0" />
-                                </div>
+                <!-- 재화 지급 — Bulk와 단일 모두 지원 -->
+                <div class="card mb-3">
+                    <div class="card-header py-1 small"><strong>재화</strong></div>
+                    <div class="card-body py-2">
+                        <div class="row g-2">
+                            <div class="col-4">
+                                <label class="form-label small mb-1">Gold</label>
+                                <input type="number" class="form-control form-control-sm" @bind="gold" min="0" />
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label small mb-1">Gems</label>
+                                <input type="number" class="form-control form-control-sm" @bind="gems" min="0" />
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label small mb-1">Exp</label>
+                                <input type="number" class="form-control form-control-sm" @bind="exp" min="0" />
                             </div>
                         </div>
                     </div>
-                }
+                </div>
 
                 <!-- 아이템 지급 -->
                 <div class="card mb-3">

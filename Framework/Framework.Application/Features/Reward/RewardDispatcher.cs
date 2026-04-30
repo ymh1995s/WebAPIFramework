@@ -184,6 +184,10 @@ public class RewardDispatcher : IRewardDispatcher
             Body = request.MailBody,
             ItemId = null,
             ItemCount = 0,
+            // Gold/Gems/Exp는 Mail 엔티티에 저장 — ClaimAsync 수령 시 PlayerProfile에 직접 지급
+            Gold = bundle.Gold,
+            Gems = bundle.Gems,
+            Exp = bundle.Exp,
             ExpiresAt = DateTime.UtcNow.AddDays(request.MailExpiresInDays)
         };
 
@@ -200,8 +204,6 @@ public class RewardDispatcher : IRewardDispatcher
             }
         }
 
-        // Gold/Gems/Exp는 우편 본문에 명시 (수령 시 직접 지급은 ClaimAsync에서 처리)
-        // TODO: ClaimAsync에서 MailItems 기반 처리로 확장 시 Currency도 MailItem으로 표현 가능
         await _mailRepo.AddAsync(mail);
         await _mailRepo.SaveChangesAsync();
 

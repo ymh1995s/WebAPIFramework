@@ -21,6 +21,11 @@ public class Mail
     // 수령 여부 (true이면 아이템이 인벤토리로 이동 완료)
     public bool IsClaimed { get; set; }
 
+    // 우편에 첨부된 재화 (수령 시 직접 지급, 기본값 0)
+    public int Gold { get; set; }
+    public int Gems { get; set; }
+    public int Exp { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // 만료일 이후 우편 삭제 처리 대상
