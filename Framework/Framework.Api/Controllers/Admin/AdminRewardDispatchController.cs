@@ -55,6 +55,10 @@ public class AdminRewardDispatchController : ControllerBase
 
         var result = await _dispatcher.GrantAsync(request);
 
+        // 플레이어 미존재 시 404 반환
+        if (result.IsNotFound)
+            return NotFound(new { message = result.Message });
+
         if (!result.Success)
             return BadRequest(new { message = result.Message });
 

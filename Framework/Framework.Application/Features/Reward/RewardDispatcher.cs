@@ -17,6 +17,7 @@ namespace Framework.Application.Features.Reward;
 public class RewardDispatcher : IRewardDispatcher
 {
     private readonly IRewardGrantRepository _grantRepo;
+    private readonly IPlayerRepository _playerRepository;
     private readonly IPlayerProfileRepository _profileRepo;
     private readonly IPlayerItemRepository _itemRepo;
     private readonly IMailService _mailService;
@@ -27,6 +28,7 @@ public class RewardDispatcher : IRewardDispatcher
 
     public RewardDispatcher(
         IRewardGrantRepository grantRepo,
+        IPlayerRepository playerRepository,
         IPlayerProfileRepository profileRepo,
         IPlayerItemRepository itemRepo,
         IMailService mailService,
@@ -36,6 +38,7 @@ public class RewardDispatcher : IRewardDispatcher
         ILogger<RewardDispatcher> logger)
     {
         _grantRepo = grantRepo;
+        _playerRepository = playerRepository;
         _profileRepo = profileRepo;
         _itemRepo = itemRepo;
         _mailService = mailService;
@@ -53,6 +56,11 @@ public class RewardDispatcher : IRewardDispatcher
         // 빈 번들이면 지급할 내용 없음
         if (request.Bundle.IsEmpty)
             return GrantRewardResult.Fail("지급할 보상이 없습니다.");
+
+        // PlayerId 존재 여부 확인 — FK 위반 방지 (트랜잭션 시작 전 검증)
+        var player = await _playerRepository.GetByIdAsync(request.PlayerId);
+        if (player is null)
+            return GrantRewardResult.NotFound();
 
         // 전체 보상 지급 흐름을 단일 트랜잭션으로 묶음
         // — 트랜잭션 내부의 SaveChangesAsync()는 커밋 전이므로 롤백 가능

@@ -142,6 +142,16 @@ public partial class RewardDispatch : SafeComponentBase
     /// <summary>단일 플레이어 보상 지급 — POST /api/admin/reward-dispatch/grant</summary>
     private async Task ExecuteSingleGrant()
     {
+        // PlayerId 존재 여부 사전 확인 — API 실패 전 즉시 피드백
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var checkRes = await client.GetAsync(ApiRoutes.AdminPlayers.ById(playerId));
+        if (checkRes.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            resultSuccess = false;
+            resultMessage = "존재하지 않는 플레이어 ID입니다.";
+            return;
+        }
+
         // SourceKey 유효성 검사
         if (string.IsNullOrWhiteSpace(sourceKey))
         {
@@ -168,7 +178,7 @@ public partial class RewardDispatch : SafeComponentBase
             MailExpiresInDays = mailExpiresInDays
         };
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
+        // 위에서 생성한 client 재사용 (PlayerId 검증 시 이미 생성됨)
         var response = await client.PostAsJsonAsync(ApiRoutes.AdminRewardDispatch.Grant, payload);
 
         if (response.IsSuccessStatusCode)
@@ -197,6 +207,16 @@ public partial class RewardDispatch : SafeComponentBase
     /// <summary>단일 플레이어 순수 우편 발송 — POST /api/admin/mails (보상 지급 이력 없음)</summary>
     private async Task ExecuteSingleMail()
     {
+        // PlayerId 존재 여부 사전 확인 — API 실패 전 즉시 피드백
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var checkRes = await client.GetAsync(ApiRoutes.AdminPlayers.ById(playerId));
+        if (checkRes.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            resultSuccess = false;
+            resultMessage = "존재하지 않는 플레이어 ID입니다.";
+            return;
+        }
+
         // 제목 필수 검사
         if (string.IsNullOrWhiteSpace(mailTitle))
         {
@@ -215,7 +235,7 @@ public partial class RewardDispatch : SafeComponentBase
             ExpiresInDays = mailExpiresInDays
         };
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
+        // 위에서 생성한 client 재사용 (PlayerId 검증 시 이미 생성됨)
         var response = await client.PostAsJsonAsync(ApiRoutes.AdminMails.Single, payload);
 
         if (response.IsSuccessStatusCode)
