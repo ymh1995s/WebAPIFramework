@@ -1,10 +1,23 @@
+using System.ComponentModel.DataAnnotations;
+using Framework.Domain.Entities;
+
 namespace Framework.Application.Features.Inquiry;
 
-// 플레이어 → 개발자 문의 제출 요청
-public record SubmitInquiryDto(string Content);
+// 플레이어 → 개발자 문의 제출 요청 — Content 최대 길이는 Inquiry.ContentMaxLength 상수 참조
+public record SubmitInquiryDto(
+    [property: Required]
+    [property: MinLength(1, ErrorMessage = "문의 내용을 입력해주세요.")]
+    [property: MaxLength(Framework.Domain.Entities.Inquiry.ContentMaxLength, ErrorMessage = "문의 내용은 2000자를 초과할 수 없습니다.")]
+    string Content
+);
 
-// 개발자 → 문의 답변 요청 (Admin)
-public record ReplyInquiryDto(string Reply);
+// 개발자 → 문의 답변 요청 (Admin) — Reply 최대 길이는 Inquiry.AdminReplyMaxLength 상수 참조
+public record ReplyInquiryDto(
+    [property: Required]
+    [property: MinLength(1, ErrorMessage = "답변 내용을 입력해주세요.")]
+    [property: MaxLength(Framework.Domain.Entities.Inquiry.AdminReplyMaxLength, ErrorMessage = "답변 내용은 4000자를 초과할 수 없습니다.")]
+    string Reply
+);
 
 // 플레이어에게 반환하는 문의 응답
 public record InquiryDto(int Id, string Content, string? AdminReply, DateTime? RepliedAt, DateTime CreatedAt);

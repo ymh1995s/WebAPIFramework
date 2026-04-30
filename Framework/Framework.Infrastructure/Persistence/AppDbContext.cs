@@ -282,6 +282,14 @@ public class AppDbContext : DbContext
             .WithMany(p => p.Inquiries)
             .HasForeignKey(i => i.PlayerId);
 
+        // Inquiry 컬럼 길이 제약 — 상수 참조로 DTO/Entity/DB 간 일관성 보장
+        modelBuilder.Entity<Inquiry>()
+            .Property(i => i.Content)
+            .HasMaxLength(Inquiry.ContentMaxLength);
+        modelBuilder.Entity<Inquiry>()
+            .Property(i => i.AdminReply)
+            .HasMaxLength(Inquiry.AdminReplyMaxLength);
+
         // AuditLog: 플레이어별/시간순 조회 대비 인덱스
         modelBuilder.Entity<AuditLog>()
             .HasIndex(l => l.PlayerId);
