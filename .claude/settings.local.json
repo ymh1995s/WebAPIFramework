@@ -18,7 +18,8 @@
       "WebSearch",
       "WebFetch(domain:www.law.go.kr)",
       "WebFetch(domain:docs.anthropic.com)",
-      "PowerShell(dotnet build *)"
+      "PowerShell(dotnet build *)",
+      "Bash(git status *)"
     ]
   }
 }

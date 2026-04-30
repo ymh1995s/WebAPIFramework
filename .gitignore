@@ -13,6 +13,9 @@ GameClient/
 # Docker 환경변수 파일 - 시크릿 포함, 절대 커밋 금지
 .env
 
+# Google Play 서비스 계정 JSON - 절대 커밋 금지
+secrets/
+
 # Claude Code 에이전트 메모리 (로컬 전용)
 .claude/agent-memory/
 

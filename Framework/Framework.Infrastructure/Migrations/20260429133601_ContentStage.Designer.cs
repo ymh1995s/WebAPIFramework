@@ -3,6 +3,7 @@ using System;
 using Framework.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Framework.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260429133601_ContentStage")]
+    partial class ContentStage
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -526,147 +529,6 @@ namespace Framework.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Items");
-                });
-
-            modelBuilder.Entity("Framework.Domain.Entities.LevelThreshold", b =>
-                {
-                    b.Property<int>("Level")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Level"));
-
-                    b.Property<int>("RequiredExp")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Level");
-
-                    b.ToTable("LevelThresholds");
-
-                    b.HasData(
-                        new
-                        {
-                            Level = 1,
-                            RequiredExp = 0,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 2,
-                            RequiredExp = 100,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 3,
-                            RequiredExp = 250,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 4,
-                            RequiredExp = 450,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 5,
-                            RequiredExp = 700,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 6,
-                            RequiredExp = 1000,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 7,
-                            RequiredExp = 1400,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 8,
-                            RequiredExp = 1900,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 9,
-                            RequiredExp = 2500,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 10,
-                            RequiredExp = 3200,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 11,
-                            RequiredExp = 4000,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 12,
-                            RequiredExp = 5000,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 13,
-                            RequiredExp = 6200,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 14,
-                            RequiredExp = 7600,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 15,
-                            RequiredExp = 9200,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 16,
-                            RequiredExp = 11000,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 17,
-                            RequiredExp = 13000,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 18,
-                            RequiredExp = 15500,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 19,
-                            RequiredExp = 18500,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        },
-                        new
-                        {
-                            Level = 20,
-                            RequiredExp = 22000,
-                            UpdatedAt = new DateTime(2026, 4, 30, 0, 0, 0, 0, DateTimeKind.Utc)
-                        });
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.Mail", b =>

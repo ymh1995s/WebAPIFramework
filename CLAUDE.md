@@ -134,6 +134,7 @@ Every task follows: **Question -> Options -> Decision -> Draft -> Approval**
 
 - 설계 요청 → architect / 구현 요청 → programmer / 검증 요청 → qa-reviewer / 보안 검토 → security-master
 - 설계→구현→검증은 순차, qa-reviewer + security-master는 병렬 가능
+- **에이전트는 기본적으로 백그라운드로 실행.** 
 
 ### programmer→qa-reviewer 자동 루프 (오케스트레이터 MUST)
 programmer 종료 즉시 아래를 자율 실행. 유저에게 묻지 않는다.

@@ -378,6 +378,35 @@ public static class ApiRoutes
         }
     }
 
+    // ── 레벨 임계값 Admin (AdminLevelThresholdsController: Route = "api/admin/level-thresholds") ──
+    public static class AdminLevelThresholds
+    {
+        /// <summary>전체 조회 (GET) / 일괄 교체 (PUT)</summary>
+        public const string Collection = "api/admin/level-thresholds";
+    }
+
+    // ── 스테이지 Admin (AdminStagesController: Route = "api/admin/stages") ──
+    public static class AdminStages
+    {
+        private const string Base = "api/admin/stages";
+
+        /// <summary>목록 조회 (GET) / 생성 (POST)</summary>
+        public const string Collection = Base;
+
+        /// <summary>단건 조회 (GET) / 수정 (PUT)</summary>
+        public static string ById(int id) => $"{Base}/{id}";
+
+        /// <summary>키워드 + 페이지네이션 검색</summary>
+        public static string Search(string? keyword, int page, int pageSize)
+        {
+            var parts = new List<string>();
+            if (!string.IsNullOrEmpty(keyword)) parts.Add($"keyword={Uri.EscapeDataString(keyword)}");
+            parts.Add($"page={page}");
+            parts.Add($"pageSize={pageSize}");
+            return $"{Base}?{string.Join("&", parts)}";
+        }
+    }
+
     // ── SignalR 허브 경로 ──────────────────────────────────────────────────
     public static class Hubs
     {

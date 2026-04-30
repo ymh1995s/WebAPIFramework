@@ -1,0 +1,72 @@
+@page "/level-thresholds"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits SafeComponentBase
+@using Framework.Admin.Constants
+
+<PageTitle>레벨 임계값 관리</PageTitle>
+
+<h2 class="mb-2">레벨 임계값 관리</h2>
+
+<div class="alert alert-info py-2 small mb-3">
+    <p class="mb-1">레벨별 누적 경험치 임계값을 관리합니다.</p>
+    <p class="mb-1"><strong>Level 1의 RequiredExp는 반드시 0</strong>이어야 하며, 레벨은 1부터 연속적으로 증가해야 합니다.</p>
+    <p class="mb-0">RequiredExp는 레벨이 높아질수록 반드시 단조 증가해야 합니다.</p>
+</div>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger py-2 small">@errorMessage</div>
+}
+@if (!string.IsNullOrEmpty(successMessage))
+{
+    <div class="alert alert-success py-2 small">@successMessage</div>
+}
+
+@if (isLoading)
+{
+    <p class="text-muted">불러오는 중...</p>
+}
+else
+{
+    <div class="d-flex gap-2 mb-3">
+        <button class="btn btn-success btn-sm" @onclick="AddLevel">+ 레벨 추가</button>
+        <button class="btn btn-primary btn-sm" @onclick="Save" disabled="@isSaving">
+            @if (isSaving) { <span>저장 중...</span> } else { <span>저장</span> }
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="ReloadFromServer">초기화 (서버에서 다시 불러오기)</button>
+    </div>
+
+    <table class="table table-sm table-striped table-hover">
+        <thead>
+            <tr>
+                <th style="width:100px">Level</th>
+                <th>RequiredExp (누적)</th>
+                <th style="width:80px">삭제</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in rows)
+            {
+                <tr>
+                    <!-- 레벨 번호는 읽기 전용 (자동 부여) -->
+                    <td><span class="badge bg-secondary">@row.Level</span></td>
+                    <td>
+                        <input type="number"
+                               class="form-control form-control-sm"
+                               style="max-width: 200px"
+                               value="@row.RequiredExp"
+                               @onchange="(e) => OnExpChanged(row, e)"
+                               min="0" />
+                    </td>
+                    <td>
+                        <!-- Level 1은 삭제 불가 -->
+                        @if (row.Level > 1)
+                        {
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => RemoveLevel(row)">삭제</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

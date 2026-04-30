@@ -119,6 +119,21 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M10.854 7.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 9.793l2.646-2.647a.5.5 0 0 1 .708 0z'/%3E%3Cpath d='M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z'/%3E%3Cpath d='M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z'/%3E%3C/svg%3E");
 }
 
+/* 컨텐츠 - 지도 */
+.bi-map-fill-nav-menu {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M15.817.113A.5.5 0 0 1 16 .5v14a.5.5 0 0 1-.402.49l-5 1a.502.502 0 0 1-.196 0L5.5 15.01l-4.902.98A.5.5 0 0 1 0 15.5v-14a.5.5 0 0 1 .402-.49l5-1a.5.5 0 0 1 .196 0L10.5.99l4.902-.98a.5.5 0 0 1 .415.103zM10 1.91l-4-.8v12.98l4 .8V1.91zm1 12.98 4-.8V1.11l-4 .8v12.98zm-6-.8V1.11l-4 .8v12.98l4-.8z'/%3E%3C/svg%3E");
+}
+
+/* 레벨 임계값 - 상승 그래프 */
+.bi-graph-up-nav-menu {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M0 0h1v15h15v1H0V0Zm14.817 3.113a.5.5 0 0 1 .07.704l-4.5 5.5a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61 4.15-5.073a.5.5 0 0 1 .704-.07Z'/%3E%3C/svg%3E");
+}
+
+/* 스테이지 관리 - 깃발 */
+.bi-flag-fill-nav-menu {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M14.778.085A.5.5 0 0 1 15 .5V8a.5.5 0 0 1-.314.464L14.5 8l.186.464-.003.001-.006.003-.023.009a12.435 12.435 0 0 1-.397.15c-.264.095-.631.223-1.047.35-.816.252-1.879.523-2.71.523-.847 0-1.548-.28-2.158-.525l-.028-.01C7.68 8.71 7.14 8.5 6.5 8.5c-.7 0-1.638.23-2.437.477A19.626 19.626 0 0 0 3 9.342V15.5a.5.5 0 0 1-1 0V.5a.5.5 0 0 1 1 0v.282c.226-.079.496-.17.79-.26C4.606.272 5.67 0 6.5 0c.84 0 1.524.277 2.121.519l.043.018C9.286.788 9.828 1 10.5 1c.7 0 1.638-.23 2.437-.477a19.587 19.587 0 0 0 1.349-.476l.019-.007.004-.002h.001'/%3E%3C/svg%3E");
+}
+
 .nav-item {
     font-size: 0.9rem;
     padding-bottom: 0.5rem;
@@ -154,12 +169,14 @@
     color: white;
 }
 
-.nav-scrollable {
-    display: none;
-}
+@media (max-width: 640.98px) {
+    .nav-scrollable {
+        display: none;
+    }
 
-.navbar-toggler:checked ~ .nav-scrollable {
-    display: block;
+    .navbar-toggler:checked ~ .nav-scrollable {
+        display: block;
+    }
 }
 
 @media (min-width: 641px) {
@@ -167,64 +184,61 @@
         display: none;
     }
 
+    /*
+     * Grid 2행: 메뉴(minmax(0,1fr)) + HTTP 로그 패널(220px)
+     * minmax(0,1fr) — details 열려도 행이 콘텐츠 크기로 부풀지 않음
+     * --sb-thumb / --sb-thumb-hover : 사이드바 내 스크롤바 색상 공통 변수
+     */
     .nav-scrollable {
-        display: flex;
-        flex-direction: column;
-        /*
-         * 사이드바 높이 = 전체 화면 높이 - 상단 헤더(브랜드 타이틀 영역)
-         *   100vh       : 브라우저 뷰포트 전체 높이
-         *   3.5rem      : NavMenu 상단 "Framework.Admin" 헤더 바 높이 (.top-row min-height)
-         */
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) 220px;
         height: calc(100vh - 3.5rem);
         overflow: hidden;
+        --sb-thumb: rgba(255, 255, 255, 0.45);
+        --sb-thumb-hover: rgba(255, 255, 255, 0.7);
     }
 
-    /* 메뉴 항목 영역 — 최대 높이 고정, 항목 증가 시 내부 스크롤 */
+    /* 메뉴 항목 영역 — 1fr 행에 배치, 내용 초과 시 내부 스크롤 */
     .nav-scrollable .nav {
+        min-height: 0; /* 그리드 아이템이 콘텐츠 높이 이하로 수축할 수 있도록 */
         overflow-y: auto;
         overflow-x: hidden;
         flex-wrap: nowrap; /* Bootstrap .nav 기본값(flex-wrap:wrap) 재정의 — 다열 줄바꿈 방지, 1열 유지 */
-        flex-shrink: 0;
-        /* Firefox 스크롤바 스타일 */
         scrollbar-width: thin;
-        scrollbar-color: rgba(255,255,255,0.2) transparent;
-        /*
-         * 메뉴 영역 최대 높이 = 전체 화면 - 상단 헤더 - HTTP 로그 패널 최소 확보 높이
-         *   100vh       : 뷰포트 전체 높이
-         *   3.5rem      : NavMenu 상단 헤더 바 (위와 동일)
-         *   300px       : HTTP 로그 패널에 항상 확보할 최소 높이 ← 이 값을 조정하세요
-         *                 크게 할수록 로그 패널이 넓어지고 메뉴 영역이 일찍 스크롤됨
-         */
-        max-height: calc(100vh - 3.5rem - 300px);
+        scrollbar-color: var(--sb-thumb) transparent;
     }
 
-    /* Chrome / Edge 스크롤바 — 얇고 반투명한 핸들 */
-    .nav-scrollable .nav::-webkit-scrollbar {
+    /* Chrome / Edge 스크롤바 — 네브메뉴·로그패널 공통 */
+    .nav-scrollable .nav::-webkit-scrollbar,
+    .nav-scrollable ::deep .http-log-body::-webkit-scrollbar {
         width: 4px;
     }
 
-    .nav-scrollable .nav::-webkit-scrollbar-track {
+    .nav-scrollable .nav::-webkit-scrollbar-track,
+    .nav-scrollable ::deep .http-log-body::-webkit-scrollbar-track {
         background: transparent;
     }
 
-    .nav-scrollable .nav::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.2);
+    .nav-scrollable .nav::-webkit-scrollbar-thumb,
+    .nav-scrollable ::deep .http-log-body::-webkit-scrollbar-thumb {
+        background: var(--sb-thumb);
         border-radius: 2px;
     }
 
-    .nav-scrollable .nav::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.4);
+    .nav-scrollable .nav::-webkit-scrollbar-thumb:hover,
+    .nav-scrollable ::deep .http-log-body::-webkit-scrollbar-thumb:hover {
+        background: var(--sb-thumb-hover);
     }
 }
 
 /* ─── HTTP 로그 패널 ─── */
 
-/* 나머지 사이드바 공간을 모두 채우는 flex 컨테이너 */
-::deep .http-log-panel {
-    flex: 1;
+/* 사이드바 하단 패널 — 그리드 2번째 행(220px)에 배치됨, Blazor scoped CSS 적용 범위 명시 */
+.nav-scrollable ::deep .http-log-panel {
     display: flex;
     flex-direction: column;
     min-height: 0;
+    overflow: hidden;
     border-top: 1px solid rgba(255, 255, 255, 0.15);
     background: rgba(0, 0, 0, 0.35);
     font-size: 0.72rem;
@@ -232,7 +246,7 @@
 }
 
 /* 헤더 바 (제목 + 버튼 영역) */
-::deep .http-log-header {
+.nav-scrollable ::deep .http-log-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -241,7 +255,7 @@
     user-select: none;
 }
 
-::deep .http-log-title {
+.nav-scrollable ::deep .http-log-title {
     font-weight: 600;
     letter-spacing: 0.03em;
     color: #aaa;
@@ -250,26 +264,26 @@
 }
 
 /* 헤더 우측 버튼/토글 묶음 */
-::deep .http-log-actions {
+.nav-scrollable ::deep .http-log-actions {
     display: flex;
     gap: 0.4rem;
     align-items: center;
 }
 
 /* 펼침/접힘 토글 레이블 */
-::deep .http-log-toggle {
+.nav-scrollable ::deep .http-log-toggle {
     cursor: pointer;
     color: #aaa;
     font-size: 0.65rem;
 }
 
 /* 체크박스 자체는 숨김 */
-::deep .http-log-toggle input[type="checkbox"] {
+.nav-scrollable ::deep .http-log-toggle input[type="checkbox"] {
     display: none;
 }
 
 /* 지우기 버튼 */
-::deep .http-log-clear-btn {
+.nav-scrollable ::deep .http-log-clear-btn {
     background: none;
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 3px;
@@ -281,22 +295,25 @@
     transition: background 0.15s;
 }
 
-::deep .http-log-clear-btn:hover {
+.nav-scrollable ::deep .http-log-clear-btn:hover {
     background: rgba(255, 255, 255, 0.1);
     color: #fff;
 }
 
 /* 로그 본문 — 패널 남은 공간을 모두 차지, 세로 스크롤만 허용 */
-::deep .http-log-body {
+/* Firefox 스크롤바는 네브메뉴(.nav)와 동일 값 인라인 지정, webkit은 위 공통 규칙 재활용 */
+.nav-scrollable ::deep .http-log-body {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
     padding: 0 0.5rem 0.5rem;
+    scrollbar-width: thin;
+    scrollbar-color: var(--sb-thumb) transparent;
 }
 
 /* 로그가 없을 때 안내 문구 */
-::deep .http-log-empty {
+.nav-scrollable ::deep .http-log-empty {
     color: #666;
     text-align: center;
     padding: 0.5rem 0;
@@ -304,7 +321,7 @@
 }
 
 /* 로그 텍스트 — 가로 스크롤 없이 줄바꿈 */
-::deep .http-log-pre {
+.nav-scrollable ::deep .http-log-pre {
     margin: 0;
     white-space: pre-wrap;
     word-break: break-all;
@@ -315,7 +332,7 @@
 }
 
 /* 상태별 색상 */
-::deep .log-ok    { color: #6be26b; }
-::deep .log-warn  { color: #f0c040; }
-::deep .log-error { color: #f06060; }
-::deep .log-default { color: #ccc; }
+.nav-scrollable ::deep .log-ok    { color: #6be26b; }
+.nav-scrollable ::deep .log-warn  { color: #f0c040; }
+.nav-scrollable ::deep .log-error { color: #f06060; }
+.nav-scrollable ::deep .log-default { color: #ccc; }

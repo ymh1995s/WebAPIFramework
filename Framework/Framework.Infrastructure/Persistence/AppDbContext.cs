@@ -1,3 +1,4 @@
+using Framework.Domain.Content.Entities;
 using Framework.Domain.Entities;
 using Framework.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -54,6 +55,13 @@ public class AppDbContext : DbContext
     // 인앱결제 테이블 — 상품 마스터 및 구매 이력
     public DbSet<IapProduct> IapProducts { get; set; }
     public DbSet<IapPurchase> IapPurchases { get; set; }
+
+    // 컨텐츠 영역 — 스테이지 마스터 및 클리어 기록
+    public DbSet<Stage> Stages { get; set; }
+    public DbSet<StageClear> StageClears { get; set; }
+
+    // 레벨 임계값 마스터 테이블 — 레벨별 누적 경험치 기준 (DB 외부화)
+    public DbSet<LevelThreshold> LevelThresholds { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -384,5 +392,90 @@ public class AppDbContext : DbContext
         // IapPurchase: INDEX(PlayerId, CreatedAt desc) — 플레이어별 구매 이력 조회 최적화
         modelBuilder.Entity<IapPurchase>()
             .HasIndex(p => new { p.PlayerId, p.CreatedAt });
+
+        // ─────────────────────────────────────────────
+        // 컨텐츠 영역 — 스테이지 / 스테이지 클리어
+        // ─────────────────────────────────────────────
+
+        // Stage: Code UNIQUE 인덱스 — 클라이언트 참조 식별자
+        modelBuilder.Entity<Stage>()
+            .HasIndex(s => s.Code)
+            .IsUnique();
+
+        // Stage: IsActive 기본값 true
+        modelBuilder.Entity<Stage>()
+            .Property(s => s.IsActive)
+            .HasDefaultValue(true);
+
+        // Stage: RePlayRewardDecayPercent 기본값 0
+        modelBuilder.Entity<Stage>()
+            .Property(s => s.RePlayRewardDecayPercent)
+            .HasDefaultValue(0);
+
+        // Stage: ExpReward 기본값 0
+        modelBuilder.Entity<Stage>()
+            .Property(s => s.ExpReward)
+            .HasDefaultValue(0);
+
+        // Stage: SortOrder 기본값 0
+        modelBuilder.Entity<Stage>()
+            .Property(s => s.SortOrder)
+            .HasDefaultValue(0);
+
+        // Stage: RequiredPrevStageId 자기 참조 FK (ON DELETE SET NULL)
+        // 선행 스테이지 삭제 시 조건을 null로 초기화
+        modelBuilder.Entity<Stage>()
+            .HasOne<Stage>()
+            .WithMany()
+            .HasForeignKey(s => s.RequiredPrevStageId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // StageClear: UNIQUE(PlayerId, StageId) — 동일 스테이지 중복 기록 방지
+        modelBuilder.Entity<StageClear>()
+            .HasIndex(c => new { c.PlayerId, c.StageId })
+            .IsUnique();
+
+        // StageClear: ClearCount 기본값 1
+        modelBuilder.Entity<StageClear>()
+            .Property(c => c.ClearCount)
+            .HasDefaultValue(1);
+
+        // StageClear: PlayerId 인덱스 — 플레이어별 진행 현황 조회 최적화
+        modelBuilder.Entity<StageClear>()
+            .HasIndex(c => c.PlayerId);
+
+        // ─────────────────────────────────────────────
+        // 레벨 임계값 마스터 — Level을 PK로, 초기 시드 데이터 설정
+        // ─────────────────────────────────────────────
+
+        // LevelThreshold: Level을 PK로 사용
+        modelBuilder.Entity<LevelThreshold>().HasKey(t => t.Level);
+
+        // LevelThreshold: 초기 시드 데이터 (Level 1~20)
+        // UpdatedAt은 마이그레이션 시점 고정값으로 설정 (DateTime.UtcNow 사용 불가 — EF 제약)
+        var seedDate = new DateTime(2026, 4, 30, 0, 0, 0, DateTimeKind.Utc);
+        modelBuilder.Entity<LevelThreshold>().HasData(
+            new LevelThreshold { Level = 1,  RequiredExp = 0,     UpdatedAt = seedDate },
+            new LevelThreshold { Level = 2,  RequiredExp = 100,   UpdatedAt = seedDate },
+            new LevelThreshold { Level = 3,  RequiredExp = 250,   UpdatedAt = seedDate },
+            new LevelThreshold { Level = 4,  RequiredExp = 450,   UpdatedAt = seedDate },
+            new LevelThreshold { Level = 5,  RequiredExp = 700,   UpdatedAt = seedDate },
+            new LevelThreshold { Level = 6,  RequiredExp = 1000,  UpdatedAt = seedDate },
+            new LevelThreshold { Level = 7,  RequiredExp = 1400,  UpdatedAt = seedDate },
+            new LevelThreshold { Level = 8,  RequiredExp = 1900,  UpdatedAt = seedDate },
+            new LevelThreshold { Level = 9,  RequiredExp = 2500,  UpdatedAt = seedDate },
+            new LevelThreshold { Level = 10, RequiredExp = 3200,  UpdatedAt = seedDate },
+            new LevelThreshold { Level = 11, RequiredExp = 4000,  UpdatedAt = seedDate },
+            new LevelThreshold { Level = 12, RequiredExp = 5000,  UpdatedAt = seedDate },
+            new LevelThreshold { Level = 13, RequiredExp = 6200,  UpdatedAt = seedDate },
+            new LevelThreshold { Level = 14, RequiredExp = 7600,  UpdatedAt = seedDate },
+            new LevelThreshold { Level = 15, RequiredExp = 9200,  UpdatedAt = seedDate },
+            new LevelThreshold { Level = 16, RequiredExp = 11000, UpdatedAt = seedDate },
+            new LevelThreshold { Level = 17, RequiredExp = 13000, UpdatedAt = seedDate },
+            new LevelThreshold { Level = 18, RequiredExp = 15500, UpdatedAt = seedDate },
+            new LevelThreshold { Level = 19, RequiredExp = 18500, UpdatedAt = seedDate },
+            new LevelThreshold { Level = 20, RequiredExp = 22000, UpdatedAt = seedDate }
+        );
     }
 }

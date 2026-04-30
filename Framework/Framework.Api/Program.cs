@@ -35,38 +35,34 @@ var builder = WebApplication.CreateBuilder(args);
 // ASP.NET Core 기본 로거를 Serilog로 교체
 builder.Host.UseSerilog();
 
-// DB 컨텍스트 등록
+// ── DB ────────────────────────────────────────────────────────
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
-// 저장소 등록
+// ── 저장소 ────────────────────────────────────────────────────
 builder.Services.AddAuthRepositories();
-builder.Services.AddGameRepositories();
 builder.Services.AddNoticeRepositories();
 builder.Services.AddInquiryRepositories();
+builder.Services.AddAdRewardRepositories();  // 광고 보상 저장소
+builder.Services.AddIapRepositories();       // 인앱결제 저장소
+builder.Services.AddContentRepositories();   // 컨텐츠(스테이지) 저장소
+builder.Services.AddGameRepositories();
 
-// 서비스 등록
+// ── 서비스 ────────────────────────────────────────────────────
 builder.Services.AddAuthServices();
 builder.Services.AddAdminServices();
 builder.Services.AddGameServices();
 builder.Services.AddNoticeServices();
 builder.Services.AddInquiryServices();
-builder.Services.AddMatchMakingServices(builder.Configuration);
+builder.Services.AddMatchmakingServices(builder.Configuration);
+builder.Services.AddAdRewardServices();      // 광고 SSV (UnityAds, IronSource)
+builder.Services.AddIapServices();           // 인앱결제 (Google Play)
+builder.Services.AddContentServices();       // 게임 컨텐츠 (스테이지 등)
 
-// 광고 SSV 보상 서비스 등록 (UnityAds, IronSource 검증기 포함)
-builder.Services.AddAdRewardServices();
-
-// 인앱결제(IAP) 서비스 등록 (Google Play 검증기 포함)
-builder.Services.AddIapServices();
-
-// JWT 인증 설정
+// ── 인증 / 보안 ───────────────────────────────────────────────
 builder.Services.AddJwtAuthentication(builder.Configuration);
-
-// Rate Limiter 정책 등록
-builder.Services.AddRateLimiting(builder.Configuration);
-
-// 메모리 캐시 — 점검 모드 등 매 요청마다 확인되는 설정 조회 비용을 줄이기 위해 사용
-builder.Services.AddMemoryCache();
+builder.Services.AddRateLimitingServices(builder.Configuration);
+builder.Services.AddMemoryCache();          // 점검 모드 등 설정 캐시
 
 builder.Services.AddControllers();
 // OpenAPI(Swagger) 문서 생성

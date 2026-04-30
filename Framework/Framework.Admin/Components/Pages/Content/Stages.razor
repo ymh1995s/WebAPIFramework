@@ -1,0 +1,245 @@
+@page "/stages"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits SafeComponentBase
+@using Framework.Admin.Constants
+
+<PageTitle>스테이지 관리</PageTitle>
+
+<h2 class="mb-2">스테이지 관리</h2>
+
+<div class="alert alert-info py-2 small mb-3">
+    <p class="mb-1">스테이지 마스터 데이터를 관리합니다.</p>
+    <p class="mb-1"><strong>[RewardTableCode]</strong> 최초 클리어 보상 테이블 코드 (비우면 보상 없음)</p>
+    <p class="mb-1"><strong>[RePlayRewardTableCode]</strong> 재클리어 보상 테이블 코드 (비우면 재클리어 보상 없음)</p>
+    <p class="mb-0"><strong>[RequiredPrevStageId]</strong> 입력 시 해당 스테이지를 먼저 클리어해야 진행 가능</p>
+</div>
+
+<!-- 검색 필터 -->
+<section class="card mb-3">
+    <div class="card-header py-2"><strong>검색 필터</strong></div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label small mb-1">키워드 (코드/이름)</label>
+                <input type="text" class="form-control form-control-sm" @bind="filterKeyword" placeholder="코드 또는 이름 검색" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">페이지 크기</label>
+                <input type="number" class="form-control form-control-sm" @bind="pageSize" min="10" max="100" />
+            </div>
+        </div>
+    </div>
+    <div class="card-footer py-2 d-flex gap-2">
+        <button class="btn btn-primary btn-sm" @onclick="Search">조회</button>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="Reset">초기화</button>
+        <button class="btn btn-success btn-sm ms-auto" @onclick="OpenCreateModal">+ 스테이지 추가</button>
+    </div>
+</section>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger py-2 small">@errorMessage</div>
+}
+@if (!string.IsNullOrEmpty(successMessage))
+{
+    <div class="alert alert-success py-2 small">@successMessage</div>
+}
+
+@if (isLoading)
+{
+    <p class="text-muted">불러오는 중...</p>
+}
+else if (result == null)
+{
+    <p class="text-muted">상단 필터를 설정한 후 <strong>조회</strong> 버튼을 눌러주세요.</p>
+}
+else if (!result.Items.Any())
+{
+    <p class="text-muted">조건에 맞는 스테이지가 없습니다.</p>
+}
+else
+{
+    <div class="d-flex align-items-center mb-2">
+        <span class="small text-muted ms-auto">총 <strong>@result.TotalCount</strong> 건</span>
+    </div>
+
+    <table class="table table-sm table-striped table-hover">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>코드</th>
+                <th>이름</th>
+                <th>최초보상</th>
+                <th>재클리어보상</th>
+                <th title="재클리어 횟수당 감소율(%)">감소율(%)</th>
+                <th>Exp</th>
+                <th>선행ID</th>
+                <th>순서</th>
+                <th>활성</th>
+                <th>관리</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var s in result.Items)
+            {
+                <tr>
+                    <td>@s.Id</td>
+                    <td><code>@s.Code</code></td>
+                    <td>@s.Name</td>
+                    <td><span class="small">@(s.RewardTableCode ?? "-")</span></td>
+                    <td><span class="small">@(s.RePlayRewardTableCode ?? "-")</span></td>
+                    <td>@s.RePlayRewardDecayPercent</td>
+                    <td>@s.ExpReward</td>
+                    <td>@(s.RequiredPrevStageId?.ToString() ?? "-")</td>
+                    <td>@s.SortOrder</td>
+                    <td>
+                        @if (s.IsActive)
+                        {
+                            <span class="badge bg-success">활성</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-warning text-dark">비활성</span>
+                        }
+                    </td>
+                    <td>
+                        <button class="btn btn-outline-primary btn-sm" @onclick="() => OpenEditModal(s)">편집</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <!-- 페이지네이션 -->
+    <div class="d-flex gap-2 align-items-center">
+        <button class="btn btn-outline-secondary btn-sm" @onclick="PrevPage" disabled="@(page <= 1)">이전</button>
+        <span class="small">@(page) / @(result.TotalPages) 페이지</span>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@(page >= result.TotalPages)">다음</button>
+    </div>
+}
+
+<!-- 생성 모달 -->
+@if (showCreateModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.4)">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">스테이지 추가</h5>
+                    <button type="button" class="btn-close" @onclick="CloseCreateModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="form-label small">코드 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" @bind="newCode" placeholder="예: stage_1_1" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">이름 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" @bind="newName" placeholder="예: 1-1 튜토리얼" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">정렬 순서</label>
+                            <input type="number" class="form-control form-control-sm" @bind="newSortOrder" min="0" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">최초 클리어 보상 코드</label>
+                            <input type="text" class="form-control form-control-sm" @bind="newRewardTableCode" placeholder="비우면 없음" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">재클리어 보상 코드</label>
+                            <input type="text" class="form-control form-control-sm" @bind="newRePlayRewardTableCode" placeholder="비우면 없음" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">재클리어 감소율(%) <span class="text-muted">0=감소없음</span></label>
+                            <input type="number" class="form-control form-control-sm" @bind="newDecayPercent" min="0" max="100" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Exp 보상</label>
+                            <input type="number" class="form-control form-control-sm" @bind="newExpReward" min="0" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">선행 스테이지 ID</label>
+                            <input type="number" class="form-control form-control-sm" @bind="newRequiredPrevStageId" placeholder="없으면 비워둠" />
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="newIsActive" @bind="newIsActive" />
+                                <label class="form-check-label small" for="newIsActive">활성화</label>
+                            </div>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(createError))
+                    {
+                        <div class="alert alert-danger py-1 small mt-2">@createError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseCreateModal">취소</button>
+                    <button class="btn btn-success btn-sm" @onclick="Create">생성</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- 편집 모달 -->
+@if (showEditModal && editingStage != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.4)">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">스테이지 편집 — @editingStage.Code</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEditModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="form-label small">이름 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" @bind="editName" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">최초 클리어 보상 코드</label>
+                            <input type="text" class="form-control form-control-sm" @bind="editRewardTableCode" placeholder="비우면 없음" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">재클리어 보상 코드</label>
+                            <input type="text" class="form-control form-control-sm" @bind="editRePlayRewardTableCode" placeholder="비우면 없음" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">재클리어 감소율(%)</label>
+                            <input type="number" class="form-control form-control-sm" @bind="editDecayPercent" min="0" max="100" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Exp 보상</label>
+                            <input type="number" class="form-control form-control-sm" @bind="editExpReward" min="0" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">선행 스테이지 ID</label>
+                            <input type="number" class="form-control form-control-sm" @bind="editRequiredPrevStageId" placeholder="없으면 비워둠" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">정렬 순서</label>
+                            <input type="number" class="form-control form-control-sm" @bind="editSortOrder" min="0" />
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="editIsActive" @bind="editIsActive" />
+                                <label class="form-check-label small" for="editIsActive">활성화</label>
+                            </div>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(editError))
+                    {
+                        <div class="alert alert-danger py-1 small mt-2">@editError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseEditModal">취소</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveEdit">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}

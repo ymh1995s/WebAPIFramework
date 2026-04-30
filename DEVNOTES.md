@@ -14,7 +14,7 @@
 | 매치메이킹 | SignalR 기반 실시간 매칭, 대기열 관리 |
 | 보상 프레임워크 | 범용 보상 파이프라인 — 모든 보상 경로를 단일 IRewardDispatcher로 통합. 선기록 멱등성, Direct/Mail/Auto 분기, RewardTable 마스터 관리, Admin 수동 지급/우편 발송 통합 페이지 |
 | 아이템 마스터 관리 | Admin CRUD (추가/수정/소프트삭제), 보유 유저 수 확인 |
-| Admin 인증 | X-Admin-Key 헤더 기반 API 접근 제어, 미들웨어에서 Admin Key 인증 시 모든 [Authorize] 엔드포인트 접근 허용 |
+| Admin 인증 | X-Admin-Key 헤더 기반 API 접근 제어. Admin 컨트롤러는 `[AdminApiKey]` 필터로 보호 (JWT [Authorize]와 독립). 점검 미들웨어에서 X-Admin-Key 확인 시 503 면제 |
 | 시스템 설정 | 점검 모드, 앱 버전, 일일 보상 기준 시각 등 SystemConfig Admin 제어 |
 | 어뷰징 방어 | auth 엔드포인트 Rate Limiting (IP 기준, `RateLimiting:AuthPermitLimit` 설정), 429 발생 시 PlayerId·UserAgent 포함 DB 로그. Admin 보안 감시 — 통합 타임라인(Rate Limit 초과 / 재화 이상치 / 계정 정지 이벤트 병합), IP 집계, 타임라인에서 직접 영구밴 가능 |
 | 점검 모드 | 수동 ON/OFF 및 시각 예약, 미들웨어에서 503 차단, Admin은 점검 중에도 접근 가능 |
@@ -26,6 +26,8 @@
 | 광고 SSV 보상 | Unity Ads / IronSource SSV(Server Side Verification) 콜백 검증 및 보상 지급. Strategy 패턴으로 모듈화 — 새 네트워크 추가 시 검증기 클래스 1개 + DI 등록 1줄. HMAC-SHA256 서명 검증, 일일 한도 제한, RewardDispatcher 멱등성 보장. Admin `/ad-policies` 페이지에서 PlacementId별 보상 정책 CRUD 관리. 콜백 URL: `GET /api/ads/callback/unity-ads`, `GET /api/ads/callback/ironsource` |
 | 트랜잭션 추상화 | `IUnitOfWork` 인터페이스(Domain) + `UnitOfWork` 구현체(Infrastructure). RewardDispatcher가 IUnitOfWork를 통해 전체 보상 지급을 단일 트랜잭션으로 보장 |
 | 인앱 결제(IAP) | Google Play 영수증 서버 검증 및 보상 지급. Strategy 패턴으로 스토어별 모듈화(현재 Google Play 구현, Apple 예약). OIDC 기반 RTDN(환불 알림) 수신 및 자동 환불 처리. Admin `/iap-products` 상품 관리, `/iap-purchases` 구매 이력 조회. API: `POST /api/iap/google/verify`, `POST /api/iap/google/rtdn`. Rate Limit: iap-rtdn 600회/분 |
+| 레벨/경험치 | `IExpService` — Exp 누적, 임계값 초과 시 자동 레벨업 + 레벨업 보상 지급(`SourceKey="levelup:{level}"`). 다중 레벨업 while 루프. 임계값은 `LevelThresholds` DB 테이블로 외부화 — Admin `/level-thresholds` 페이지에서 CRUD 관리, `ILevelTableProvider`(Singleton 캐시) 통해 런타임 조회 |
+| 스테이지 클리어 [컨텐츠] | `POST /api/stages/{stageId}/complete`. 순차 진행 조건(`RequiredPrevStageId`), 최초 클리어 보상 + 재클리어 보상 감소(decay%), Exp/레벨업 연동. Admin 스테이지 마스터 CRUD. **`Content/` 영역 분리** — 게임 컨텐츠 코드, Framework 영역에서 참조 금지 |
 
 ---
 
@@ -90,7 +92,7 @@ cycleDay는 이번 달 로그인 횟수 기반 (1번째 로그인 = Day 1, 28번
 |---|---|---|
 | 1 | Gold/Gems — PlayerProfile 컬럼 유지, Item 마스터는 정의(이름·아이콘)용만 | 아이템 마스터는 조회용, 보유량은 PlayerProfile이 정원 |
 | 2 | MailItems 테이블 도입 — 1통에 N종 아이템 묶음 발송 | 다중 보상 UX·트랜잭션 일관성 |
-| 3 | PlayerRecord 즉시 폐기 → GameMatchParticipants로 대체 | 랭킹 데이터 미존재, 매치 식별자 없는 기존 구조 한계 |
+| 3 | PlayerRecord 즉시 폐기 → GameResultParticipants로 대체 | 랭킹 데이터 미존재, 매치 식별자 없는 기존 구조 한계 |
 | 4 | DailyLoginLog + RewardGrants 이중보호 유지 | DailyLoginLog는 로그인 통계 겸용, RewardGrants는 범용 멱등성 |
 
 ### 공통 파이프라인
@@ -98,14 +100,15 @@ cycleDay는 이번 달 로그인 횟수 기반 (1번째 로그인 = Day 1, 28번
 ```
 [Source 발생] → [Validate(권한·중복)] → [RewardBundle 결정]
   → [RewardGrants 선기록(멱등)] → [Dispatcher: Direct/Mail 분기]
-  → [AuditLog 기록] → [Result 반환]
+  → [Result 반환]
 ```
+※ AuditLog 기록은 현재 각 서비스 레이어에서 개별 적용 (RewardDispatcher 내 미구현, [미구현] 섹션 참조)
 
 ### 신규 DB 테이블
 
 | 테이블 | 핵심 컬럼 | 인덱스 | 비고 |
 |---|---|---|---|
-| `RewardGrants` | PlayerId, SourceType, SourceKey, GrantedAt, MailId?, BundleSnapshot(jsonb) | UNIQUE(PlayerId, SourceType, SourceKey) | 멱등성 보장 |
+| `RewardGrants` | PlayerId, SourceType, SourceKey, GrantedAt, MailId?, BundleSnapshot(text, JSON 직렬화) | UNIQUE(PlayerId, SourceType, SourceKey) | 멱등성 보장 |
 | `MailItems` | MailId(FK), ItemId, Quantity | FK MailId | 다중 아이템 우편 지원 |
 | `RewardTables` | SourceType, Code, Description | UNIQUE(SourceType, Code) | 보상 마스터 |
 | `RewardTableEntries` | RewardTableId(FK), ItemId, Count, Weight? | FK | 1보상 = N행 |
@@ -116,8 +119,8 @@ cycleDay는 이번 달 로그인 횟수 기반 (1번째 로그인 = Day 1, 28번
 
 | 테이블 | 변경 내용 |
 |---|---|
-| `Mail` | ItemId/ItemCount → deprecated, MailItems FK로 전환. 기존 행은 마이그레이션으로 MailItems 이전 |
-| `PlayerRecords` | 즉시 폐기 → GameMatchParticipants로 대체. 랭킹 집계도 신규 테이블 기반으로 전환 |
+| `Mail` | ItemId/ItemCount → deprecated, MailItems FK로 전환. 기존 데이터는 코드 레벨 양립 처리(MailItems 우선, ItemId 폴백) — 데이터 이전 마이그레이션 미수행 |
+| `PlayerRecords` | 즉시 폐기 → GameResultParticipants로 대체. 랭킹 집계도 신규 테이블 기반으로 전환 |
 
 ### 레벨업 처리
 
@@ -130,7 +133,6 @@ cycleDay는 이번 달 로그인 횟수 기반 (1번째 로그인 = Day 1, 28번
 - **일괄 우편 발송 성능** — `MailService.BulkSendAsync`가 전체 플레이어를 메모리 로드 후 단일 트랜잭션으로 N건 INSERT. 유저 수 증가 시 메모리 압박 + DB 락 시간 문제 발생. 배치 분할(500건씩 끊어서 INSERT + SaveChanges) 도입 필요
 
 ## [미구현] 추가 개발 필요 항목
-- **스테이지 클리어 보상 엔드포인트** — `RewardSourceType.StageComplete`, `RewardTable` 마스터, `IRewardDispatcher` 모두 구현되어 있으나 플레이어용 API 엔드포인트(`POST /api/stage/complete` 등) 미구현. 컨트롤러 + Application Feature 추가 필요
 - **공지사항 페이지** [선택] — 현재는 1회성 텍스트 공지만 구현됨. 공지 이력 열람, 카테고리 분류 등 게시판 형태가 필요해지면 별도 페이지 추가 고려
 - **감사 로그 훅 확장** — 현재는 `MailService.ClaimAsync`에만 훅 적용됨. 상점 구매/스테이지 보상/Admin 직접 지급 등 기능 구현 시 `IAuditLogService.RecordAsync` 호출 추가 필요
 - **밴/밴해제 로그** — `AdminPlayersController`의 Ban/Unban 엔드포인트 처리 후 별도 로그 기록 필요. 누가(Admin), 언제, 어떤 플레이어를 밴/해제했는지 감사 추적이 현재 없음. AuditLog 또는 전용 BanLog 테이블 중 택일하여 구현 필요

@@ -3,11 +3,12 @@ using System.Threading.RateLimiting;
 using Framework.Application.Common;
 using Framework.Application.Features.AdPolicy;
 using Framework.Application.Features.AdReward;
-using Framework.Application.Features.IapProduct;
 using Framework.Application.Features.AuditLog;
 using Framework.Application.Features.Auth;
 using Framework.Application.Features.DailyLogin;
 using Framework.Application.Features.DailyReward;
+using Framework.Application.Features.Iap;
+using Framework.Application.Features.IapProduct;
 using Framework.Application.Features.Inquiry;
 using Framework.Application.Features.Item;
 using Framework.Application.Features.Mail;
@@ -20,16 +21,19 @@ using Framework.Application.Features.Reward;
 using Framework.Application.Features.RewardGrant;
 using Framework.Application.Features.RewardTable;
 using Framework.Application.Features.SystemConfig;
+using Framework.Application.Features.Exp;
+using Framework.Application.Content.Stage;
 using Framework.Domain.Constants;
 using Framework.Domain.Entities;
 using Framework.Domain.Interfaces;
+using Framework.Domain.Content.Interfaces;
 using Framework.Infrastructure.Persistence;
 using Framework.Infrastructure.Repositories;
+using Framework.Infrastructure.Content.Repositories;
 using Framework.Api.Notifications;
 using Framework.Api.Services;
 using Framework.Api.Services.AdNetwork;
 using Framework.Api.Services.IapStore;
-using Framework.Application.Features.Iap;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
@@ -37,50 +41,19 @@ using Microsoft.IdentityModel.Tokens;
 namespace Framework.Api.Extensions;
 
 // Program.cs 서비스 등록을 역할별로 분리한 확장 메서드 모음
+// 배치 순서: 저장소 그룹 → 서비스 그룹 → 인증/인프라 그룹
 public static class ServiceExtensions
 {
+    // ──────────────────────────────────────────────────────────────
+    // 저장소 그룹
+    // ──────────────────────────────────────────────────────────────
+
     // 저장소 등록 - 인증 관련
     public static IServiceCollection AddAuthRepositories(this IServiceCollection services)
     {
         services.AddScoped<IPlayerRepository, PlayerRepository>();
         services.AddScoped<IPlayerProfileRepository, PlayerProfileRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
-        return services;
-    }
-
-    // 저장소 등록 - 인게임 관련
-    public static IServiceCollection AddGameRepositories(this IServiceCollection services)
-    {
-        services.AddScoped<IItemRepository, ItemRepository>();
-        services.AddScoped<IPlayerItemRepository, PlayerItemRepository>();
-        services.AddScoped<IMailRepository, MailRepository>();
-        services.AddScoped<IRankingRepository, RankingRepository>();
-        services.AddScoped<IDailyLoginLogRepository, DailyLoginLogRepository>();
-        services.AddScoped<IDailyRewardSlotRepository, DailyRewardSlotRepository>();
-        services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
-        services.AddScoped<IAuditLogRepository, AuditLogRepository>();
-
-        // 보상 프레임워크 저장소 등록
-        services.AddScoped<IRewardGrantRepository, RewardGrantRepository>();
-        services.AddScoped<IGameResultRepository, GameResultRepository>();
-        services.AddScoped<IRewardTableRepository, RewardTableRepository>();
-
-        // 광고 보상 저장소 등록
-        services.AddScoped<IAdPolicyRepository, AdPolicyRepository>();
-
-        // 인앱결제 저장소 등록
-        services.AddScoped<IIapProductRepository, IapProductRepository>();
-        services.AddScoped<IIapPurchaseRepository, IapPurchaseRepository>();
-
-        return services;
-    }
-
-    // 서비스 등록 - 인증 관련
-    public static IServiceCollection AddAuthServices(this IServiceCollection services)
-    {
-        services.AddScoped<IAuthService, AuthService>();
-        services.AddScoped<IJwtTokenProvider, JwtTokenProvider>();
-        services.AddScoped<IGoogleTokenVerifier, GoogleTokenVerifier>();
         return services;
     }
 
@@ -98,7 +71,67 @@ public static class ServiceExtensions
         return services;
     }
 
-    // 서비스 등록 - Admin 플레이어 관리
+    // 저장소 등록 - 광고 보상 관련
+    public static IServiceCollection AddAdRewardRepositories(this IServiceCollection services)
+    {
+        services.AddScoped<IAdPolicyRepository, AdPolicyRepository>();
+        return services;
+    }
+
+    // 저장소 등록 - 인앱결제 관련
+    public static IServiceCollection AddIapRepositories(this IServiceCollection services)
+    {
+        services.AddScoped<IIapProductRepository, IapProductRepository>();
+        services.AddScoped<IIapPurchaseRepository, IapPurchaseRepository>();
+        return services;
+    }
+
+    // 저장소 등록 - 컨텐츠(스테이지) 관련
+    public static IServiceCollection AddContentRepositories(this IServiceCollection services)
+    {
+        services.AddScoped<IStageRepository, StageRepository>();
+        services.AddScoped<IStageClearRepository, StageClearRepository>();
+        return services;
+    }
+
+    // 저장소 등록 - 인게임 공통 관련
+    // (광고/IAP/컨텐츠 저장소는 각 전용 메서드로 분리됨)
+    public static IServiceCollection AddGameRepositories(this IServiceCollection services)
+    {
+        services.AddScoped<IItemRepository, ItemRepository>();
+        services.AddScoped<IPlayerItemRepository, PlayerItemRepository>();
+        services.AddScoped<IMailRepository, MailRepository>();
+        services.AddScoped<IRankingRepository, RankingRepository>();
+        services.AddScoped<IDailyLoginLogRepository, DailyLoginLogRepository>();
+        services.AddScoped<IDailyRewardSlotRepository, DailyRewardSlotRepository>();
+        services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
+        services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+
+        // 보상 프레임워크 저장소 등록
+        services.AddScoped<IRewardGrantRepository, RewardGrantRepository>();
+        services.AddScoped<IGameResultRepository, GameResultRepository>();
+        services.AddScoped<IRewardTableRepository, RewardTableRepository>();
+
+        // 레벨 임계값 저장소 등록
+        services.AddScoped<ILevelThresholdRepository, LevelThresholdRepository>();
+
+        return services;
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // 서비스 그룹
+    // ──────────────────────────────────────────────────────────────
+
+    // 서비스 등록 - 인증 관련
+    public static IServiceCollection AddAuthServices(this IServiceCollection services)
+    {
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IJwtTokenProvider, JwtTokenProvider>();
+        services.AddScoped<IGoogleTokenVerifier, GoogleTokenVerifier>();
+        return services;
+    }
+
+    // 서비스 등록 - Admin 플레이어/보상/매치 관리
     public static IServiceCollection AddAdminServices(this IServiceCollection services)
     {
         services.AddScoped<IAdminPlayerService, AdminPlayerService>();
@@ -118,7 +151,7 @@ public static class ServiceExtensions
         return services;
     }
 
-    // 서비스 등록 - 인게임 관련
+    // 서비스 등록 - 인게임 공통 관련
     public static IServiceCollection AddGameServices(this IServiceCollection services)
     {
         services.AddScoped<IMailService, MailService>();
@@ -154,7 +187,7 @@ public static class ServiceExtensions
     }
 
     // 서비스 등록 - 매칭 관련
-    public static IServiceCollection AddMatchMakingServices(this IServiceCollection services, IConfiguration config)
+    public static IServiceCollection AddMatchmakingServices(this IServiceCollection services, IConfiguration config)
     {
         var options = config.GetSection("MatchMaking").Get<MatchMakingOptions>() ?? new MatchMakingOptions();
         services.AddSingleton(options);
@@ -164,8 +197,98 @@ public static class ServiceExtensions
         return services;
     }
 
+    // 서비스 등록 - 광고 SSV(Server Side Verification)
+    // 검증기는 IAdNetworkVerifier를 구현하는 모든 타입이 IEnumerable로 주입됨 (Strategy 패턴)
+    public static IServiceCollection AddAdRewardServices(this IServiceCollection services)
+    {
+        // 검증기 전략 구현체 등록 (새 네트워크 추가 시 여기에 한 줄만 추가)
+        services.AddScoped<IAdNetworkVerifier, UnityAdsVerifier>();
+        services.AddScoped<IAdNetworkVerifier, IronSourceVerifier>();
+
+        // 검증기 팩토리 (Resolver) 등록
+        services.AddScoped<IAdNetworkVerifierResolver, AdNetworkVerifierResolver>();
+
+        // 광고 보상 처리 서비스 등록
+        services.AddScoped<IAdRewardService, AdRewardService>();
+
+        return services;
+    }
+
+    // 서비스 등록 - 인앱결제(IAP)
+    // Google Play 검증기 + 메인 구매 처리 서비스
+    public static IServiceCollection AddIapServices(this IServiceCollection services)
+    {
+        // Google Play 영수증 검증기 등록 (IIapStoreVerifier Strategy 구현체)
+        services.AddScoped<IIapStoreVerifier, GooglePlayStoreVerifier>();
+
+        // 스토어 검증기 팩토리 (Resolver) 등록
+        services.AddScoped<IIapStoreVerifierResolver, IapStoreVerifierResolver>();
+
+        // 인앱결제 메인 검증+지급 서비스 등록
+        services.AddScoped<IIapPurchaseService, IapPurchaseService>();
+
+        // RTDN 알림 처리 서비스 등록
+        services.AddScoped<IIapRtdnService, IapRtdnService>();
+
+        // Google Pub/Sub OIDC 검증기 — Singleton: 내부 JWKS ConfigurationManager 캐시 공유
+        services.AddSingleton<GooglePubSubAuthenticator>();
+
+        return services;
+    }
+
+    // 서비스 등록 - 게임 컨텐츠 (스테이지 클리어, 경험치)
+    public static IServiceCollection AddContentServices(this IServiceCollection services)
+    {
+        // 레벨 테이블 제공자 — Singleton 등록: 프로세스 전역 캐시 공유
+        services.AddSingleton<ILevelTableProvider, LevelTableProvider>();
+
+        // 레벨 테이블 Admin 서비스 등록
+        services.AddScoped<ILevelTableAdminService, LevelTableAdminService>();
+
+        // 경험치 서비스 등록 — 스테이지 클리어 Exp 지급의 단일 진입점
+        services.AddScoped<IExpService, ExpService>();
+
+        // 스테이지 클리어 서비스 등록
+        services.AddScoped<IStageClearService, StageClearService>();
+
+        return services;
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // 인증/인프라 그룹
+    // ──────────────────────────────────────────────────────────────
+
+    // JWT 인증 설정 — appsettings.json Jwt 섹션의 값을 읽어 Bearer 토큰 검증 파라미터를 구성
+    public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration config)
+    {
+        var jwtKey = config["Jwt:SecretKey"]!;
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    // 발급자(iss 클레임)가 appsettings의 Jwt:Issuer와 일치하는지 검증
+                    ValidateIssuer = true,
+
+                    // 수신자(aud 클레임)가 appsettings의 Jwt:Audience와 일치하는지 검증
+                    ValidateAudience = true,
+
+                    // 만료 시각(exp 클레임) 검증 — 만료된 토큰 자동 거부
+                    ValidateLifetime = true,
+
+                    // 서명 키 검증 — 위·변조 토큰 차단 (HMAC-SHA256)
+                    ValidateIssuerSigningKey = true,
+
+                    ValidIssuer = config["Jwt:Issuer"],
+                    ValidAudience = config["Jwt:Audience"],
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+                };
+            });
+        return services;
+    }
+
     // Rate Limiter 정책 등록 — 한도값은 appsettings.json RateLimiting 섹션에서 관리
-    public static IServiceCollection AddRateLimiting(this IServiceCollection services, IConfiguration config)
+    public static IServiceCollection AddRateLimitingServices(this IServiceCollection services, IConfiguration config)
     {
         // RateLimitLogRepository는 OnRejected 콜백에서 직접 생성하므로 Scoped 등록
         services.AddScoped<RateLimitLogRepository>();
@@ -261,65 +384,6 @@ public static class ServiceExtensions
             };
         });
 
-        return services;
-    }
-
-    // 광고 SSV(Server Side Verification) 서비스 등록
-    // 검증기는 IAdNetworkVerifier를 구현하는 모든 타입이 IEnumerable로 주입됨 (Strategy 패턴)
-    public static IServiceCollection AddAdRewardServices(this IServiceCollection services)
-    {
-        // 검증기 전략 구현체 등록 (새 네트워크 추가 시 여기에 한 줄만 추가)
-        services.AddScoped<IAdNetworkVerifier, UnityAdsVerifier>();
-        services.AddScoped<IAdNetworkVerifier, IronSourceVerifier>();
-
-        // 검증기 팩토리 (Resolver) 등록
-        services.AddScoped<IAdNetworkVerifierResolver, AdNetworkVerifierResolver>();
-
-        // 광고 보상 처리 서비스 등록
-        services.AddScoped<IAdRewardService, AdRewardService>();
-
-        return services;
-    }
-
-    // 인앱결제(IAP) 서비스 등록 — Google Play 검증기 + 메인 구매 처리 서비스
-    public static IServiceCollection AddIapServices(this IServiceCollection services)
-    {
-        // Google Play 영수증 검증기 등록 (IIapStoreVerifier Strategy 구현체)
-        services.AddScoped<IIapStoreVerifier, GooglePlayStoreVerifier>();
-
-        // 스토어 검증기 팩토리 (Resolver) 등록
-        services.AddScoped<IIapStoreVerifierResolver, IapStoreVerifierResolver>();
-
-        // 인앱결제 메인 검증+지급 서비스 등록
-        services.AddScoped<IIapPurchaseService, IapPurchaseService>();
-
-        // RTDN 알림 처리 서비스 등록
-        services.AddScoped<IIapRtdnService, IapRtdnService>();
-
-        // Google Pub/Sub OIDC 검증기 — Singleton: 내부 JWKS ConfigurationManager 캐시 공유
-        services.AddSingleton<GooglePubSubAuthenticator>();
-
-        return services;
-    }
-
-    // JWT 인증 설정
-    public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration config)
-    {
-        var jwtKey = config["Jwt:SecretKey"]!;
-        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(options =>
-            {
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    ValidIssuer = config["Jwt:Issuer"],
-                    ValidAudience = config["Jwt:Audience"],
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
-                };
-            });
         return services;
     }
 }
