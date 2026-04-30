@@ -48,6 +48,9 @@ public class IapPurchase
     // 환불 처리 시각 (UTC) — RTDN 수신 또는 Admin 수동 처리
     public DateTime? RefundedAt { get; set; }
 
+    // 환불 사유 구분 — "Voided"(Google 강제환불) / "Canceled"(정상 취소)
+    public string? RefundReason { get; set; }
+
     // 실패 원인 메시지 — 검증 실패 시 상세 사유 기록
     public string? FailureReason { get; set; }
 

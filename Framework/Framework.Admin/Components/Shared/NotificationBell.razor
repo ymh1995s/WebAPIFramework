@@ -1,0 +1,51 @@
+@using Framework.Admin.Constants
+@using Framework.Admin.Http
+@inject ApiHttpClient Http
+@implements IDisposable
+
+@* Admin 헤더 알림 종 아이콘 — 30초 폴링으로 미확인 알림 수 표시 *@
+<a href="/admin-notifications" class="position-relative text-decoration-none text-dark" title="운영 알림">
+    <span class="bell-icon"></span>
+    @if (_unreadCount > 0)
+    {
+        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+              style="font-size:0.65rem;">
+            @(_unreadCount > 99 ? "99+" : _unreadCount.ToString())
+        </span>
+    }
+</a>
+
+@code {
+    // 미확인 알림 수
+    private int _unreadCount;
+    // 30초 폴링 타이머
+    private Timer? _timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _timer = new Timer(async _ =>
+        {
+            await LoadAsync();
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    // 미확인 알림 수 API 폴링
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var result = await Http.GetAsync<UnreadCountResponse>(ApiRoutes.AdminNotifications.UnreadCount);
+            _unreadCount = result?.Count ?? 0;
+        }
+        catch
+        {
+            // 폴링 실패 무시 — UI 중단 방지
+        }
+    }
+
+    public void Dispose() => _timer?.Dispose();
+
+    private record UnreadCountResponse(int Count);
+}

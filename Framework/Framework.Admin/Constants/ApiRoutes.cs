@@ -436,6 +436,39 @@ public static class ApiRoutes
         }
     }
 
+    // ── Admin 알림 (AdminNotificationsController: Route = "api/admin/notifications") ──
+    public static class AdminNotifications
+    {
+        private const string Base = "api/admin/notifications";
+
+        /// <summary>미확인 알림 수 (폴링용)</summary>
+        public const string UnreadCount = $"{Base}/unread-count";
+
+        /// <summary>알림 목록 조회</summary>
+        public static string Search(AdminNotificationCategory? category, bool? isRead, int page, int pageSize)
+        {
+            var parts = new List<string>();
+            if (category.HasValue) parts.Add($"category={(int)category.Value}");
+            if (isRead.HasValue) parts.Add($"isRead={isRead.Value.ToString().ToLower()}");
+            parts.Add($"page={page}");
+            parts.Add($"pageSize={pageSize}");
+            return $"{Base}?{string.Join("&", parts)}";
+        }
+
+        /// <summary>단건 읽음 처리</summary>
+        public static string MarkRead(long id) => $"{Base}/{id}/read";
+
+        /// <summary>단건 안읽음으로 되돌리기</summary>
+        public static string MarkUnread(long id) => $"{Base}/{id}/unread";
+
+        /// <summary>전체 읽음 처리</summary>
+        public static string MarkAllRead(AdminNotificationCategory? category)
+        {
+            var url = $"{Base}/read-all";
+            return category.HasValue ? $"{url}?category={(int)category.Value}" : url;
+        }
+    }
+
     // ── SignalR 허브 경로 ──────────────────────────────────────────────────
     public static class Hubs
     {

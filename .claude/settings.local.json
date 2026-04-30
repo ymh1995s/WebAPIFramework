@@ -19,7 +19,13 @@
       "WebFetch(domain:www.law.go.kr)",
       "WebFetch(domain:docs.anthropic.com)",
       "PowerShell(dotnet build *)",
-      "Bash(git status *)"
+      "Bash(git status *)",
+      "Bash(git -C /c/Users/user/Documents/WebAPIFramework log --oneline)",
+      "Bash(git -C /c/Users/user/Documents/WebAPIFramework log --format=\"%ad\" --date=short)",
+      "Bash(git add *)",
+      "Bash(xargs wc *)",
+      "Bash(git -C /c/Users/user/Documents/WebAPIFramework log --oneline --format=\"%s\")",
+      "Bash(git -C /c/Users/user/Documents/WebAPIFramework log --format=\"%H %s\")"
     ]
   }
 }

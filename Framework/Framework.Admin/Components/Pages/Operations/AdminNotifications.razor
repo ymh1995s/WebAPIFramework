@@ -1,0 +1,147 @@
+@page "/admin-notifications"
+@using Framework.Admin.Constants
+@using Framework.Admin.Http
+@using Framework.Domain.Enums
+@inject ApiHttpClient Http
+
+<h3>운영 알림</h3>
+
+<div class="d-flex gap-2 mb-3 align-items-center">
+    <button class="btn btn-sm btn-outline-secondary" @onclick="MarkAllRead">전체 읽음 처리</button>
+    <select class="form-select form-select-sm w-auto" @onchange="OnCategoryChanged">
+        <option value="">전체</option>
+        <option value="1">IAP 환불</option>
+    </select>
+    <select class="form-select form-select-sm w-auto" @onchange="OnReadFilterChanged">
+        <option value="">전체</option>
+        <option value="false">미확인</option>
+        <option value="true">확인됨</option>
+    </select>
+</div>
+
+@if (_loading)
+{
+    <p>로딩 중...</p>
+}
+else if (_items is null || _items.Count == 0)
+{
+    <p class="text-muted">알림이 없습니다.</p>
+}
+else
+{
+    <table class="table table-sm table-hover">
+        <thead>
+            <tr>
+                <th>심각도</th><th>분류</th><th>제목</th><th>메시지</th><th>수신 시각</th><th>상태</th><th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in _items)
+            {
+                <tr class="@(item.IsRead ? "" : "table-warning")">
+                    <td><span class="badge @GetBadgeClass(item.Severity)">@item.Severity</span></td>
+                    <td>@item.Category</td>
+                    <td>@item.Title</td>
+                    <td>@item.Message</td>
+                    <td>@item.CreatedAt.ToLocalTime().ToString("MM-dd HH:mm")</td>
+                    <td>@(item.IsRead ? "확인됨" : "미확인")</td>
+                    <td>
+                        @if (!item.IsRead)
+                        {
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => MarkRead(item.Id)">읽음</button>
+                        }
+                        @if (item.IsRead)
+                        {
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => MarkUnread(item.Id)">안읽음</button>
+                        }
+                        @if (item.RelatedEntityType == "IapPurchase")
+                        {
+                            <a href="/iap-purchases" class="btn btn-sm btn-outline-secondary ms-1">구매 이력</a>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <div class="d-flex gap-2 align-items-center">
+        <button class="btn btn-sm btn-outline-secondary" disabled="@(_page <= 1)" @onclick="PrevPage">이전</button>
+        <span>@_page 페이지 (총 @(_totalCount)건)</span>
+        <button class="btn btn-sm btn-outline-secondary" disabled="@(_page * _pageSize >= _totalCount)" @onclick="NextPage">다음</button>
+    </div>
+}
+
+@code {
+    private List<NotificationItem>? _items;
+    private int _totalCount;
+    private int _page = 1;
+    private int _pageSize = 50;
+    private bool _loading = true;
+    // 카테고리 필터 — null이면 전체 조회
+    private AdminNotificationCategory? _categoryFilter;
+    // 읽음 상태 필터 — null이면 전체 조회
+    private bool? _isReadFilter;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var url = ApiRoutes.AdminNotifications.Search(_categoryFilter, _isReadFilter, _page, _pageSize);
+            var result = await Http.GetAsync<NotificationListResponse>(url);
+            _items = result?.Items ?? new();
+            _totalCount = result?.TotalCount ?? 0;
+        }
+        finally { _loading = false; }
+    }
+
+    // 단건 읽음 처리 후 목록 갱신
+    private async Task MarkRead(long id)
+    {
+        await Http.PostAsync(ApiRoutes.AdminNotifications.MarkRead(id), new { });
+        await LoadAsync();
+    }
+
+    // 단건 안읽음 처리 후 목록 갱신
+    private async Task MarkUnread(long id)
+    {
+        await Http.PostAsync(ApiRoutes.AdminNotifications.MarkUnread(id), new { });
+        await LoadAsync();
+    }
+
+    // 전체 읽음 처리 후 목록 갱신
+    private async Task MarkAllRead()
+    {
+        await Http.PostAsync(ApiRoutes.AdminNotifications.MarkAllRead(_categoryFilter), new { });
+        await LoadAsync();
+    }
+
+    private async Task OnCategoryChanged(ChangeEventArgs e)
+    {
+        _categoryFilter = string.IsNullOrEmpty(e.Value?.ToString()) ? null : (AdminNotificationCategory)int.Parse(e.Value.ToString()!);
+        _page = 1; await LoadAsync();
+    }
+
+    private async Task OnReadFilterChanged(ChangeEventArgs e)
+    {
+        _isReadFilter = string.IsNullOrEmpty(e.Value?.ToString()) ? null : bool.Parse(e.Value.ToString()!);
+        _page = 1; await LoadAsync();
+    }
+
+    private async Task PrevPage() { _page--; await LoadAsync(); }
+    private async Task NextPage() { _page++; await LoadAsync(); }
+
+    // 심각도별 Bootstrap 배지 CSS 클래스 반환
+    private static string GetBadgeClass(AdminNotificationSeverity s) => s switch
+    {
+        AdminNotificationSeverity.Critical => "bg-danger",
+        AdminNotificationSeverity.Warning => "bg-warning text-dark",
+        _ => "bg-info text-dark"
+    };
+
+    private record NotificationListResponse(List<NotificationItem> Items, int TotalCount);
+    private record NotificationItem(long Id, AdminNotificationCategory Category, AdminNotificationSeverity Severity,
+        string Title, string Message, string? RelatedEntityType, long? RelatedEntityId,
+        string? MetadataJson, bool IsRead, DateTime? ReadAt, DateTime CreatedAt);
+}

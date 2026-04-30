@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using Framework.Application.Common;
 using Framework.Application.Features.AdPolicy;
 using Framework.Application.Features.AdReward;
+using Framework.Application.Features.AdminNotification;
 using Framework.Application.Features.AuditLog;
 using Framework.Application.Features.Auth;
 using Framework.Application.Features.DailyLogin;
@@ -91,6 +92,8 @@ public static class ServiceExtensions
     {
         services.AddScoped<IIapProductRepository, IapProductRepository>();
         services.AddScoped<IIapPurchaseRepository, IapPurchaseRepository>();
+        // Admin 알림 저장소 등록
+        services.AddScoped<IAdminNotificationRepository, AdminNotificationRepository>();
         return services;
     }
 
@@ -155,6 +158,9 @@ public static class ServiceExtensions
         // 인앱결제 Admin 서비스 등록
         services.AddScoped<IIapProductService, IapProductService>();
         services.AddScoped<IIapPurchaseAdminService, IapPurchaseAdminService>();
+
+        // Admin 알림 서비스 등록
+        services.AddScoped<IAdminNotificationService, AdminNotificationService>();
 
         return services;
     }

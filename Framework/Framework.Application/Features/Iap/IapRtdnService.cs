@@ -1,3 +1,4 @@
+using Framework.Application.Features.AdminNotification;
 using Framework.Domain.Enums;
 using Framework.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -5,18 +6,21 @@ using IapStoreEnum = Framework.Domain.Enums.IapStore;
 
 namespace Framework.Application.Features.Iap;
 
-// RTDN 알림 처리 서비스 구현체
-// Google Play 환불/취소 알림 수신 시 IapPurchase.Status를 Refunded로 갱신
+// RTDN(Real-Time Developer Notifications) 알림 처리 서비스 구현체
+// Google Play가 서버에 실시간으로 전송하는 알림 — 환불/취소 수신 시 IapPurchase.Status를 Refunded로 갱신
 public class IapRtdnService : IIapRtdnService
 {
     private readonly IIapPurchaseRepository _purchaseRepository;
+    private readonly IAdminNotificationService _notificationService;
     private readonly ILogger<IapRtdnService> _logger;
 
     public IapRtdnService(
         IIapPurchaseRepository purchaseRepository,
+        IAdminNotificationService notificationService,
         ILogger<IapRtdnService> logger)
     {
         _purchaseRepository = purchaseRepository;
+        _notificationService = notificationService;
         _logger = logger;
     }
 
@@ -88,16 +92,39 @@ public class IapRtdnService : IIapRtdnService
             return;
         }
 
-        // 상태를 Refunded로 변경하고 환불 시각 기록
+        // 상태를 Refunded로 변경하고 환불 시각 및 사유 기록
         purchase.Status = IapPurchaseStatus.Refunded;
         purchase.RefundedAt = DateTime.UtcNow;
         purchase.UpdatedAt = DateTime.UtcNow;
+        purchase.RefundReason = "Voided";
 
         await _purchaseRepository.SaveChangesAsync();
 
         _logger.LogWarning(
             "RTDN 환불 감지 — PlayerId: {PlayerId}, ProductId: {ProductId}, OrderId: {OrderId}",
             purchase.PlayerId, purchase.ProductId, notification.OrderId);
+
+        // Admin 알림 생성 — 실패해도 RTDN 처리에 영향 없도록 격리
+        try
+        {
+            await _notificationService.CreateAsync(
+                AdminNotificationCategory.IapClawback,
+                AdminNotificationSeverity.Critical,
+                $"IAP 강제 환불 감지 — PlayerId {purchase.PlayerId}",
+                $"ProductId: {purchase.ProductId}, OrderId: {notification.OrderId}",
+                relatedEntityType: "IapPurchase",
+                relatedEntityId: purchase.Id,
+                metadataJson: System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    purchase.PlayerId, purchase.ProductId,
+                    notification.OrderId, RefundReason = "Voided"
+                }),
+                dedupKey: $"iap_refund:google:{notification.PurchaseToken}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Admin 알림 생성 실패 — IapPurchaseId: {Id}", purchase.Id);
+        }
     }
 
     // OneTimeProduct CANCELED(취소) 처리 — 구매 취소/환불 시 발생
@@ -124,15 +151,38 @@ public class IapRtdnService : IIapRtdnService
             return;
         }
 
-        // 상태를 Refunded로 변경하고 환불 시각 기록
+        // 상태를 Refunded로 변경하고 환불 시각 및 사유 기록
         purchase.Status = IapPurchaseStatus.Refunded;
         purchase.RefundedAt = DateTime.UtcNow;
         purchase.UpdatedAt = DateTime.UtcNow;
+        purchase.RefundReason = "Canceled";
 
         await _purchaseRepository.SaveChangesAsync();
 
         _logger.LogWarning(
             "RTDN 환불 감지 — PlayerId: {PlayerId}, ProductId: {ProductId}, OrderId: {OrderId}",
             purchase.PlayerId, purchase.ProductId, purchase.OrderId);
+
+        // Admin 알림 생성 — 실패해도 RTDN 처리에 영향 없도록 격리
+        try
+        {
+            await _notificationService.CreateAsync(
+                AdminNotificationCategory.IapClawback,
+                AdminNotificationSeverity.Warning,
+                $"IAP 취소 환불 감지 — PlayerId {purchase.PlayerId}",
+                $"ProductId: {purchase.ProductId}, Sku: {notification.Sku}",
+                relatedEntityType: "IapPurchase",
+                relatedEntityId: purchase.Id,
+                metadataJson: System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    purchase.PlayerId, purchase.ProductId,
+                    notification.Sku, RefundReason = "Canceled"
+                }),
+                dedupKey: $"iap_cancel:google:{notification.PurchaseToken}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Admin 알림 생성 실패 — IapPurchaseId: {Id}", purchase.Id);
+        }
     }
 }

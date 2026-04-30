@@ -59,6 +59,9 @@ public class AppDbContext : DbContext
     public DbSet<IapProduct> IapProducts { get; set; }
     public DbSet<IapPurchase> IapPurchases { get; set; }
 
+    // Admin 운영 알림 테이블 — IAP 환불, 어뷰징 감지 등 운영 이슈 알림
+    public DbSet<AdminNotification> AdminNotifications { get; set; }
+
     // 컨텐츠 영역 — 스테이지 마스터 및 클리어 기록
     public DbSet<Stage> Stages { get; set; }
     public DbSet<StageClear> StageClears { get; set; }
@@ -479,6 +482,19 @@ public class AppDbContext : DbContext
         // ─────────────────────────────────────────────
         // 레벨 임계값 마스터 — Level을 PK로, 초기 시드 데이터 설정
         // ─────────────────────────────────────────────
+
+        // AdminNotification 인덱스 설정
+        modelBuilder.Entity<AdminNotification>(entity =>
+        {
+            // DedupKey 부분 UNIQUE — null 아닌 경우만 중복 방지
+            entity.HasIndex(n => n.DedupKey)
+                .IsUnique()
+                .HasFilter("\"DedupKey\" IS NOT NULL");
+            // 미확인 알림 최신순 조회
+            entity.HasIndex(n => new { n.IsRead, n.CreatedAt });
+            // 분류별 조회
+            entity.HasIndex(n => new { n.Category, n.CreatedAt });
+        });
 
         // LevelThreshold: Level을 PK로 사용
         modelBuilder.Entity<LevelThreshold>().HasKey(t => t.Level);
