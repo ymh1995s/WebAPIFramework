@@ -14,6 +14,7 @@ using Framework.Application.Features.Item;
 using Framework.Application.Features.Mail;
 using Framework.Application.Features.Matchmaking;
 using Framework.Application.Features.Notice;
+using Framework.Application.Features.Shout;
 using Framework.Application.Features.AdminMatch;
 using Framework.Application.Features.AdminPlayer;
 using Framework.Application.Features.Ranking;
@@ -61,6 +62,13 @@ public static class ServiceExtensions
     public static IServiceCollection AddNoticeRepositories(this IServiceCollection services)
     {
         services.AddScoped<INoticeRepository, NoticeRepository>();
+        return services;
+    }
+
+    // 저장소 등록 - 1회 공지
+    public static IServiceCollection AddShoutRepositories(this IServiceCollection services)
+    {
+        services.AddScoped<IShoutRepository, ShoutRepository>();
         return services;
     }
 
@@ -176,6 +184,13 @@ public static class ServiceExtensions
     public static IServiceCollection AddNoticeServices(this IServiceCollection services)
     {
         services.AddScoped<INoticeService, NoticeService>();
+        return services;
+    }
+
+    // 서비스 등록 - 1회 공지
+    public static IServiceCollection AddShoutServices(this IServiceCollection services)
+    {
+        services.AddScoped<IShoutService, ShoutService>();
         return services;
     }
 

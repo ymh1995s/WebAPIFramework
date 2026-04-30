@@ -40,6 +40,9 @@ public class AppDbContext : DbContext
     // 공지 테이블
     public DbSet<Notice> Notices { get; set; }
 
+    // 1회 공지 테이블 — Admin이 전체 또는 특정 플레이어에게 발송하는 HUD 메시지
+    public DbSet<Shout> Shouts => Set<Shout>();
+
     // 소원수리함 테이블
     public DbSet<Inquiry> Inquiries { get; set; }
 
@@ -444,6 +447,26 @@ public class AppDbContext : DbContext
         // StageClear: PlayerId 인덱스 — 플레이어별 진행 현황 조회 최적화
         modelBuilder.Entity<StageClear>()
             .HasIndex(c => c.PlayerId);
+
+        // ─────────────────────────────────────────────
+        // 1회 공지 — 전체/특정 플레이어 대상 HUD 메시지
+        // ─────────────────────────────────────────────
+
+        // Shout → Player (N:1, nullable) — 플레이어 삭제 시 1회 공지도 함께 삭제
+        modelBuilder.Entity<Shout>(entity =>
+        {
+            entity.HasOne(s => s.Player)
+                  .WithMany()
+                  .HasForeignKey(s => s.PlayerId)
+                  .IsRequired(false)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            // 플레이어별 활성 1회 공지 조회 최적화
+            entity.HasIndex(s => s.PlayerId);
+
+            // 만료 1회 공지 필터링 최적화
+            entity.HasIndex(s => s.ExpiresAt);
+        });
 
         // ─────────────────────────────────────────────
         // 레벨 임계값 마스터 — Level을 PK로, 초기 시드 데이터 설정

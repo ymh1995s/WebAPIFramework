@@ -3,9 +3,9 @@
 @inherits SafeComponentBase
 @using Framework.Admin.Constants
 
-<PageTitle>수동 보상/우편 발송</PageTitle>
+<PageTitle>수동 보상 지급</PageTitle>
 
-<h2 class="mb-2">수동 보상/우편 발송</h2>
+<h2 class="mb-2">수동 보상 지급</h2>
 
 <!-- 대상 선택 라디오 — 단일 플레이어 또는 전체(Bulk) -->
 <div class="mb-3">
@@ -160,13 +160,6 @@ else
                             }
                         </div>
                         <div class="card-body py-2">
-                            @if (targetMode == "single" && IsPureMail())
-                            {
-                                <!-- 재화/아이템 없이 우편만 발송할 경우 안내 -->
-                                <div class="alert alert-secondary py-1 small mb-2">
-                                    재화/아이템 없는 우편은 보상 지급 이력에 기록되지 않습니다.
-                                </div>
-                            }
                             <div class="mb-2">
                                 <label class="form-label small mb-1">제목</label>
                                 <input type="text" class="form-control form-control-sm" @bind="mailTitle" placeholder="운영팀 보상이 도착했습니다" />

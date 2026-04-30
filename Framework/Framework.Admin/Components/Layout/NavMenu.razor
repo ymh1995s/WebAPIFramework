@@ -37,7 +37,7 @@
                 </div>
                 <div class="nav-item" style="padding-left: 1.25rem;">
                     <NavLink class="nav-link" href="reward-dispatch">
-                        <span class="bi bi-send-fill-nav-menu" aria-hidden="true"></span> 수동 지급/우편
+                        <span class="bi bi-send-fill-nav-menu" aria-hidden="true"></span> 수동 보상 지급
                     </NavLink>
                 </div>
             </details>
@@ -68,10 +68,23 @@
             </details>
         </div>
 
+        @* 공지 그룹 — 공지 관리 + 1회 공지 발송 *@
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="notices">
-                <span class="bi bi-megaphone-fill-nav-menu" aria-hidden="true"></span> 공지 관리
-            </NavLink>
+            <details class="nav-group">
+                <summary class="nav-link nav-group-summary">
+                    <span class="bi bi-megaphone-fill-nav-menu" aria-hidden="true"></span> 공지
+                </summary>
+                <div class="nav-item" style="padding-left: 1.25rem;">
+                    <NavLink class="nav-link" href="notices">
+                        <span class="bi bi-megaphone-fill-nav-menu" aria-hidden="true"></span> 공지 관리
+                    </NavLink>
+                </div>
+                <div class="nav-item" style="padding-left: 1.25rem;">
+                    <NavLink class="nav-link" href="shouts">
+                        <span class="bi bi-chat-fill-nav-menu" aria-hidden="true"></span> 1회 공지 발송
+                    </NavLink>
+                </div>
+            </details>
         </div>
 
         @* 문의 관리 그룹 — 관리자 조회/답변과 클라이언트 시뮬레이션 테스트를 묶음 *@

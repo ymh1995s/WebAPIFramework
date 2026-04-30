@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Framework.Application.Features.AuditLog;
-using Framework.Application.Features.Mail;
 using Framework.Domain.Entities;
 using Framework.Domain.Enums;
 using Framework.Domain.Interfaces;
@@ -20,7 +19,6 @@ public class RewardDispatcher : IRewardDispatcher
     private readonly IPlayerRepository _playerRepository;
     private readonly IPlayerProfileRepository _profileRepo;
     private readonly IPlayerItemRepository _itemRepo;
-    private readonly IMailService _mailService;
     private readonly IMailRepository _mailRepo;
     private readonly IAuditLogService _auditLogService;
     private readonly IUnitOfWork _unitOfWork;
@@ -31,7 +29,6 @@ public class RewardDispatcher : IRewardDispatcher
         IPlayerRepository playerRepository,
         IPlayerProfileRepository profileRepo,
         IPlayerItemRepository itemRepo,
-        IMailService mailService,
         IMailRepository mailRepo,
         IAuditLogService auditLogService,
         IUnitOfWork unitOfWork,
@@ -41,7 +38,6 @@ public class RewardDispatcher : IRewardDispatcher
         _playerRepository = playerRepository;
         _profileRepo = profileRepo;
         _itemRepo = itemRepo;
-        _mailService = mailService;
         _mailRepo = mailRepo;
         _auditLogService = auditLogService;
         _unitOfWork = unitOfWork;

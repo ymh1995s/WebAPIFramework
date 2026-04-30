@@ -1,0 +1,156 @@
+@page "/shouts"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits SafeComponentBase
+@using Framework.Admin.Constants
+
+<PageTitle>1회 공지 발송</PageTitle>
+
+<div class="d-flex align-items-center gap-3 mb-3">
+    <h2 class="mb-0">1회 공지 발송</h2>
+    <button class="btn btn-outline-secondary btn-sm" @onclick="LoadHistory">새로고침</button>
+</div>
+
+<!-- 1회 공지 발송 카드 -->
+<section class="card mb-4">
+    <div class="card-header py-2"><strong>1회 공지 발송</strong></div>
+    <div class="card-body">
+
+        <!-- 대상 플레이어 ID — 빈칸이면 전체 플레이어 대상 -->
+        <div class="mb-3">
+            <label class="form-label">플레이어 ID
+                <small class="text-muted">(비어있으면 전체 플레이어 대상)</small>
+            </label>
+            <input type="number" class="form-control form-control-sm" @bind="newPlayerId"
+                   placeholder="예: 123 (비워두면 전체 대상)" style="max-width:240px" />
+            @if (newPlayerId is null or 0)
+            {
+                <span class="badge bg-info mt-1">전체 플레이어 대상</span>
+            }
+        </div>
+
+        <!-- 메시지 입력 -->
+        <div class="mb-3">
+            <label class="form-label">메시지 <span class="text-danger">*</span></label>
+            <textarea class="form-control" rows="3" placeholder="HUD에 표시할 메시지를 입력하세요 (최대 500자)"
+                      @bind="newMessage" maxlength="500" style="max-width:500px"></textarea>
+        </div>
+
+        <!-- 만료 시간 -->
+        <div class="mb-3">
+            <label class="form-label">만료 시간 (분) <span class="text-danger">*</span>
+                <small class="text-muted">(1~10080분, 기본 60분)</small>
+            </label>
+            <input type="number" class="form-control form-control-sm" @bind="newExpiresInMinutes"
+                   min="1" max="10080" style="max-width:160px" />
+        </div>
+
+        <!-- 발송 버튼 -->
+        <button class="btn btn-primary btn-sm" @onclick="SendShout">발송</button>
+
+        @if (sendMessage is not null)
+        {
+            <div class="mt-2 @(sendSuccess ? "text-success" : "text-danger") small">
+                @sendMessage
+            </div>
+        }
+    </div>
+</section>
+
+<!-- 발송 이력 카드 -->
+<section class="card">
+    <div class="card-header py-2">
+        <strong>발송 이력</strong>
+    </div>
+    <div class="card-body py-2">
+
+        <!-- 필터 영역 -->
+        <div class="d-flex gap-3 align-items-end mb-3 flex-wrap">
+            <div>
+                <label class="form-label small mb-1">플레이어 ID 필터</label>
+                <input type="number" class="form-control form-control-sm" @bind="filterPlayerId"
+                       placeholder="전체" style="width:140px" />
+            </div>
+            <div class="form-check mb-1">
+                <input class="form-check-input" type="checkbox" id="activeOnly" @bind="filterActiveOnly" />
+                <label class="form-check-label" for="activeOnly">활성만 보기</label>
+            </div>
+            <button class="btn btn-outline-secondary btn-sm mb-1" @onclick="SearchHistory">검색</button>
+        </div>
+
+        <!-- 이력 테이블 -->
+        @if (isLoading)
+        {
+            <p class="text-muted">불러오는 중...</p>
+        }
+        else if (historyItems.Count == 0)
+        {
+            <p class="text-muted">발송 이력이 없습니다.</p>
+        }
+        else
+        {
+            <table class="table table-bordered table-sm small">
+                <thead>
+                    <tr>
+                        <th style="width:60px">ID</th>
+                        <th style="width:80px">대상</th>
+                        <th>메시지</th>
+                        <th style="width:150px">발송 시각</th>
+                        <th style="width:150px">만료 시각</th>
+                        <th style="width:80px">상태</th>
+                        <th style="width:90px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in historyItems)
+                    {
+                        <tr>
+                            <td>@item.Id</td>
+                            <td>
+                                @if (item.PlayerId.HasValue)
+                                {
+                                    <span>@item.PlayerId</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">전체</span>
+                                }
+                            </td>
+                            <!-- 메시지 앞 50자만 표시 — 긴 메시지 줄임 -->
+                            <td title="@item.Message">
+                                @(item.Message.Length > 50 ? item.Message[..50] + "…" : item.Message)
+                            </td>
+                            <td class="text-muted">@item.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                            <td class="text-muted">@item.ExpiresAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>
+                                <span class="badge @(item.IsActive ? "bg-success" : "bg-secondary")">
+                                    @(item.IsActive ? "활성" : "비활성")
+                                </span>
+                            </td>
+                            <td>
+                                @if (item.IsActive)
+                                {
+                                    <button class="btn btn-outline-danger btn-sm"
+                                            @onclick="() => Deactivate(item.Id)">
+                                        비활성화
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            <!-- 페이지네이션 -->
+            <div class="d-flex align-items-center gap-2 mt-2">
+                <button class="btn btn-outline-secondary btn-sm" @onclick="PrevPage" disabled="@(currentPage <= 1)">이전</button>
+                <span class="small">@currentPage / @totalPages 페이지 (총 @(totalCount)건)</span>
+                <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@(currentPage >= totalPages)">다음</button>
+            </div>
+        }
+
+        @if (historyError is not null)
+        {
+            <p class="text-danger small mt-2">@historyError</p>
+        }
+    </div>
+</section>

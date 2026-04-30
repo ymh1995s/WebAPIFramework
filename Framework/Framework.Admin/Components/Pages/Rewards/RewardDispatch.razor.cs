@@ -6,9 +6,8 @@ using System.Net.Http.Json;
 namespace Framework.Admin.Components.Pages.Rewards;
 
 /// <summary>
-/// 수동 보상/우편 발송 페이지 코드-비하인드.
+/// 수동 보상 지급 페이지 코드-비하인드.
 /// - 단일 플레이어 + 재화/아이템 있음: POST /api/admin/reward-dispatch/grant (AdminGrant, 멱등성)
-/// - 단일 플레이어 + 재화/아이템 없음 (순수 우편): POST /api/admin/mails
 /// - 전체 플레이어 (Bulk): POST /api/admin/mails/bulk
 /// </summary>
 public partial class RewardDispatch : SafeComponentBase
@@ -65,14 +64,6 @@ public partial class RewardDispatch : SafeComponentBase
         resultDetail = null;
     }
 
-    /// <summary>재화/아이템이 모두 없는 순수 우편 발송 여부 판단</summary>
-    private bool IsPureMail()
-    {
-        var hasContent = (gold > 0) || (gems > 0) || (exp > 0)
-                         || items.Any(i => i.ItemId > 0 && i.Quantity > 0);
-        return !hasContent;
-    }
-
     /// <summary>SourceKey 자동 생성 — 운영 티켓 번호 형식</summary>
     private void GenerateSourceKey()
     {
@@ -113,7 +104,7 @@ public partial class RewardDispatch : SafeComponentBase
         }
     }
 
-    /// <summary>단일 플레이어 지급/발송 처리</summary>
+    /// <summary>단일 플레이어 지급 처리 — 재화/아이템이 있는 경우에만 실행 가능</summary>
     private async Task ExecuteSingle()
     {
         // 플레이어 ID 유효성 검사
@@ -124,19 +115,17 @@ public partial class RewardDispatch : SafeComponentBase
             return;
         }
 
+        // 지급할 보상 존재 여부 확인
         var hasContent = (gold > 0) || (gems > 0) || (exp > 0)
                          || items.Any(i => i.ItemId > 0 && i.Quantity > 0);
+        if (!hasContent)
+        {
+            resultMessage = "지급할 보상이 없습니다.";
+            resultSuccess = false;
+            return;
+        }
 
-        if (hasContent)
-        {
-            // 재화/아이템이 있으면 보상 지급 API 사용 (멱등성 보장)
-            await ExecuteSingleGrant();
-        }
-        else
-        {
-            // 재화/아이템이 없으면 순수 우편 발송 API 사용
-            await ExecuteSingleMail();
-        }
+        await ExecuteSingleGrant();
     }
 
     /// <summary>단일 플레이어 보상 지급 — POST /api/admin/reward-dispatch/grant</summary>
@@ -201,55 +190,6 @@ public partial class RewardDispatch : SafeComponentBase
             var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
             resultSuccess = false;
             resultMessage = error?.Message ?? $"지급 실패: {response.StatusCode}";
-        }
-    }
-
-    /// <summary>단일 플레이어 순수 우편 발송 — POST /api/admin/mails (보상 지급 이력 없음)</summary>
-    private async Task ExecuteSingleMail()
-    {
-        // PlayerId 존재 여부 사전 확인 — API 실패 전 즉시 피드백
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var checkRes = await client.GetAsync(ApiRoutes.AdminPlayers.ById(playerId));
-        if (checkRes.StatusCode == System.Net.HttpStatusCode.NotFound)
-        {
-            resultSuccess = false;
-            resultMessage = "존재하지 않는 플레이어 ID입니다.";
-            return;
-        }
-
-        // 제목 필수 검사
-        if (string.IsNullOrWhiteSpace(mailTitle))
-        {
-            resultMessage = "제목을 입력해주세요.";
-            resultSuccess = false;
-            return;
-        }
-
-        var payload = new
-        {
-            PlayerId = playerId,
-            Title = mailTitle,
-            Body = mailBody,
-            ItemId = (int?)null,
-            ItemCount = 0,
-            ExpiresInDays = mailExpiresInDays
-        };
-
-        // 위에서 생성한 client 재사용 (PlayerId 검증 시 이미 생성됨)
-        var response = await client.PostAsJsonAsync(ApiRoutes.AdminMails.Single, payload);
-
-        if (response.IsSuccessStatusCode)
-        {
-            resultSuccess = true;
-            resultMessage = "우편이 발송되었습니다. (보상 지급 이력에 기록되지 않습니다)";
-            mailTitle = "";
-            mailBody = "";
-        }
-        else
-        {
-            var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
-            resultSuccess = false;
-            resultMessage = error?.Message ?? $"발송 실패: {response.StatusCode}";
         }
     }
 

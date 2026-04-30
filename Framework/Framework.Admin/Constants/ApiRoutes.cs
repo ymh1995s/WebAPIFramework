@@ -86,11 +86,9 @@ public static class ApiRoutes
     }
 
     // ── 우편 Admin (AdminMailsController: Route = "api/admin/mails") ───────
+    // 단건 발송은 AdminRewardDispatch로 통합, Bulk만 유지
     public static class AdminMails
     {
-        /// <summary>특정 플레이어에게 단건 우편 발송 (POST)</summary>
-        public const string Single = "api/admin/mails";
-
         /// <summary>전체 플레이어에게 일괄 우편 발송 (POST)</summary>
         public const string Bulk = "api/admin/mails/bulk";
     }
@@ -393,6 +391,27 @@ public static class ApiRoutes
     {
         /// <summary>전체 조회 (GET) / 일괄 교체 (PUT)</summary>
         public const string Collection = "api/admin/level-thresholds";
+    }
+
+    // ── 1회 공지 Admin (AdminShoutsController: Route = "api/admin/shouts") ──────
+    public static class AdminShouts
+    {
+        private const string Base = "api/admin/shouts";
+
+        /// <summary>1회 공지 생성 (POST)</summary>
+        public const string Create = Base;
+
+        /// <summary>1회 공지 즉시 비활성화 (PUT)</summary>
+        public static string Deactivate(int id) => $"{Base}/{id}/deactivate";
+
+        /// <summary>1회 공지 이력 조회 (GET) — 필터 + 페이지네이션</summary>
+        public static string Search(int? playerId, bool? activeOnly, int page, int pageSize)
+        {
+            var query = $"{Base}?page={page}&pageSize={pageSize}";
+            if (playerId.HasValue) query += $"&playerId={playerId}";
+            if (activeOnly.HasValue) query += $"&activeOnly={activeOnly.Value.ToString().ToLower()}";
+            return query;
+        }
     }
 
     // ── 스테이지 Admin (AdminStagesController: Route = "api/admin/stages") ──

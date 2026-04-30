@@ -41,21 +41,23 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
 // ── 저장소 ────────────────────────────────────────────────────
-builder.Services.AddAuthRepositories();
-builder.Services.AddNoticeRepositories();
-builder.Services.AddInquiryRepositories();
+builder.Services.AddAuthRepositories();      // 인증 (Player, RefreshToken)
+builder.Services.AddNoticeRepositories();    // 공지 저장소
+builder.Services.AddShoutRepositories();     // 1회 공지 저장소
+builder.Services.AddInquiryRepositories();   // 문의 저장소
 builder.Services.AddAdRewardRepositories();  // 광고 보상 저장소
 builder.Services.AddIapRepositories();       // 인앱결제 저장소
 builder.Services.AddContentRepositories();   // 컨텐츠(스테이지) 저장소
-builder.Services.AddGameRepositories();
+builder.Services.AddGameRepositories();      // 게임 결과/매치 저장소
 
 // ── 서비스 ────────────────────────────────────────────────────
-builder.Services.AddAuthServices();
-builder.Services.AddAdminServices();
-builder.Services.AddGameServices();
-builder.Services.AddNoticeServices();
-builder.Services.AddInquiryServices();
-builder.Services.AddMatchmakingServices(builder.Configuration);
+builder.Services.AddAuthServices();          // 인증 (로그인, OAuth, 보상 파이프라인 등)
+builder.Services.AddAdminServices();         // Admin 운영 서비스 (우편, 시스템 설정 등)
+builder.Services.AddGameServices();          // 게임 서비스 (매치 결과, 랭킹 등)
+builder.Services.AddNoticeServices();        // 공지 서비스
+builder.Services.AddShoutServices();         // 1회 공지 서비스
+builder.Services.AddInquiryServices();       // 문의 서비스
+builder.Services.AddMatchmakingServices(builder.Configuration); // 매치메이킹 (SignalR)
 builder.Services.AddAdRewardServices();      // 광고 SSV (UnityAds, IronSource)
 builder.Services.AddIapServices();           // 인앱결제 (Google Play)
 builder.Services.AddContentServices();       // 게임 컨텐츠 (스테이지 등)
