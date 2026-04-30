@@ -48,7 +48,7 @@ public partial class RewardTables : SafeComponentBase
     private int deletingId;
     private string deletingInfo = "";
 
-    // SourceType 드롭다운 옵션 — 서버 enum 값과 일치해야 함
+    // SourceType 드롭다운 옵션 — Label은 서버 enum 이름(PascalCase), Value는 정수값
     // DailyLogin(0)은 RewardTables에서 사용 중단 — UI에서 숨김 처리
     private static readonly List<(string Label, int Value)> SourceTypeOptions = new()
     {
@@ -64,6 +64,10 @@ public partial class RewardTables : SafeComponentBase
         ("CouponCode", 10),
         ("SeasonReward", 11),
     };
+
+    /// <summary>서버가 반환한 camelCase enum 이름의 첫 글자를 대문자로 변환 (예: "matchComplete" → "MatchComplete")</summary>
+    private static string GetSourceTypeLabel(string sourceType) =>
+        string.IsNullOrEmpty(sourceType) ? sourceType : char.ToUpperInvariant(sourceType[0]) + sourceType[1..];
 
     // SourceType별 Code 입력 예시 맵 — 생성 모달에서 동적으로 안내 문구 표시
     private static readonly Dictionary<int, string> CodeExampleMap = new()

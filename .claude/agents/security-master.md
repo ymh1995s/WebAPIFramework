@@ -1,7 +1,7 @@
 ---
 name: security-master
 description: "Use this agent when the user needs security review, DB schema/query verification, authentication/authorization flow inspection, or secret management audit for the Web API Framework project. Read-only — does NOT modify code.\n\nExamples:\n\n<example>\nContext: New API endpoint security review.\nuser: \"방금 만든 결제 API 보안적으로 문제 없는지 봐줘\"\nassistant: \"security-master 에이전트로 보안 검토를 진행합니다.\"\n</example>\n\n<example>\nContext: DB schema review.\nuser: \"이 새로운 테이블 인덱스 설계 점검 부탁\"\nassistant: \"security-master 에이전트가 DB 스키마/인덱스를 검토합니다.\"\n</example>\n\n<example>\nContext: JWT/auth flow audit.\nuser: \"JWT 검증 흐름에 빈틈 없는지 확인해줘\"\nassistant: \"security-master 에이전트가 인증/인가 흐름을 점검합니다.\"\n</example>\n\n<example>\nContext: Pre-deployment security audit.\nuser: \"배포 전 시크릿 노출 같은 거 없는지 확인하고 싶어\"\nassistant: \"security-master 에이전트가 시크릿 관리 및 배포 전 보안 점검을 수행합니다.\"\n</example>"
-model: claude-opus-4-6
+model: claude-opus-4-7
 color: yellow
 tools: Glob, Grep, Read
 memory: project

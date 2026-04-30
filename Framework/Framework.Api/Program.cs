@@ -1,5 +1,6 @@
 using Framework.Api.Extensions;
 using Framework.Api.Hubs;
+using Framework.Api.ProblemDetails;
 using Framework.Application.Features.SystemConfig;
 using Framework.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -64,7 +65,19 @@ builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddRateLimitingServices(builder.Configuration);
 builder.Services.AddMemoryCache();          // 점검 모드 등 설정 캐시
 
-builder.Services.AddControllers();
+// JSON 직렬화 옵션 설정
+// - EnumMemberJsonConverterFactory: 잘못된 enum 값 수신 시 EnumDeserializationException을 발생시켜 400 반환
+// - camelCase: 클라이언트(Unity/JS)에서 관례적으로 사용하는 camelCase 프로퍼티명 적용
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new Framework.Api.Json.EnumMemberJsonConverterFactory());
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    });
+
+// enum 역직렬화 오류 → 400 ProblemDetails 변환, ModelState 포맷 통일
+builder.Services.AddApiErrorHandling();
+
 // OpenAPI(Swagger) 문서 생성
 builder.Services.AddOpenApi();
 
@@ -99,6 +112,16 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
+
+// ─────────────────────────────────────────────────────────────
+// 전역 예외 핸들러 활성화 — 파이프라인 최상단에 위치해야
+// 이후 모든 미들웨어(인증, 점검, 컨트롤러 등)의 예외를 포착할 수 있다.
+//
+// [처리 순서]
+// 1. EnumDeserializationExceptionHandler — enum 역직렬화 오류 → 400 ProblemDetails
+// 2. GlobalExceptionHandler              — 그 외 모든 예외  → 500 (프로덕션 전용)
+// ─────────────────────────────────────────────────────────────
+app.UseExceptionHandler();
 
 // Rate Limiter는 인증보다 앞에 위치해야 함
 app.UseRateLimiter();
@@ -146,35 +169,6 @@ app.Use(async (context, next) =>
 #endif
 
 app.UseAuthorization();
-
-// ─────────────────────────────────────────────────────────────
-// 전역 예외 처리 미들웨어 (릴리즈 빌드 전용)
-//
-// [동작 방식]
-// 컨트롤러에서 처리되지 않은 예외가 이 미들웨어까지 버블링되면
-// Serilog로 기록한 뒤 클라이언트에게 500을 반환한다.
-// 스택 트레이스 등 내부 정보는 절대 클라이언트에 노출하지 않는다.
-// ─────────────────────────────────────────────────────────────
-#if !DEBUG
-app.Use(async (context, next) =>
-{
-    try
-    {
-        await next();
-    }
-    catch (Exception ex)
-    {
-        // 요청 경로와 메서드를 함께 기록하여 어느 API 호출이 실패했는지 추적
-        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "[API 오류] {Method} {Path}", context.Request.Method, context.Request.Path);
-
-        // 클라이언트에는 내부 정보를 노출하지 않고 일반 오류 응답만 반환
-        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-        context.Response.ContentType = "application/json";
-        await context.Response.WriteAsync("{\"message\":\"서버 내부 오류가 발생했습니다.\"}");
-    }
-});
-#endif
 
 app.MapControllers();
 
