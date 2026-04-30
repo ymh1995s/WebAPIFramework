@@ -12,4 +12,12 @@ public interface IUnitOfWork : IAsyncDisposable
 
     // 트랜잭션 롤백 — 트랜잭션 내 모든 변경사항을 취소
     Task RollbackAsync();
+
+    // 트랜잭션 스코프 실행 — 활성 트랜잭션 없으면 소유자로 시작, 있으면 참여자로 합류
+    // 소유자: 성공 시 SaveChanges + 커밋, 실패 시 롤백 / 참여자: 람다 실행만
+    Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> work);
+    Task ExecuteInTransactionAsync(Func<Task> work);
+
+    // UNIQUE 위반 catch 후 ChangeTracker 상태 정리 — 미제거 시 람다 종료 후 SaveChangesAsync에서 재시도됨
+    void DetachEntry<T>(T entity) where T : class;
 }
