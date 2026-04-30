@@ -24,8 +24,8 @@ public interface IGameResultRepository
     // 특정 플레이어의 순위 조회
     Task<int> GetPlayerRankAsync(int playerId);
 
-    // Admin 필터 검색 — 결과 목록 페이지네이션
-    Task<(List<GameResult> Items, int TotalCount)> SearchAsync(
+    // Admin 필터 검색 — 결과 목록 페이지네이션 (Participants 전체 로딩 없이 COUNT 서브쿼리 포함)
+    Task<(List<(GameResult Match, int ParticipantCount)> Items, int TotalCount)> SearchAsync(
         Guid? matchId, int? playerId, Tier? tier, MatchState? state,
         DateTime? from, DateTime? to, int page, int pageSize);
 

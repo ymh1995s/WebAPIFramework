@@ -17,6 +17,8 @@ public interface IItemRepository
     void Update(Item item);
     // 아이템 삭제
     Task DeleteAsync(int id);
+    // 복수 ID 배치 조회 — AuditLog 아이템명 N+1 방지용
+    Task<List<Item>> GetByIdsAsync(List<int> ids);
     // 변경사항 저장
     Task SaveChangesAsync();
 }

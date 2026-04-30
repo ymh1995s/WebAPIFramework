@@ -59,18 +59,14 @@ public class AuditLogService : IAuditLogService
         var (items, total) = await _auditLogRepository.SearchAsync(
             filter.PlayerId, filter.ItemId, filter.From, filter.To, filter.IsAnomaly, page, pageSize);
 
-        // 아이템 이름 조회용 캐시 (결과 내 중복 ItemId 대응)
+        // 아이템 이름 배치 조회 — 중복 제거 후 IN 쿼리 1회로 대체
         var itemIds = items.Select(l => l.ItemId).Distinct().ToList();
-        var itemNameMap = new Dictionary<int, string>();
-        foreach (var id in itemIds)
-        {
-            var item = await _itemRepository.GetByIdAsync(id);
-            itemNameMap[id] = item?.Name ?? "(삭제된 아이템)";
-        }
+        var fetchedItems = await _itemRepository.GetByIdsAsync(itemIds);
+        var itemNameMap = fetchedItems.ToDictionary(i => i.Id, i => i.Name);
 
         var dtos = items.Select(l => new AuditLogDto(
             l.Id, l.PlayerId, l.ItemId,
-            itemNameMap.TryGetValue(l.ItemId, out var name) ? name : "",
+            itemNameMap.TryGetValue(l.ItemId, out var name) ? name : "(삭제된 아이템)",
             l.Reason, l.ChangeAmount, l.BalanceBefore, l.BalanceAfter,
             l.IsAnomaly, l.CreatedAt
         )).ToList();

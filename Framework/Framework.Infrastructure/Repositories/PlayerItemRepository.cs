@@ -27,6 +27,12 @@ public class PlayerItemRepository : IPlayerItemRepository
         => await _context.PlayerItems
             .FirstOrDefaultAsync(pi => pi.PlayerId == playerId && pi.ItemId == itemId);
 
+    // 배치 IN 쿼리 — MailItems 수령 시 N+1 방지
+    public async Task<List<PlayerItem>> GetByPlayerAndItemIdsAsync(int playerId, List<int> itemIds)
+        => await _context.PlayerItems
+            .Where(pi => pi.PlayerId == playerId && itemIds.Contains(pi.ItemId))
+            .ToListAsync();
+
     // 새 인벤토리 행 추가
     public async Task AddAsync(PlayerItem playerItem)
         => await _context.PlayerItems.AddAsync(playerItem);

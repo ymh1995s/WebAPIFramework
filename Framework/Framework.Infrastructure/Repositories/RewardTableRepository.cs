@@ -31,12 +31,12 @@ public class RewardTableRepository : IRewardTableRepository
             .ToListAsync();
 
     // Admin 필터 검색 — sourceType, code 부분 일치 + 페이지네이션
-    public async Task<(List<RewardTable> Items, int TotalCount)> SearchAsync(
+    // Entries 전체 로딩 대신 서브쿼리 COUNT 프로젝션으로 과잉 로딩 방지
+    public async Task<(List<(RewardTable Table, int EntriesCount)> Items, int TotalCount)> SearchAsync(
         RewardSourceType? sourceType, string? code, int page, int pageSize)
     {
         // 소프트 딜리트된 항목 제외
         var query = _db.RewardTables
-            .Include(t => t.Entries)
             .Where(t => !t.IsDeleted)
             .AsQueryable();
 
@@ -49,12 +49,16 @@ public class RewardTableRepository : IRewardTableRepository
             query = query.Where(t => t.Code.Contains(code));
 
         var total = await query.CountAsync();
-        var items = await query
+
+        // Entries를 전체 로딩하지 않고 COUNT 서브쿼리만 실행 — 과잉 로딩 방지
+        var raw = await query
             .OrderBy(t => t.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
+            .Select(t => new { Table = t, EntriesCount = t.Entries.Count() })
             .ToListAsync();
 
+        var items = raw.Select(x => (x.Table, x.EntriesCount)).ToList();
         return (items, total);
     }
 

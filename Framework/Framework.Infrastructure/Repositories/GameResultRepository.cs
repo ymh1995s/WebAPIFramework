@@ -74,20 +74,20 @@ public class GameResultRepository : IGameResultRepository
         return higherCount + 1;
     }
 
-    // Admin 필터 검색 — 결과 목록 페이지네이션
-    public async Task<(List<GameResult> Items, int TotalCount)> SearchAsync(
+    // Admin 필터 검색 — 결과 목록 페이지네이션 (Participants 전체 로딩 없이 COUNT 서브쿼리로 대체)
+    public async Task<(List<(GameResult Match, int ParticipantCount)> Items, int TotalCount)> SearchAsync(
         Guid? matchId, int? playerId, Tier? tier, MatchState? state,
         DateTime? from, DateTime? to, int page, int pageSize)
     {
+        // Include(m => m.Participants) 제거 — 과잉 로딩 방지
         var query = _db.GameResults
-            .Include(m => m.Participants)
             .AsQueryable();
 
         // 특정 매치 ID 필터
         if (matchId.HasValue)
             query = query.Where(m => m.Id == matchId.Value);
 
-        // 특정 플레이어 참가 매치 필터
+        // 특정 플레이어 참가 매치 필터 — Participants 서브쿼리로 존재 여부 확인
         if (playerId.HasValue)
             query = query.Where(m => m.Participants.Any(p => p.PlayerId == playerId.Value));
 
@@ -106,12 +106,16 @@ public class GameResultRepository : IGameResultRepository
             query = query.Where(m => m.StartedAt <= to.Value);
 
         var total = await query.CountAsync();
-        var items = await query
+
+        // Participants 전체 로딩 없이 COUNT 서브쿼리로 참가자 수만 조회
+        var raw = await query
             .OrderByDescending(m => m.StartedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
+            .Select(m => new { Match = m, ParticipantCount = m.Participants.Count() })
             .ToListAsync();
 
+        var items = raw.Select(x => (x.Match, x.ParticipantCount)).ToList();
         return (items, total);
     }
 

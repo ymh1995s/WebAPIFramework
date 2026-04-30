@@ -11,16 +11,13 @@ namespace Framework.Application.Features.RewardTable;
 public class RewardTableService : IRewardTableService
 {
     private readonly IRewardTableRepository _tableRepo;
-    private readonly IItemRepository _itemRepo;
     private readonly ILogger<RewardTableService> _logger;
 
     public RewardTableService(
         IRewardTableRepository tableRepo,
-        IItemRepository itemRepo,
         ILogger<RewardTableService> logger)
     {
         _tableRepo = tableRepo;
-        _itemRepo = itemRepo;
         _logger = logger;
     }
 
@@ -33,13 +30,14 @@ public class RewardTableService : IRewardTableService
         var (items, total) = await _tableRepo.SearchAsync(
             filter.SourceType, filter.Code, page, pageSize);
 
-        var dtos = items.Select(t => new RewardTableDto(
-            t.Id,
-            t.SourceType,
-            t.Code,
-            t.Description,
-            t.IsDeleted,
-            t.Entries.Count
+        // 튜플 구조 (Table, EntriesCount) — EntriesCount는 서브쿼리 결과
+        var dtos = items.Select(x => new RewardTableDto(
+            x.Table.Id,
+            x.Table.SourceType,
+            x.Table.Code,
+            x.Table.Description,
+            x.Table.IsDeleted,
+            x.EntriesCount
         )).ToList();
 
         return new PagedResultDto<RewardTableDto>(dtos, total, page, pageSize);
@@ -51,14 +49,9 @@ public class RewardTableService : IRewardTableService
         var table = await _tableRepo.GetByIdWithEntriesAsync(id);
         if (table is null) return null;
 
-        // 아이템 이름 조회 캐시
-        var itemIds = table.Entries.Select(e => e.ItemId).Distinct().ToList();
-        var itemNameMap = new Dictionary<int, string>();
-        foreach (var itemId in itemIds)
-        {
-            var item = await _itemRepo.GetByIdAsync(itemId);
-            itemNameMap[itemId] = item?.Name ?? "(삭제된 아이템)";
-        }
+        // 아이템 이름은 GetByIdWithEntriesAsync가 이미 ThenInclude(e => e.Item)으로 로딩 — 추가 쿼리 불필요
+        var itemNameMap = table.Entries
+            .ToDictionary(e => e.ItemId, e => e.Item?.Name ?? "(삭제된 아이템)");
 
         var entries = table.Entries.Select(e => new RewardTableEntryDto(
             e.Id,

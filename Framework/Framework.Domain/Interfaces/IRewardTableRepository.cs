@@ -13,7 +13,8 @@ public interface IRewardTableRepository
     Task<List<RewardTable>> GetAllAsync();
 
     // Admin 필터 검색 — sourceType, code 필터 + 페이지네이션 + 소프트 딜리트 제외
-    Task<(List<RewardTable> Items, int TotalCount)> SearchAsync(
+    // Entries를 직접 로딩하지 않고 서브쿼리 COUNT 포함 — N+1/과잉 로딩 방지
+    Task<(List<(RewardTable Table, int EntriesCount)> Items, int TotalCount)> SearchAsync(
         RewardSourceType? sourceType, string? code, int page, int pageSize);
 
     // ID로 단건 조회 (항목 포함)

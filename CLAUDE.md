@@ -129,6 +129,7 @@ Every task follows: **Question -> Options -> Decision -> Draft -> Approval**
 - Agents MUST show drafts or summaries before requesting approval
 - Multi-file changes require explicit approval for the full changeset
 - No commits without user instruction
+- 옵션/선택지를 제시할 때 반드시 **전체 내용(표, 각 옵션 설명)을 모두 출력**한 뒤 선택을 요청한다. 내용을 생략/요약하여 "A/B 중 선택" 형식으로만 묻는 것은 금지.
 
 ## Agent Auto-Dispatch Rules
 
@@ -139,7 +140,7 @@ Every task follows: **Question -> Options -> Decision -> Draft -> Approval**
 ### programmer→qa-reviewer 자동 루프 (오케스트레이터 MUST)
 programmer 종료 즉시 아래를 자율 실행. 유저에게 묻지 않는다.
 1. qa-reviewer 호출 (programmer가 보고한 변경 파일만 전달)
-2. 승인 → 루프 종료, 유저에게 결과 1~3줄 보고
+2. 승인 → 루프 종료. **[필수]** 오케스트레이터는 다음 단계 진행 전 반드시 유저에게 결과를 보고한다.
 3. 반려 → programmer 재호출(반려 사유 전달) → 1번부터. **상한 3회**, 초과 시 미해결 이슈 보고 후 중단
 - 루프 중 Collaboration Protocol의 Write/Edit 승인 게이트는 면제 (단, 최초 승인 파일 목록 외 신규 파일은 별도 확인)
-- 루프 중간 과정은 유저에게 보고하지 않는다
+- 루프 중간 과정(구현 중, 검증 중)은 유저에게 보고하지 않는다. **단, 최종 승인 결과 보고는 의무이며 생략 불가.**

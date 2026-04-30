@@ -23,13 +23,14 @@ public class AdminMatchService : IAdminMatchService
             filter.MatchId, filter.PlayerId, filter.Tier, filter.State,
             filter.From, filter.To, page, pageSize);
 
-        var dtos = items.Select(m => new MatchSummaryDto(
-            m.Id,
-            m.Tier,
-            m.State,
-            m.StartedAt,
-            m.EndedAt,
-            m.Participants.Count
+        // 튜플 구조 (Match, ParticipantCount) — ParticipantCount는 서브쿼리 COUNT 결과
+        var dtos = items.Select(x => new MatchSummaryDto(
+            x.Match.Id,
+            x.Match.Tier,
+            x.Match.State,
+            x.Match.StartedAt,
+            x.Match.EndedAt,
+            x.ParticipantCount
         )).ToList();
 
         return new PagedResultDto<MatchSummaryDto>(dtos, total, page, pageSize);

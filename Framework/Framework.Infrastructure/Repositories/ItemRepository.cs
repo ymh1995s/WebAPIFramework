@@ -43,6 +43,12 @@ public class ItemRepository : IItemRepository
             _context.Items.Remove(item);
     }
 
+    // 배치 IN 쿼리 — AuditLogService.SearchAsync N+1 방지
+    public async Task<List<Item>> GetByIdsAsync(List<int> ids)
+        => await _context.Items
+            .Where(i => ids.Contains(i.Id))
+            .ToListAsync();
+
     // 변경사항 저장
     public async Task SaveChangesAsync()
         => await _context.SaveChangesAsync();

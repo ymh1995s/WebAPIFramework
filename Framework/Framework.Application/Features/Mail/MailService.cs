@@ -115,21 +115,31 @@ public class MailService : IMailService
             }
         }
 
-        // [신규] MailItems 기반 다중 아이템 수령 처리
+        // [신규] MailItems 기반 다중 아이템 수령 처리 — 배치 조회로 N+1 방지
+        Dictionary<int, PlayerItem>? mailItemDict = null;
         if (mail.MailItems.Count > 0)
         {
+            // 배치 조회 — 모든 ItemId를 한 번의 IN 쿼리로 조회
+            var itemIds = mail.MailItems.Select(mi => mi.ItemId).ToList();
+            var existingItems = await _playerItemRepository.GetByPlayerAndItemIdsAsync(mail.PlayerId, itemIds);
+            mailItemDict = existingItems.ToDictionary(pi => pi.ItemId);
+
             foreach (var mailItem in mail.MailItems)
             {
-                var existing = await _playerItemRepository.GetByPlayerAndItemAsync(mail.PlayerId, mailItem.ItemId);
-                if (existing is not null)
+                if (mailItemDict.TryGetValue(mailItem.ItemId, out var existing))
                     existing.Quantity += mailItem.Quantity;
                 else
-                    await _playerItemRepository.AddAsync(new PlayerItem
+                {
+                    var newItem = new PlayerItem
                     {
                         PlayerId = mail.PlayerId,
                         ItemId = mailItem.ItemId,
                         Quantity = mailItem.Quantity
-                    });
+                    };
+                    await _playerItemRepository.AddAsync(newItem);
+                    // 딕셔너리에 추가 — 감사 로그 블록에서 재조회 없이 사용
+                    mailItemDict[mailItem.ItemId] = newItem;
+                }
             }
         }
         // [기존 호환] ItemId 기반 단일 아이템 수령 처리 (deprecated — 기존 우편 호환용)
@@ -160,14 +170,12 @@ public class MailService : IMailService
         }
 
         // 감사 로그는 수령 확정 후 별도로 기록 (AuditLevel에 따라 내부에서 저장 여부 결정)
-        // [MailItems 경로] 다중 아이템 우편 — 각 아이템별로 감사 로그 기록
-        if (mail.MailItems.Count > 0)
+        // [MailItems 경로] 메모리 내 딕셔너리 사용 — SaveChanges 후 재조회 없이 수량 계산
+        if (mail.MailItems.Count > 0 && mailItemDict is not null)
         {
             foreach (var mailItem in mail.MailItems)
             {
-                // 수령 후 현재 보유량 조회 (위에서 이미 Quantity 증가 후 SaveChanges 완료된 상태)
-                var existingItem = await _playerItemRepository.GetByPlayerAndItemAsync(mail.PlayerId, mailItem.ItemId);
-                var currentQty = existingItem?.Quantity ?? 0;
+                var currentQty = mailItemDict[mailItem.ItemId].Quantity;
                 // 수령 전 잔고 = 현재값 - 지급량
                 var beforeQty = currentQty - mailItem.Quantity;
 
