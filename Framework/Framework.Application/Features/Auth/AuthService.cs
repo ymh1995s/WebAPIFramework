@@ -160,8 +160,17 @@ public class AuthService : IAuthService
         if (currentPlayer.GoogleId is not null)
             throw new InvalidOperationException("현재 계정은 이미 다른 구글 계정에 연동되어 있습니다.");
 
-        // 요청자가 순수 게스트 계정 → 충돌 예외 발생 (컨트롤러에서 409 반환)
-        throw new GoogleAccountConflictException(existing, currentPlayer);
+        // 충돌 예외에 포함할 두 계정의 레벨 정보를 미리 조회 — 컨트롤러에서 별도 DB 접근 불필요
+        var existingProfile = await _profileRepo.GetByPlayerIdAsync(existing.Id);
+        var currentProfile  = await _profileRepo.GetByPlayerIdAsync(currentPlayer.Id);
+
+        // PlayerSummaryDto로 조립하여 예외에 전달 — 내부 정수 Id 노출 없이 PublicId(Guid) 사용
+        throw new GoogleAccountConflictException(
+            new PlayerSummaryDto(existing.PublicId, existing.Nickname,
+                existingProfile?.Level ?? 1, existing.CreatedAt, existing.LastLoginAt),
+            new PlayerSummaryDto(currentPlayer.PublicId, currentPlayer.Nickname,
+                currentProfile?.Level ?? 1, currentPlayer.CreatedAt, currentPlayer.LastLoginAt)
+        );
     }
 
     // 계정 탈퇴 - 플레이어 삭제 시 CASCADE로 모든 연관 데이터 삭제됨
@@ -191,8 +200,17 @@ public class AuthService : IAuthService
             // 자기 자신에게 이미 연동된 경우는 멱등 처리 (에러 없음)
             if (existing.Id == playerId) return;
 
-            // 다른 계정에 연동된 경우 → 충돌 예외 (InvalidOperationException 대신 전용 예외로 교체)
-            throw new GoogleAccountConflictException(existing, player);
+            // 충돌 예외에 포함할 두 계정의 레벨 정보를 미리 조회
+            var existingProfile = await _profileRepo.GetByPlayerIdAsync(existing.Id);
+            var currentProfile  = await _profileRepo.GetByPlayerIdAsync(player.Id);
+
+            // PlayerSummaryDto로 조립하여 예외에 전달 — 컨트롤러에서 별도 DB 접근 불필요
+            throw new GoogleAccountConflictException(
+                new PlayerSummaryDto(existing.PublicId, existing.Nickname,
+                    existingProfile?.Level ?? 1, existing.CreatedAt, existing.LastLoginAt),
+                new PlayerSummaryDto(player.PublicId, player.Nickname,
+                    currentProfile?.Level ?? 1, player.CreatedAt, player.LastLoginAt)
+            );
         }
 
         // 기존 플레이어에 GoogleId 연결

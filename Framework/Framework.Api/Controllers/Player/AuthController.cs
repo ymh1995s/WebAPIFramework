@@ -1,5 +1,4 @@
 using Framework.Application.Features.Auth;
-using Framework.Domain.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -14,14 +13,12 @@ namespace Framework.Api.Controllers.Player;
 [EnableRateLimiting("auth")]
 public class AuthController : ControllerBase
 {
+    // 인증 관련 비즈니스 로직 처리 서비스
     private readonly IAuthService _authService;
-    // 충돌 응답 구성 시 두 계정의 레벨 정보를 조회하기 위해 주입
-    private readonly IPlayerProfileRepository _profileRepo;
 
-    public AuthController(IAuthService authService, IPlayerProfileRepository profileRepo)
+    public AuthController(IAuthService authService)
     {
         _authService = authService;
-        _profileRepo = profileRepo;
     }
 
     // 게스트 로그인 - DeviceId로 JWT 발급
@@ -86,9 +83,8 @@ public class AuthController : ControllerBase
         }
         catch (GoogleAccountConflictException ex)
         {
-            // 409 Conflict — 클라이언트는 충돌 해소 화면을 띄워야 함
-            var conflict = await BuildConflictDtoAsync(ex);
-            return Conflict(conflict);
+            // 409 Conflict — AuthService에서 미리 조립된 PlayerSummaryDto를 그대로 사용
+            return Conflict(new GoogleConflictDto("GOOGLE_ACCOUNT_CONFLICT", ex.ExistingPlayer, ex.CurrentGuestPlayer));
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -111,9 +107,8 @@ public class AuthController : ControllerBase
         }
         catch (GoogleAccountConflictException ex)
         {
-            // 409 Conflict — 충돌 응답을 GoogleConflictDto로 반환
-            var conflict = await BuildConflictDtoAsync(ex);
-            return Conflict(conflict);
+            // 409 Conflict — AuthService에서 미리 조립된 PlayerSummaryDto를 그대로 사용
+            return Conflict(new GoogleConflictDto("GOOGLE_ACCOUNT_CONFLICT", ex.ExistingPlayer, ex.CurrentGuestPlayer));
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -146,34 +141,6 @@ public class AuthController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
-    }
-
-    // 충돌 예외에서 GoogleConflictDto 생성 — 양쪽 계정의 레벨 정보를 포함
-    private async Task<GoogleConflictDto> BuildConflictDtoAsync(GoogleAccountConflictException ex)
-    {
-        // PlayerProfile은 AuthService에서 접근하기 어려우므로 컨트롤러에서 별도 조회
-        // (PlayerProfile 리포지토리를 AuthController에 주입하여 Level 획득)
-        var existingProfile = await _profileRepo.GetByPlayerIdAsync(ex.ExistingPlayer.Id);
-        var guestProfile = await _profileRepo.GetByPlayerIdAsync(ex.CurrentGuestPlayer.Id);
-
-        // PlayerId 자리에 외부 공개용 PublicId(Guid)를 사용 — 내부 정수 Id 노출 금지
-        return new GoogleConflictDto(
-            ErrorCode: "GOOGLE_ACCOUNT_CONFLICT",
-            ExistingPlayer: new PlayerSummaryDto(
-                ex.ExistingPlayer.PublicId,
-                ex.ExistingPlayer.Nickname,
-                existingProfile?.Level ?? 1,
-                ex.ExistingPlayer.CreatedAt,
-                ex.ExistingPlayer.LastLoginAt
-            ),
-            CurrentGuestPlayer: new PlayerSummaryDto(
-                ex.CurrentGuestPlayer.PublicId,
-                ex.CurrentGuestPlayer.Nickname,
-                guestProfile?.Level ?? 1,
-                ex.CurrentGuestPlayer.CreatedAt,
-                ex.CurrentGuestPlayer.LastLoginAt
-            )
-        );
     }
 
     // 계정 탈퇴 - 플레이어 및 모든 연관 데이터 즉시 삭제
