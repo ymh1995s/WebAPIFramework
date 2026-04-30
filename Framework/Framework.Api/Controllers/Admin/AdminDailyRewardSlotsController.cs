@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Framework.Api.Controllers.Admin;
 
 // 일일 보상 슬롯 Admin API 컨트롤러 (X-Admin-Key 헤더 필요)
-// Current(이번 달) / Next(다음 달) 2슬롯의 Day별 보상 조회·수정
+// Current(이번 달) / Next(다음 달) 2슬롯의 Day별 보상 조회·일괄 수정
 [AdminApiKey]
 [ApiController]
 [Route("api/admin/daily-rewards/slots")]
@@ -33,10 +33,10 @@ public class AdminDailyRewardSlotsController : ControllerBase
         return Ok(result);
     }
 
-    // 특정 슬롯의 특정 Day 보상 수정
-    // slot: "current" 또는 "next", day: 1~28
-    [HttpPut("{slot}/days/{day:int}")]
-    public async Task<IActionResult> UpdateSlotDay(string slot, int day, [FromBody] UpdateSlotDayDto dto)
+    // 슬롯 전체 Day 보상 일괄 수정
+    // slot: "current" 또는 "next", body: 변경된 Day 목록 (부분 실패 시 전체 롤백)
+    [HttpPut("{slot}")]
+    public async Task<IActionResult> UpdateSlot(string slot, [FromBody] UpdateSlotBatchDto dto)
     {
         var normalizedSlot = NormalizeSlot(slot);
         if (normalizedSlot is null)
@@ -44,10 +44,14 @@ public class AdminDailyRewardSlotsController : ControllerBase
 
         try
         {
-            await _slotService.UpdateSlotDayAsync(normalizedSlot, day, dto);
-            return Ok();
+            await _slotService.UpdateSlotAsync(normalizedSlot, dto);
+            return NoContent();
         }
         catch (ArgumentOutOfRangeException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (ArgumentException ex)
         {
             return BadRequest(ex.Message);
         }

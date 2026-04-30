@@ -25,22 +25,37 @@ public class DailyRewardSlotRepository : IDailyRewardSlotRepository
             .ToListAsync();
     }
 
-    // 특정 슬롯의 특정 Day 단건 조회 (복합 PK: Slot + Day)
+    // 특정 슬롯의 특정 Day 단건 조회 (DailyLoginService에서 보상 지급 시 사용)
     public async Task<DailyRewardSlot?> GetSlotDayAsync(string slot, int day)
     {
         return await _context.DailyRewardSlots
             .FirstOrDefaultAsync(s => s.Slot == slot && s.Day == day);
     }
 
-    // 특정 슬롯의 특정 Day 보상 수정 (ExecuteUpdateAsync로 단건 UPDATE)
-    public async Task UpdateSlotDayAsync(string slot, int day, int? itemId, int itemCount)
+    // 슬롯 전체 Day 보상 일괄 수정
+    // items에 포함된 Day의 행만 ItemId, ItemCount, UpdatedAt을 갱신하고 메모리에 반영
+    // SaveChangesAsync는 서비스에서 별도로 호출 (all-or-nothing 트랜잭션 보장)
+    public async Task UpdateSlotBatchAsync(string slot, IEnumerable<(int Day, int? ItemId, int ItemCount)> items)
     {
-        await _context.DailyRewardSlots
-            .Where(s => s.Slot == slot && s.Day == day)
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(s => s.ItemId, itemId)
-                .SetProperty(s => s.ItemCount, itemCount)
-                .SetProperty(s => s.UpdatedAt, DateTime.UtcNow));
+        // 해당 슬롯 전체 행 로드 (변경 추적 대상)
+        var rows = await _context.DailyRewardSlots
+            .Where(s => s.Slot == slot)
+            .ToListAsync();
+
+        // Day → 엔티티 매핑 (빠른 조회)
+        var rowDict = rows.ToDictionary(r => r.Day);
+        var now = DateTime.UtcNow;
+
+        foreach (var (day, itemId, itemCount) in items)
+        {
+            if (!rowDict.TryGetValue(day, out var row))
+                continue; // 존재하지 않는 Day는 건너뜀 (서비스에서 이미 검증)
+
+            // 메모리 상 엔티티 값 갱신 — EF Core 변경 추적이 감지
+            row.ItemId = itemId;
+            row.ItemCount = itemCount;
+            row.UpdatedAt = now;
+        }
     }
 
     // Next 슬롯 전체를 Current 슬롯으로 복사

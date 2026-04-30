@@ -18,6 +18,8 @@
     <Routes @rendermode="new InteractiveServerRenderMode(prerender: false)" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <!-- 페이지 이탈 경고 처리 (DirtyGuardBase에서 사용) -->
+    <script src="js/dirty-guard.js"></script>
 </body>
 
 </html>

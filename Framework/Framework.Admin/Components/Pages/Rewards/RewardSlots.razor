@@ -1,6 +1,7 @@
 @page "/reward-slots"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
-@inherits SafeComponentBase
+@inherits DirtyGuardBase
+@using Framework.Admin.Components.Base
 @using Framework.Admin.Constants
 @using System.Net.Http.Json
 
@@ -40,25 +41,25 @@ else if (errorMessage != null)
 else
 {
     <div class="table-responsive">
-        <table class="table table-bordered table-sm align-middle" style="max-width:600px;">
+        <table class="table table-bordered table-sm align-middle" style="max-width:560px;">
             <thead class="table-light">
                 <tr>
                     <th style="width:60px;">Day</th>
                     <th>아이템</th>
                     <th style="width:90px;">수량</th>
-                    <th style="width:80px;"></th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (var row in slotRows)
                 {
-                    <tr>
+                    <!-- 변경된 행은 table-warning으로 시각적 표시 -->
+                    <tr class="@(row.IsChanged ? "table-warning" : "")">
                         <td class="text-center fw-bold">@row.Day</td>
                         <td>
-                            <!-- 아이템 드롭다운 (없음 선택 시 보상 없음) -->
+                            <!-- 아이템 드롭다운 — 변경 시 dirty 상태 표시 -->
                             <select class="form-select form-select-sm"
                                     value="@(row.EditItemId?.ToString() ?? "")"
-                                    @onchange="e => row.EditItemId = string.IsNullOrEmpty(e.Value?.ToString()) ? null : int.Parse(e.Value.ToString()!)">
+                                    @onchange="e => OnItemChanged(row, e)">
                                 <option value="">보상 없음</option>
                                 @foreach (var item in itemList)
                                 {
@@ -67,15 +68,11 @@ else
                             </select>
                         </td>
                         <td>
+                            <!-- 수량 입력 — 변경 시 dirty 상태 표시 -->
                             <input type="number" class="form-control form-control-sm" min="0"
-                                   @bind="row.EditItemCount" disabled="@(!row.EditItemId.HasValue)" />
-                        </td>
-                        <td class="text-center">
-                            <button class="btn btn-sm btn-primary"
-                                    @onclick="() => SaveDay(row)"
-                                    disabled="@row.Saving">
-                                @(row.Saving ? "저장중..." : "저장")
-                            </button>
+                                   value="@row.EditItemCount"
+                                   disabled="@(!row.EditItemId.HasValue)"
+                                   @onchange="e => OnItemCountChanged(row, e)" />
                         </td>
                     </tr>
                 }
@@ -83,8 +80,17 @@ else
         </table>
     </div>
 
-    @if (saveMessage != null)
-    {
-        <p class="mt-2 @(saveSuccess ? "text-success" : "text-danger")">@saveMessage</p>
-    }
+    <!-- 전체 저장 버튼 — 변경사항이 있을 때만 활성화 -->
+    <div class="mt-2 d-flex align-items-center gap-3">
+        <button class="btn btn-primary"
+                @onclick="SaveAll"
+                disabled="@(saving || !HasChanges)">
+            @(saving ? "저장 중..." : "전체 저장")
+        </button>
+
+        @if (saveMessage != null)
+        {
+            <span class="@(saveSuccess ? "text-success" : "text-danger")">@saveMessage</span>
+        }
+    </div>
 }

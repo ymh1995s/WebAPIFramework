@@ -148,8 +148,8 @@ public static class ApiRoutes
         /// <summary>슬롯 전체 28개 Day 조회 (GET) — slot: "current" 또는 "next"</summary>
         public static string Slot(string slot) => $"{Base}/{slot}";
 
-        /// <summary>특정 슬롯의 특정 Day 보상 수정 (PUT)</summary>
-        public static string SlotDay(string slot, int day) => $"{Base}/{slot}/days/{day}";
+        /// <summary>슬롯 전체 Day 보상 일괄 수정 (PUT) — 부분 실패 시 전체 롤백</summary>
+        public static string SlotBatch(string slot) => $"{Base}/{slot}";
     }
 
     // ── 시스템 설정 Admin (SystemConfigController: Route = "api/admin/systemconfig") ──

@@ -35,17 +35,31 @@ public class DailyRewardSlotService : IDailyRewardSlotService
         )).ToList();
     }
 
-    // 특정 슬롯의 특정 Day 보상 수정
-    public async Task UpdateSlotDayAsync(string slot, int day, UpdateSlotDayDto dto)
+    // 슬롯 전체 Day 보상 일괄 수정 (all-or-nothing 트랜잭션)
+    // [검증] day 범위, 중복 Day, ItemId 없을 때 ItemCount=0 강제
+    public async Task UpdateSlotAsync(string slot, UpdateSlotBatchDto dto)
     {
+        // 변경 항목이 없으면 즉시 반환 (DB 불필요한 접근 방지)
+        if (dto.Days is not { Count: > 0 })
+            return;
+
         // day 범위 검증 (1~28)
-        if (day < 1 || day > 28)
-            throw new ArgumentOutOfRangeException(nameof(day), "Day는 1~28 사이여야 합니다.");
+        var outOfRange = dto.Days.FirstOrDefault(d => d.Day < 1 || d.Day > 28);
+        if (outOfRange is not null)
+            throw new ArgumentOutOfRangeException(nameof(dto), $"Day는 1~28 사이여야 합니다. (입력값: {outOfRange.Day})");
 
-        // ItemId가 없으면 ItemCount도 0으로 강제 설정
-        var itemCount = dto.ItemId.HasValue ? dto.ItemCount : 0;
+        // 중복 Day 검증
+        var hasDuplicate = dto.Days.GroupBy(d => d.Day).Any(g => g.Count() > 1);
+        if (hasDuplicate)
+            throw new ArgumentException("중복된 Day 값이 포함되어 있습니다.", nameof(dto));
 
-        await _slotRepository.UpdateSlotDayAsync(slot, day, dto.ItemId, itemCount);
+        // ItemId가 없는 항목은 ItemCount를 0으로 강제 정규화하여 튜플로 변환
+        var normalizedItems = dto.Days.Select(item =>
+            (item.Day, item.ItemId, ItemCount: item.ItemId.HasValue ? item.ItemCount : 0)
+        ).ToList();
+
+        // 일괄 메모리 갱신 후 단일 SaveChanges (부분 실패 시 전체 롤백)
+        await _slotRepository.UpdateSlotBatchAsync(slot, normalizedItems);
         await _slotRepository.SaveChangesAsync();
     }
 
