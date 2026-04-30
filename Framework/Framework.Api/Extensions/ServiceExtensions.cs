@@ -333,6 +333,12 @@ public static class ServiceExtensions
         // 미설정 시 600 기본값 (Google은 비-200 응답 시 최대 7일간 재시도)
         var iapRtdnPermitLimit = config.GetValue<int>("RateLimiting:IapRtdnPermitLimit", 600);
 
+        // 인게임 API 공통 Rate Limit — 정상 플레이 기준 분당 최대 ~33회 → 3.5배 여유
+        var gamePermitLimit = config.GetValue<int>("RateLimiting:GamePermitLimit", 120);
+
+        // IAP 결제 검증 전용 Rate Limit — 정상 결제는 분당 수회, 봇 결제 시도 차단
+        var iapVerifyPermitLimit = config.GetValue<int>("RateLimiting:IapVerifyPermitLimit", 20);
+
         services.AddRateLimiter(options =>
         {
             // AddFixedWindowLimiter: 이름("auth")을 붙여 등록하는 방식
@@ -364,6 +370,42 @@ public static class ServiceExtensions
                 limiter.Window = TimeSpan.FromMinutes(1);
                 limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
                 limiter.QueueLimit = 0;
+            });
+
+            // 인게임 API 공통 정책 — PlayerId 기준 파티셔닝, 미인증 시 IP fallback
+            options.AddPolicy("game", httpContext =>
+            {
+                var playerId = httpContext.User.GetPlayerId();
+                var key = playerId.HasValue
+                    ? $"player:{playerId.Value}"
+                    : $"ip:{httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+
+                return RateLimitPartition.GetFixedWindowLimiter(key, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = gamePermitLimit,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+                    });
+            });
+
+            // IAP 결제 검증 전용 정책 — 봇 결제 시도 차단, 정상 유저는 분당 20회 이내
+            options.AddPolicy("iap-verify", httpContext =>
+            {
+                var playerId = httpContext.User.GetPlayerId();
+                var key = playerId.HasValue
+                    ? $"player:{playerId.Value}"
+                    : $"ip:{httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+
+                return RateLimitPartition.GetFixedWindowLimiter(key, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = iapVerifyPermitLimit,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+                    });
             });
 
             // HTTP 429 Too Many Requests — Rate Limit 초과 시 서버가 반환하는 상태 코드

@@ -2,11 +2,13 @@ using Framework.Api.Extensions;
 using Framework.Application.Features.Mail;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Framework.Api.Controllers.Player;
 
 // 우편 API 컨트롤러 (유저 전용) - 인증된 사용자만 접근 가능
 [Authorize]
+[EnableRateLimiting("game")]
 [ApiController]
 [Route("api/[controller]")]
 public class MailsController : ControllerBase

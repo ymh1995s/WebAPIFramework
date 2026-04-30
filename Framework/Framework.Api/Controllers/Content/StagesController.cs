@@ -8,6 +8,7 @@ using Framework.Api.Extensions;
 using Framework.Application.Content.Stage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Framework.Api.Controllers.Content;
 
@@ -16,6 +17,7 @@ namespace Framework.Api.Controllers.Content;
 // - GET  /api/stages/progress     : 내 진행 현황
 // - POST /api/stages/{stageId}/complete : 스테이지 클리어 완료
 [Authorize]
+[EnableRateLimiting("game")]
 [ApiController]
 [Route("api/stages")]
 public class StagesController : ControllerBase

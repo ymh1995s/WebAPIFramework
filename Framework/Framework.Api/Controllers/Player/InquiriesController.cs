@@ -2,11 +2,13 @@ using Framework.Api.Extensions;
 using Framework.Application.Features.Inquiry;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Framework.Api.Controllers.Player;
 
 // 플레이어 전용 문의 컨트롤러
 [Authorize]
+[EnableRateLimiting("game")]
 [ApiController]
 [Route("api/inquiries")]
 public class InquiriesController : ControllerBase

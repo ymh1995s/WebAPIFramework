@@ -2,11 +2,13 @@ using Framework.Api.Extensions;
 using Framework.Application.Features.DailyLogin;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Framework.Api.Controllers.Player;
 
 // 일일 로그인 보상 API 컨트롤러 - 인증된 사용자만 접근 가능
 [Authorize]
+[EnableRateLimiting("game")]
 [ApiController]
 [Route("api/[controller]")]
 public class DailyLoginController : ControllerBase

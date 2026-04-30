@@ -3,6 +3,7 @@ using Framework.Api.Filters;
 using Framework.Application.Features.Iap;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Framework.Api.Controllers.Player;
 
@@ -11,6 +12,7 @@ namespace Framework.Api.Controllers.Player;
 // [RequireLinkedAccount]: Google 계정 연동 필수 — 게스트 계정 결제 차단
 [Authorize]
 [RequireLinkedAccount]
+[EnableRateLimiting("iap-verify")]
 [ApiController]
 [Route("api/iap")]
 public class IapPurchaseController : ControllerBase

@@ -2,11 +2,13 @@ using Framework.Api.Extensions;
 using Framework.Application.Features.Shout;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Framework.Api.Controllers.Player;
 
 // 1회 공지 API 컨트롤러 — 인증된 플레이어가 접속 시 활성 1회 공지를 조회
 [Authorize]
+[EnableRateLimiting("game")]
 [ApiController]
 [Route("api/shouts")]
 public class ShoutsController : ControllerBase

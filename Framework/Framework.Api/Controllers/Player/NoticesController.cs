@@ -1,9 +1,11 @@
 using Framework.Application.Features.Notice;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Framework.Api.Controllers.Player;
 
 // 공지 API — 인증 없이 접근 가능 (클라이언트가 로그인 전에도 공지를 볼 수 있어야 함)
+[EnableRateLimiting("game")]
 [ApiController]
 [Route("api/[controller]")]
 public class NoticesController : ControllerBase
