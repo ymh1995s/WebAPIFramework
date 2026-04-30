@@ -4,6 +4,7 @@
 // 의존 방향: Content → Framework (역방향 금지)
 // ============================================================
 
+using Framework.Api.Extensions;
 using Framework.Application.Content.Stage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -40,12 +41,12 @@ public class StagesController : ControllerBase
     [HttpGet("progress")]
     public async Task<IActionResult> GetProgress()
     {
-        // JWT 클레임에서 PlayerId 추출
-        var playerIdClaim = User.FindFirst("playerId")?.Value;
-        if (!int.TryParse(playerIdClaim, out var playerId))
+        // JWT 클레임에서 PlayerId 추출 — 없으면 null 반환
+        var playerId = User.GetPlayerId();
+        if (playerId is null)
             return Unauthorized();
 
-        var progress = await _service.GetProgressAsync(playerId);
+        var progress = await _service.GetProgressAsync(playerId.Value);
         return Ok(progress);
     }
 
@@ -56,14 +57,14 @@ public class StagesController : ControllerBase
     [HttpPost("{stageId:int}/complete")]
     public async Task<IActionResult> Complete(int stageId, [FromBody] StageClearRequestDto request)
     {
-        // JWT 클레임에서 PlayerId 추출
-        var playerIdClaim = User.FindFirst("playerId")?.Value;
-        if (!int.TryParse(playerIdClaim, out var playerId))
+        // JWT 클레임에서 PlayerId 추출 — 없으면 null 반환
+        var playerId = User.GetPlayerId();
+        if (playerId is null)
             return Unauthorized();
 
         try
         {
-            var result = await _service.CompleteAsync(playerId, stageId, request);
+            var result = await _service.CompleteAsync(playerId.Value, stageId, request);
             return Ok(result);
         }
         catch (KeyNotFoundException ex)

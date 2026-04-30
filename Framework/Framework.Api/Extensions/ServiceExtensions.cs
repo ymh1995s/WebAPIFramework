@@ -385,10 +385,7 @@ public static class ServiceExtensions
                 try
                 {
                     // JWT 클레임에서 PlayerId 추출 — 인증된 요청이면 설정, 비인증이면 null
-                    int? playerId = null;
-                    var playerIdClaim = context.HttpContext.User.FindFirst("playerId")?.Value;
-                    if (int.TryParse(playerIdClaim, out var parsedId))
-                        playerId = parsedId;
+                    var playerId = context.HttpContext.User.GetPlayerId();
 
                     // User-Agent 256자 제한 — 봇 탐지 보조
                     var userAgent = context.HttpContext.Request.Headers.UserAgent.ToString();

@@ -1,3 +1,4 @@
+using Framework.Api.Extensions;
 using Framework.Application.Features.Inquiry;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,7 +20,7 @@ public class InquiriesController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Submit([FromBody] SubmitInquiryDto dto)
     {
-        var playerId = int.Parse(User.FindFirst("playerId")!.Value);
+        var playerId = User.GetPlayerIdRequired();
         await _inquiryService.SubmitAsync(playerId, dto);
         return Created(string.Empty, null);
     }
@@ -28,7 +29,7 @@ public class InquiriesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetMy()
     {
-        var playerId = int.Parse(User.FindFirst("playerId")!.Value);
+        var playerId = User.GetPlayerIdRequired();
         var result = await _inquiryService.GetMyInquiriesAsync(playerId);
         return Ok(result);
     }

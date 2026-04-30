@@ -1,3 +1,4 @@
+using Framework.Api.Extensions;
 using Framework.Application.Features.Ranking;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -21,7 +22,7 @@ public class RankingController : ControllerBase
     [HttpGet("me")]
     public async Task<IActionResult> GetMyRanking()
     {
-        var playerId = int.Parse(User.FindFirst("playerId")!.Value);
+        var playerId = User.GetPlayerIdRequired();
         var result = await _rankingService.GetMyRankingAsync(playerId);
         return Ok(result);
     }

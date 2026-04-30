@@ -1,3 +1,4 @@
+using Framework.Api.Extensions;
 using Framework.Application.Features.DailyLogin;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,7 +23,7 @@ public class DailyLoginController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> ProcessLogin()
     {
-        var playerId = int.Parse(User.FindFirst("playerId")!.Value);
+        var playerId = User.GetPlayerIdRequired();
         var rewarded = await _dailyLoginService.ProcessLoginRewardAsync(playerId);
         return Ok(new { Rewarded = rewarded });
     }

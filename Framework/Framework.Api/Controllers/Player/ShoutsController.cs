@@ -1,3 +1,4 @@
+using Framework.Api.Extensions;
 using Framework.Application.Features.Shout;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -23,7 +24,7 @@ public class ShoutsController : ControllerBase
     public async Task<IActionResult> GetActive()
     {
         // JWT playerId 클레임에서 현재 플레이어 식별
-        var playerId = int.Parse(User.FindFirst("playerId")!.Value);
+        var playerId = User.GetPlayerIdRequired();
         var shouts = await _shoutService.GetActiveForPlayerAsync(playerId);
         return Ok(shouts);
     }

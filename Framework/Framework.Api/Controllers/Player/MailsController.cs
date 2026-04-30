@@ -1,3 +1,4 @@
+using Framework.Api.Extensions;
 using Framework.Application.Features.Mail;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -21,7 +22,7 @@ public class MailsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetMyMails()
     {
-        var playerId = int.Parse(User.FindFirst("playerId")!.Value);
+        var playerId = User.GetPlayerIdRequired();
         var result = await _mailService.GetMyMailsAsync(playerId);
         return Ok(result);
     }
@@ -30,7 +31,7 @@ public class MailsController : ControllerBase
     [HttpPost("{id}/claim")]
     public async Task<IActionResult> Claim(int id)
     {
-        var playerId = int.Parse(User.FindFirst("playerId")!.Value);
+        var playerId = User.GetPlayerIdRequired();
         var success = await _mailService.ClaimAsync(id, playerId);
         return success ? Ok() : BadRequest("이미 수령했거나 존재하지 않는 우편입니다.");
     }

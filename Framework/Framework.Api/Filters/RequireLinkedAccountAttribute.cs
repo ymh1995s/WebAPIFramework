@@ -1,3 +1,4 @@
+using Framework.Api.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 
@@ -20,9 +21,9 @@ public class RequireLinkedAccountAttribute : Attribute, IAsyncAuthorizationFilte
     // 인증/인가 단계에서 실행 — 컨트롤러 액션보다 먼저 호출됨
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
-        // JWT 클레임에서 playerId 추출
-        var playerIdClaim = context.HttpContext.User.FindFirst("playerId");
-        if (playerIdClaim is null || !int.TryParse(playerIdClaim.Value, out var playerId))
+        // JWT 클레임에서 playerId 추출 — 헬퍼 사용 (ClaimsPrincipal 확장 메서드)
+        var playerId = context.HttpContext.User.GetPlayerId();
+        if (playerId is null)
         {
             // 인증 자체가 안 된 경우 — [Authorize] 필터가 먼저 잡아야 하지만 방어적으로 처리
             context.Result = new UnauthorizedResult();
@@ -31,7 +32,7 @@ public class RequireLinkedAccountAttribute : Attribute, IAsyncAuthorizationFilte
 
         // DB에서 현재 플레이어의 GoogleId 조회
         var playerRepo = context.HttpContext.RequestServices.GetRequiredService<IPlayerRepository>();
-        var player = await playerRepo.GetByIdAsync(playerId);
+        var player = await playerRepo.GetByIdAsync(playerId.Value);
 
         if (player is null)
         {

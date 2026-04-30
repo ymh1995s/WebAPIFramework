@@ -1,3 +1,4 @@
+using Framework.Api.Extensions;
 using Framework.Api.Filters;
 using Framework.Application.Features.Iap;
 using Microsoft.AspNetCore.Authorization;
@@ -31,9 +32,9 @@ public class IapPurchaseController : ControllerBase
     [HttpPost("google/verify")]
     public async Task<IActionResult> VerifyGooglePurchase([FromBody] IapVerifyRequest request)
     {
-        // JWT 클레임에서 PlayerId 추출
-        var playerIdClaim = User.FindFirst("playerId");
-        if (playerIdClaim is null || !int.TryParse(playerIdClaim.Value, out var playerId))
+        // JWT 클레임에서 PlayerId 추출 — 안전 버전: 클레임 없으면 null 반환
+        var playerId = User.GetPlayerId();
+        if (playerId is null)
             return Unauthorized(new { message = "유효하지 않은 인증 정보입니다." });
 
         // 클라이언트 IP 추출 (어뷰징 탐지용)
@@ -41,7 +42,7 @@ public class IapPurchaseController : ControllerBase
 
         try
         {
-            var result = await _purchaseService.VerifyAndGrantAsync(playerId, request, clientIp);
+            var result = await _purchaseService.VerifyAndGrantAsync(playerId.Value, request, clientIp);
             return Ok(new
             {
                 ok = result.Ok,

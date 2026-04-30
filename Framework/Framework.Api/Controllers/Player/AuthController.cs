@@ -1,3 +1,4 @@
+using Framework.Api.Extensions;
 using Framework.Application.Features.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -71,10 +72,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequestDto request)
     {
         // JWT 클레임에서 playerId 추출 시도 — 토큰이 없거나 클레임이 없으면 null
-        int? currentPlayerId = null;
-        var playerIdClaim = User.FindFirst("playerId");
-        if (playerIdClaim is not null && int.TryParse(playerIdClaim.Value, out var pid))
-            currentPlayerId = pid;
+        var currentPlayerId = User.GetPlayerId();
 
         try
         {
@@ -98,7 +96,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> LinkGoogle([FromBody] LinkGoogleRequestDto request)
     {
         // JWT에서 현재 로그인한 플레이어 ID 추출
-        var playerId = int.Parse(User.FindFirst("playerId")!.Value);
+        var playerId = User.GetPlayerIdRequired();
 
         try
         {
@@ -126,7 +124,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> ResolveGoogleConflict([FromBody] ResolveGoogleConflictRequestDto request)
     {
         // JWT에서 현재 로그인한 게스트 플레이어 ID 추출
-        var guestPlayerId = int.Parse(User.FindFirst("playerId")!.Value);
+        var guestPlayerId = User.GetPlayerIdRequired();
 
         try
         {
@@ -149,7 +147,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Withdraw()
     {
         // JWT에서 현재 로그인한 플레이어 ID 추출
-        var playerId = int.Parse(User.FindFirst("playerId")!.Value);
+        var playerId = User.GetPlayerIdRequired();
         await _authService.WithdrawAsync(playerId);
         return NoContent();
     }

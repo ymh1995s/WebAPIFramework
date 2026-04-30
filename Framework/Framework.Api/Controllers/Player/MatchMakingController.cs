@@ -1,3 +1,4 @@
+using Framework.Api.Extensions;
 using Framework.Application.Features.Matchmaking;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,7 +23,7 @@ public class MatchMakingController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Join([FromBody] JoinMatchRequestDto request)
     {
-        var playerId = int.Parse(User.FindFirst("playerId")!.Value);
+        var playerId = User.GetPlayerIdRequired();
         var safeRequest = request with { UserId = playerId.ToString() };
 
         var result = await _matchMakingService.JoinAsync(safeRequest);
@@ -35,7 +36,7 @@ public class MatchMakingController : ControllerBase
     [HttpDelete]
     public async Task<IActionResult> Cancel()
     {
-        var playerId = int.Parse(User.FindFirst("playerId")!.Value);
+        var playerId = User.GetPlayerIdRequired();
         var result = await _matchMakingService.CancelAsync(playerId.ToString());
 
         if (result is null)
