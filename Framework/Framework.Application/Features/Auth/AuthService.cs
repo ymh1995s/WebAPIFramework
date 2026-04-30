@@ -11,19 +11,23 @@ public class AuthService : IAuthService
     private readonly IRefreshTokenRepository _refreshTokenRepo;
     private readonly IJwtTokenProvider _jwtProvider;
     private readonly IGoogleTokenVerifier _googleVerifier;
+    // 신규 계정 생성 시 Player + Profile을 단일 트랜잭션으로 묶기 위한 UoW
+    private readonly IUnitOfWork _unitOfWork;
 
     public AuthService(
         IPlayerRepository playerRepo,
         IPlayerProfileRepository profileRepo,
         IRefreshTokenRepository refreshTokenRepo,
         IJwtTokenProvider jwtProvider,
-        IGoogleTokenVerifier googleVerifier)
+        IGoogleTokenVerifier googleVerifier,
+        IUnitOfWork unitOfWork)
     {
         _playerRepo = playerRepo;
         _profileRepo = profileRepo;
         _refreshTokenRepo = refreshTokenRepo;
         _jwtProvider = jwtProvider;
         _googleVerifier = googleVerifier;
+        _unitOfWork = unitOfWork;
     }
 
     // 게스트 로그인 처리
@@ -40,16 +44,19 @@ public class AuthService : IAuthService
 
         if (isNew)
         {
-            // 신규 플레이어 및 인게임 프로필 생성
-            player = new Player
+            // 신규 플레이어 + 프로필을 단일 트랜잭션으로 생성 — 중간 실패 시 Player만 남는 불완전 상태 방지
+            await _unitOfWork.ExecuteInTransactionAsync(async () =>
             {
-                DeviceId = deviceId,
-                Nickname = $"Guest_{deviceId[..Math.Min(8, deviceId.Length)]}"
-            };
-            await _playerRepo.AddAsync(player);
-
-            // 인게임 프로필 초기화 (레벨 1, 재화 0)
-            await _profileRepo.AddAsync(new PlayerProfile { PlayerId = player.Id });
+                player = new Player
+                {
+                    DeviceId = deviceId,
+                    Nickname = $"Guest_{deviceId[..Math.Min(8, deviceId.Length)]}"
+                };
+                // Player 저장 — 트랜잭션 내 SaveChanges로 Id 확정, 아직 미커밋 상태
+                await _playerRepo.AddAsync(player);
+                // 확정된 Id로 프로필 초기화 (레벨 1, 재화 0) — 동일 트랜잭션 내 원자성 보장
+                await _profileRepo.AddAsync(new PlayerProfile { PlayerId = player!.Id });
+            });
         }
         else
         {
@@ -99,14 +106,21 @@ public class AuthService : IAuthService
         // [분기 A] GoogleId를 가진 계정이 없음 → 신규 생성
         if (existing is null)
         {
-            var newPlayer = new Player
+            // 신규 플레이어 + 프로필을 단일 트랜잭션으로 생성 — GuestLoginAsync와 동일 원자성 보장
+            Player newPlayer = null!;
+            await _unitOfWork.ExecuteInTransactionAsync(async () =>
             {
-                DeviceId = Guid.NewGuid().ToString(),
-                GoogleId = googleId,
-                Nickname = $"Player_{googleId[..Math.Min(8, googleId.Length)]}"
-            };
-            await _playerRepo.AddAsync(newPlayer);
-            await _profileRepo.AddAsync(new PlayerProfile { PlayerId = newPlayer.Id });
+                newPlayer = new Player
+                {
+                    DeviceId = Guid.NewGuid().ToString(),
+                    GoogleId = googleId,
+                    Nickname = $"Player_{googleId[..Math.Min(8, googleId.Length)]}"
+                };
+                // Player 저장 — 트랜잭션 내 Id 확정
+                await _playerRepo.AddAsync(newPlayer);
+                // 확정된 Id로 프로필 생성 — 동일 트랜잭션 내 원자성 보장
+                await _profileRepo.AddAsync(new PlayerProfile { PlayerId = newPlayer.Id });
+            });
             return await IssueTokensAsync(newPlayer, true);
         }
 
