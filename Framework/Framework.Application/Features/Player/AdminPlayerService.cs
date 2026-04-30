@@ -30,29 +30,20 @@ public class AdminPlayerService : IAdminPlayerService
         p.MergedIntoPlayerId
     );
 
-    // 전체 플레이어 목록 조회 (소프트 딜리트 포함, 생성일 내림차순 정렬 후 페이지네이션)
+    // 전체 플레이어 목록 조회 (소프트 딜리트 포함) — DB 레벨 페이지네이션으로 메모리 적재 최소화
     public async Task<AdminPlayerListDto> GetAllAsync(int page, int pageSize)
     {
-        var all = await _playerRepository.GetAllIncludingDeletedAsync();
-        var total = all.Count;
-        var items = all
-            .OrderByDescending(p => p.CreatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(ToDto)
-            .ToList();
-
+        var (players, total) = await _playerRepository.GetPagedIncludingDeletedAsync(page, pageSize);
+        var items = players.Select(ToDto).ToList();
         return new AdminPlayerListDto(items, total, page, pageSize);
     }
 
-    // 키워드 부분 일치 검색 — DeviceId 또는 닉네임 대상, 소프트 딜리트 포함
-    public async Task<List<AdminPlayerDto>> SearchAsync(string keyword)
+    // 키워드 부분 일치 검색 — DB 레벨 페이지네이션, DeviceId·닉네임 대상, 소프트 딜리트 포함
+    public async Task<AdminPlayerListDto> SearchAsync(string keyword, int page, int pageSize)
     {
-        var players = await _playerRepository.SearchByKeywordIncludingDeletedAsync(keyword);
-        return players
-            .OrderByDescending(p => p.CreatedAt)
-            .Select(ToDto)
-            .ToList();
+        var (players, total) = await _playerRepository.SearchByKeywordPagedIncludingDeletedAsync(keyword, page, pageSize);
+        var items = players.Select(ToDto).ToList();
+        return new AdminPlayerListDto(items, total, page, pageSize);
     }
 
     // ID로 단건 조회 — 소프트 딜리트된 계정은 포함하지 않음

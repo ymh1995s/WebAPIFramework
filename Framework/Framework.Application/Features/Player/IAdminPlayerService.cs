@@ -6,8 +6,8 @@ public interface IAdminPlayerService
     // 전체 플레이어 목록 조회 (소프트 딜리트 포함, 페이지네이션)
     Task<AdminPlayerListDto> GetAllAsync(int page, int pageSize);
 
-    // 키워드로 플레이어 검색 (소프트 딜리트 포함)
-    Task<List<AdminPlayerDto>> SearchAsync(string keyword);
+    // 키워드로 플레이어 검색 (소프트 딜리트 포함, 페이지네이션)
+    Task<AdminPlayerListDto> SearchAsync(string keyword, int page, int pageSize);
 
     // ID로 플레이어 단건 조회 (소프트 딜리트 미포함)
     Task<AdminPlayerDto?> GetByIdAsync(int id);

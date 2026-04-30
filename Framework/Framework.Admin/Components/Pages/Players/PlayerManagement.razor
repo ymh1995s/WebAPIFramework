@@ -140,9 +140,10 @@
     </div>
     @if (isSearchMode)
     {
-        @if (searchResults != null && searchResults.Any())
+        @if (searchPagedResult != null && searchPagedResult.Items.Any())
         {
-            <p class="text-muted small">검색 결과 @searchResults.Count 건</p>
+            <!-- 검색 결과 건수 및 페이지 정보 표시 -->
+            <p class="text-muted small">검색 결과 총 @searchPagedResult.TotalCount 건 (@searchCurrentPage / @searchPagedResult.TotalPages 페이지)</p>
             <table class="table table-bordered">
                 <thead>
                     <tr>
@@ -160,7 +161,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var p in searchResults)
+                    @foreach (var p in searchPagedResult.Items)
                     {
                         <tr class="@(p.IsDeleted ? "text-muted text-decoration-line-through" : "")">
                             <td>@p.Id</td>
@@ -208,8 +209,14 @@
                     }
                 </tbody>
             </table>
+            <!-- 검색 결과 페이지네이션 -->
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-outline-secondary btn-sm" @onclick="SearchPrevPage" disabled="@(searchCurrentPage <= 1)">이전</button>
+                <span>@searchCurrentPage / @searchPagedResult.TotalPages 페이지</span>
+                <button class="btn btn-outline-secondary btn-sm" @onclick="SearchNextPage" disabled="@(searchCurrentPage >= searchPagedResult.TotalPages)">다음</button>
+            </div>
         }
-        else if (searchResults != null)
+        else if (searchPagedResult != null)
         {
             <p class="text-muted">검색 결과가 없습니다.</p>
         }

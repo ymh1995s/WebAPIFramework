@@ -23,8 +23,9 @@ public partial class PlayerManagement : SafeComponentBase
 
     // ─── DeviceId/닉네임 검색 ───────────────────────
     private string searchKeyword = "";
-    private List<PlayerDto>? searchResults;
+    private PlayerPagedResult? searchPagedResult;  // 검색 결과 페이지네이션 (DB 레벨)
     private string? searchError;
+    private int searchCurrentPage = 1;  // 검색 결과 현재 페이지
     /// <summary>검색 모드 여부 (true이면 검색 결과 패널 표시)</summary>
     private bool isSearchMode = false;
 
@@ -72,10 +73,10 @@ public partial class PlayerManagement : SafeComponentBase
         if (e.Key == "Enter") await SearchByKeyword();
     }
 
-    /// <summary>DeviceId 또는 닉네임 부분 일치 검색</summary>
+    /// <summary>DeviceId 또는 닉네임 부분 일치 검색 (DB 페이지네이션)</summary>
     private async Task SearchByKeyword()
     {
-        searchResults = null;
+        searchPagedResult = null;
         searchError = null;
         isSearchMode = true;
 
@@ -86,11 +87,30 @@ public partial class PlayerManagement : SafeComponentBase
             return;
         }
 
+        // 새 검색어 입력 시 첫 페이지부터 시작
+        searchCurrentPage = 1;
+        await LoadSearch();
+    }
+
+    /// <summary>검색 결과 페이지 이동</summary>
+    private async Task SearchPrevPage()
+    {
+        if (searchCurrentPage > 1) { searchCurrentPage--; await LoadSearch(); }
+    }
+
+    private async Task SearchNextPage()
+    {
+        if (searchPagedResult != null && searchCurrentPage < searchPagedResult.TotalPages) { searchCurrentPage++; await LoadSearch(); }
+    }
+
+    /// <summary>검색 API 호출 — searchCurrentPage 기준으로 DB 페이지네이션 요청</summary>
+    private async Task LoadSearch()
+    {
         var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(ApiRoutes.AdminPlayers.Search(searchKeyword));
+        var response = await client.GetAsync(ApiRoutes.AdminPlayers.Search(searchKeyword, searchCurrentPage, pageSize));
 
         if (response.IsSuccessStatusCode)
-            searchResults = await response.Content.ReadFromJsonAsync<List<PlayerDto>>();
+            searchPagedResult = await response.Content.ReadFromJsonAsync<PlayerPagedResult>();
         else
             searchError = "검색 중 오류가 발생했습니다.";
     }
@@ -106,7 +126,7 @@ public partial class PlayerManagement : SafeComponentBase
             // 목록 및 검색 결과 갱신
             await LoadPaged();
             if (isSearchMode && !string.IsNullOrWhiteSpace(searchKeyword))
-                await SearchByKeyword();
+                await LoadSearch();
         }
     }
 
@@ -119,7 +139,7 @@ public partial class PlayerManagement : SafeComponentBase
         {
             await LoadPaged();
             if (isSearchMode && !string.IsNullOrWhiteSpace(searchKeyword))
-                await SearchByKeyword();
+                await LoadSearch();
         }
     }
 
@@ -155,7 +175,7 @@ public partial class PlayerManagement : SafeComponentBase
             // 삭제 성공 시 전체 목록 및 검색 결과 갱신
             await LoadPaged();
             if (isSearchMode && !string.IsNullOrWhiteSpace(searchKeyword))
-                await SearchByKeyword();
+                await LoadSearch();
         }
     }
 
@@ -163,7 +183,8 @@ public partial class PlayerManagement : SafeComponentBase
     private void ClearSearch()
     {
         searchKeyword = "";
-        searchResults = null;
+        searchPagedResult = null;
+        searchCurrentPage = 1;
         searchError = null;
         isSearchMode = false;
     }

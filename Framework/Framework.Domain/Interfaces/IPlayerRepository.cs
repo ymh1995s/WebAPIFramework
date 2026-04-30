@@ -21,9 +21,6 @@ public interface IPlayerRepository
     // 플레이어 수정 (LastLoginAt 갱신 등)
     Task UpdateAsync(Player player);
 
-    // DeviceId 또는 닉네임 부분 일치 검색 (Admin 전용)
-    Task<List<Player>> SearchByKeywordAsync(string keyword);
-
     // 플레이어 밴 처리 (bannedUntil: null이면 영구 밴, 값이 있으면 기간 밴)
     Task BanAsync(int playerId, DateTime? bannedUntil);
 
@@ -36,11 +33,11 @@ public interface IPlayerRepository
     // 플레이어 소프트 딜리트 — 계정 병합 시 게스트 계정을 논리 삭제하고 병합 대상 ID 기록
     Task SoftDeleteAsync(Player player, int mergedIntoPlayerId);
 
-    // 소프트 딜리트된 계정을 포함한 전체 플레이어 목록 조회 (Admin 전용)
-    Task<List<Player>> GetAllIncludingDeletedAsync();
+    // 소프트 딜리트 포함 전체 플레이어 목록 DB 페이지네이션 조회 (Admin 전용)
+    Task<(List<Player> Items, int TotalCount)> GetPagedIncludingDeletedAsync(int page, int pageSize);
 
-    // 소프트 딜리트된 계정을 포함하여 키워드로 검색 (Admin 전용)
-    Task<List<Player>> SearchByKeywordIncludingDeletedAsync(string keyword);
+    // 소프트 딜리트 포함 키워드 검색 DB 페이지네이션 조회 (Admin 전용)
+    Task<(List<Player> Items, int TotalCount)> SearchByKeywordPagedIncludingDeletedAsync(string keyword, int page, int pageSize);
 
     // 소프트 딜리트된 계정을 포함하여 ID로 조회 (Admin 전용)
     Task<Player?> GetByIdIncludingDeletedAsync(int id);

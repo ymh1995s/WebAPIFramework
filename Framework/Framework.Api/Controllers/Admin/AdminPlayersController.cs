@@ -18,23 +18,27 @@ public class AdminPlayersController : ControllerBase
         _adminPlayerService = adminPlayerService;
     }
 
-    // 전체 플레이어 목록 조회 (페이지네이션)
+    // 전체 플레이어 목록 조회 (페이지네이션) — pageSize 최대 100 클램프
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 100);
         var result = await _adminPlayerService.GetAllAsync(page, pageSize);
         return Ok(result);
     }
 
-    // DeviceId 또는 닉네임 부분 일치 검색 (Admin 전용)
+    // DeviceId 또는 닉네임 부분 일치 검색 (Admin 전용) — pageSize 최대 100 클램프
     [HttpGet("search")]
-    public async Task<IActionResult> Search([FromQuery] string keyword)
+    public async Task<IActionResult> Search([FromQuery] string keyword, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
         if (string.IsNullOrWhiteSpace(keyword))
             return BadRequest("검색어를 입력하세요.");
 
-        var items = await _adminPlayerService.SearchAsync(keyword);
-        return Ok(items);
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var result = await _adminPlayerService.SearchAsync(keyword, page, pageSize);
+        return Ok(result);
     }
 
     // ID로 플레이어 단건 조회

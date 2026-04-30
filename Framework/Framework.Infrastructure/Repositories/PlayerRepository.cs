@@ -44,17 +44,6 @@ public class PlayerRepository : IPlayerRepository
         return Task.CompletedTask;
     }
 
-    // DeviceId 또는 닉네임 부분 일치 검색 — Admin 플레이어 검색 기능에서 사용
-    public async Task<List<Player>> SearchByKeywordAsync(string keyword)
-    {
-        var lower = keyword.ToLower();
-        return await _db.Players
-            .Where(p =>
-                p.DeviceId.ToLower().Contains(lower) ||
-                p.Nickname.ToLower().Contains(lower))
-            .ToListAsync();
-    }
-
     // 플레이어 밴 처리 — IsBanned=true, BannedUntil 설정. SaveChanges는 호출자가 담당
     public async Task BanAsync(int playerId, DateTime? bannedUntil)
     {
@@ -103,21 +92,34 @@ public class PlayerRepository : IPlayerRepository
         return Task.CompletedTask;
     }
 
-    // 소프트 딜리트된 계정을 포함한 전체 플레이어 목록 조회 (Admin 전용)
-    // IgnoreQueryFilters: Global Query Filter(IsDeleted = false)를 우회
-    public async Task<List<Player>> GetAllIncludingDeletedAsync()
-        => await _db.Players.IgnoreQueryFilters().ToListAsync();
+    // 소프트 딜리트 포함 전체 플레이어 DB 레벨 페이지네이션 조회 (Admin 전용)
+    // IgnoreQueryFilters: Global Query Filter(IsDeleted = false) 우회 — 생성일 내림차순 정렬 후 Skip/Take
+    public async Task<(List<Player> Items, int TotalCount)> GetPagedIncludingDeletedAsync(int page, int pageSize)
+    {
+        var query = _db.Players.IgnoreQueryFilters().AsNoTracking();
+        var total = await query.CountAsync();
+        var items = await query
+            .OrderByDescending(p => p.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+        return (items, total);
+    }
 
-    // 소프트 딜리트된 계정을 포함하여 키워드로 검색 (Admin 전용)
-    public async Task<List<Player>> SearchByKeywordIncludingDeletedAsync(string keyword)
+    // 소프트 딜리트 포함 키워드 검색 DB 레벨 페이지네이션 조회 (Admin 전용)
+    // Nickname 또는 DeviceId 대소문자 무시 부분 일치 — DB에서 필터링/정렬/페이지 처리
+    public async Task<(List<Player> Items, int TotalCount)> SearchByKeywordPagedIncludingDeletedAsync(string keyword, int page, int pageSize)
     {
         var lower = keyword.ToLower();
-        return await _db.Players
-            .IgnoreQueryFilters()
-            .Where(p =>
-                p.DeviceId.ToLower().Contains(lower) ||
-                p.Nickname.ToLower().Contains(lower))
+        var query = _db.Players.IgnoreQueryFilters().AsNoTracking()
+            .Where(p => p.Nickname.ToLower().Contains(lower) || p.DeviceId.ToLower().Contains(lower));
+        var total = await query.CountAsync();
+        var items = await query
+            .OrderByDescending(p => p.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
+        return (items, total);
     }
 
     // 소프트 딜리트된 계정을 포함하여 ID로 조회 (Admin 전용)

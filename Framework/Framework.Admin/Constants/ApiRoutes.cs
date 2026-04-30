@@ -36,8 +36,8 @@ public static class ApiRoutes
         /// <summary>ID로 플레이어 단건 조회</summary>
         public static string ById(int id) => $"{Base}/{id}";
 
-        /// <summary>DeviceId 또는 닉네임 부분 일치 검색</summary>
-        public static string Search(string keyword) => $"{Base}/search?keyword={Uri.EscapeDataString(keyword)}";
+        /// <summary>DeviceId 또는 닉네임 부분 일치 검색 (페이지네이션 포함)</summary>
+        public static string Search(string keyword, int page, int pageSize) => $"{Base}/search?keyword={Uri.EscapeDataString(keyword)}&page={page}&pageSize={pageSize}";
 
         /// <summary>플레이어 밴 처리 (POST) — body: { bannedUntil: DateTime? }, null이면 영구 밴</summary>
         public static string Ban(int id) => $"{Base}/{id}/ban";
