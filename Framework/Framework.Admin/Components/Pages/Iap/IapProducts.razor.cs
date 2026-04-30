@@ -1,5 +1,8 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
+using Framework.Domain.Enums;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 
@@ -11,12 +14,12 @@ namespace Framework.Admin.Components.Pages.Iap;
 /// </summary>
 public partial class IapProducts : SafeComponentBase
 {
-    // 의존성 주입
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase enum JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     // ─── 필터 상태 ──────────────────────────────────
-    private string filterStore = "";
-    private string filterProductType = "";
+    private IapStore? filterStore;           // null = 전체
+    private IapProductType? filterProductType; // null = 전체
     private string filterIsEnabled = "";
 
     // ─── 페이지네이션 ───────────────────────────────
@@ -31,9 +34,9 @@ public partial class IapProducts : SafeComponentBase
 
     // ─── 생성 모달 상태 ─────────────────────────────
     private bool showCreateModal;
-    private string newStore = "";
+    private IapStore? newStore;                              // null = 미선택
     private string newProductId = "";
-    private int newProductType = 1; // 기본값: Consumable
+    private IapProductType newProductType = IapProductType.Consumable; // 기본값: Consumable
     private int? newRewardTableId;
     private string newDescription = "";
     private bool newIsEnabled = true;
@@ -42,7 +45,7 @@ public partial class IapProducts : SafeComponentBase
     // ─── 편집 모달 상태 ─────────────────────────────
     private bool showEditModal;
     private IapProductItem? editingProduct;
-    private int editProductType;
+    private IapProductType editProductType;  // enum 타입으로 직접 바인딩
     private int? editRewardTableId;
     private string editDescription = "";
     private bool editIsEnabled;
@@ -53,18 +56,18 @@ public partial class IapProducts : SafeComponentBase
     private int deletingId;
     private string deletingInfo = "";
 
-    // 스토어 드롭다운 옵션 — IapStore enum과 일치해야 함
-    private static readonly List<(string Label, int Value)> StoreOptions = new()
+    // 스토어 드롭다운 옵션 — Domain IapStore enum 기반 (타입 안전)
+    private static readonly List<(string Label, IapStore Value)> StoreOptions = new()
     {
-        ("Google Play", 1),
-        ("Apple App Store", 2),
+        ("Google Play",       IapStore.Google),
+        ("Apple App Store",   IapStore.Apple),
     };
 
-    // 상품 유형 드롭다운 옵션 — IapProductType enum과 일치해야 함
-    private static readonly List<(string Label, int Value)> ProductTypeOptions = new()
+    // 상품 유형 드롭다운 옵션 — Domain IapProductType enum 기반
+    private static readonly List<(string Label, IapProductType Value)> ProductTypeOptions = new()
     {
-        ("Consumable (소모성)", 1),
-        ("NonConsumable (비소모성)", 2),
+        ("Consumable (소모성)",    IapProductType.Consumable),
+        ("NonConsumable (비소모성)", IapProductType.NonConsumable),
     };
 
     /// <summary>조회 실행 — 페이지 1로 리셋</summary>
@@ -77,8 +80,8 @@ public partial class IapProducts : SafeComponentBase
     /// <summary>필터 초기화</summary>
     private void Reset()
     {
-        filterStore = "";
-        filterProductType = "";
+        filterStore = null;
+        filterProductType = null;
         filterIsEnabled = "";
         page = 1;
         result = null;
@@ -98,24 +101,22 @@ public partial class IapProducts : SafeComponentBase
         await Load();
     }
 
-    /// <summary>인앱결제 상품 목록 API 호출</summary>
+    /// <summary>인앱결제 상품 목록 API 호출 — enum 타입 필터를 ApiRoutes에 직접 전달</summary>
     private async Task Load()
     {
         isLoading = true;
         errorMessage = null;
         successMessage = null;
 
-        // 필터 값 파싱 — 빈 문자열은 null로 처리
-        int? storeInt       = int.TryParse(filterStore, out var s)       ? s : (int?)null;
-        int? typeInt        = int.TryParse(filterProductType, out var t) ? t : (int?)null;
-        bool? enabledBool   = bool.TryParse(filterIsEnabled, out var e)  ? e : (bool?)null;
+        // bool? 파싱 — 빈 문자열은 null(전체 조회)로 처리
+        bool? enabledBool = bool.TryParse(filterIsEnabled, out var e) ? e : (bool?)null;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var url = ApiRoutes.AdminIapProducts.Search(storeInt, typeInt, enabledBool, page, pageSize);
-        var response = await client.GetAsync(url);
+        var url = ApiRoutes.AdminIapProducts.Search(filterStore, filterProductType, enabledBool, page, pageSize);
+        // GetRawAsync로 응답 코드 확인 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(url);
 
         if (response.IsSuccessStatusCode)
-            result = await response.Content.ReadFromJsonAsync<PagedResult<IapProductItem>>();
+            result = await response.Content.ReadFromJsonAsync<PagedResult<IapProductItem>>(AdminJsonOptions.Default);
         else
             errorMessage = $"조회 실패: {response.StatusCode}";
 
@@ -125,9 +126,9 @@ public partial class IapProducts : SafeComponentBase
     /// <summary>생성 모달 열기</summary>
     private void OpenCreateModal()
     {
-        newStore = "";
+        newStore = null;
         newProductId = "";
-        newProductType = 1;
+        newProductType = IapProductType.Consumable;
         newRewardTableId = null;
         newDescription = "";
         newIsEnabled = true;
@@ -143,8 +144,8 @@ public partial class IapProducts : SafeComponentBase
     {
         createError = null;
 
-        // 필수 필드 검증
-        if (string.IsNullOrWhiteSpace(newStore))
+        // 필수 필드 검증 — newStore가 null이면 미선택 상태
+        if (newStore is null)
         {
             createError = "스토어를 선택해주세요.";
             return;
@@ -154,23 +155,18 @@ public partial class IapProducts : SafeComponentBase
             createError = "ProductId(SKU)를 입력해주세요.";
             return;
         }
-        if (!int.TryParse(newStore, out var storeValue))
-        {
-            createError = "스토어 값이 유효하지 않습니다.";
-            return;
-        }
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
+        // AdminJsonOptions.Default의 JsonStringEnumConverter(CamelCase)가 enum → camelCase JSON 직렬화 처리
         var payload = new
         {
-            Store = storeValue,
+            Store = newStore.Value,
             ProductId = newProductId.Trim(),
             ProductType = newProductType,
             RewardTableId = newRewardTableId,
             Description = newDescription,
             IsEnabled = newIsEnabled
         };
-        var response = await client.PostAsJsonAsync(ApiRoutes.AdminIapProducts.Collection, payload);
+        var response = await ApiClient.PostAsync(ApiRoutes.AdminIapProducts.Collection, payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -192,7 +188,7 @@ public partial class IapProducts : SafeComponentBase
     private void OpenEditModal(IapProductItem product)
     {
         editingProduct = product;
-        editProductType = product.ProductType;
+        editProductType = product.ProductType; // IapProductType enum 직접 할당
         editRewardTableId = product.RewardTableId;
         editDescription = product.Description;
         editIsEnabled = product.IsEnabled;
@@ -209,7 +205,7 @@ public partial class IapProducts : SafeComponentBase
         if (editingProduct is null) return;
         editError = null;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
+        // AdminJsonOptions.Default가 enum → camelCase JSON 직렬화 처리
         var payload = new
         {
             ProductType = editProductType,
@@ -217,7 +213,7 @@ public partial class IapProducts : SafeComponentBase
             Description = editDescription,
             IsEnabled = editIsEnabled
         };
-        var response = await client.PutAsJsonAsync(ApiRoutes.AdminIapProducts.ById(editingProduct.Id), payload);
+        var response = await ApiClient.PutAsync(ApiRoutes.AdminIapProducts.ById(editingProduct.Id), payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -235,7 +231,7 @@ public partial class IapProducts : SafeComponentBase
     private void OpenDeleteModal(IapProductItem p)
     {
         deletingId = p.Id;
-        deletingInfo = $"[{p.Store}] {p.ProductId}";
+        deletingInfo = $"[{p.StoreLabel}] {p.ProductId}";
         showDeleteModal = true;
     }
 
@@ -245,8 +241,7 @@ public partial class IapProducts : SafeComponentBase
     /// <summary>소프트 삭제 확정 — DELETE /{id}</summary>
     private async Task ConfirmDelete()
     {
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.DeleteAsync(ApiRoutes.AdminIapProducts.ById(deletingId));
+        var response = await ApiClient.DeleteAsync(ApiRoutes.AdminIapProducts.ById(deletingId));
 
         showDeleteModal = false;
 
@@ -266,13 +261,12 @@ public partial class IapProducts : SafeComponentBase
 
     // ─── 내부 모델 ──────────────────────────────────
 
-    // 목록 응답 DTO — API 응답 역직렬화용 (IapProductDto 구조 반영)
-    // API가 enum을 int로 반환하므로 Store/ProductType은 int로 받아 표시 시 변환
+    // 목록 응답 DTO — AdminJsonOptions.Default가 "google" → IapStore.Google 역직렬화
     private record IapProductItem(
         int Id,
-        int Store,              // IapStore enum int값 (1=Google, 2=Apple)
+        IapStore Store,          // Domain enum 타입으로 역직렬화
         string ProductId,
-        int ProductType,        // IapProductType enum int값 (1=Consumable, 2=NonConsumable)
+        IapProductType ProductType, // Domain enum 타입으로 역직렬화
         int? RewardTableId,
         string Description,
         bool IsEnabled,
@@ -280,10 +274,21 @@ public partial class IapProducts : SafeComponentBase
         DateTime UpdatedAt
     )
     {
-        // 표시용 스토어 이름 변환
-        public string StoreLabel => Store switch { 1 => "Google", 2 => "Apple", _ => Store.ToString() };
-        // 표시용 상품 유형 이름 변환
-        public string ProductTypeLabel => ProductType switch { 1 => "Consumable", 2 => "NonConsumable", _ => ProductType.ToString() };
+        // 표시용 스토어 이름 변환 — enum switch로 타입 안전하게 처리
+        public string StoreLabel => Store switch
+        {
+            IapStore.Google => "Google",
+            IapStore.Apple  => "Apple",
+            _               => Store.ToString()
+        };
+
+        // 표시용 상품 유형 이름 변환 — enum switch로 타입 안전하게 처리
+        public string ProductTypeLabel => ProductType switch
+        {
+            IapProductType.Consumable    => "Consumable",
+            IapProductType.NonConsumable => "NonConsumable",
+            _                            => ProductType.ToString()
+        };
     };
 
     // 페이지네이션 래퍼

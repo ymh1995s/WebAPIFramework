@@ -1,3 +1,5 @@
+using Framework.Domain.Enums;
+
 namespace Framework.Admin.Constants;
 
 /// <summary>
@@ -343,10 +345,14 @@ public static class ApiRoutes
         /// <summary>단건 수정 (PUT) / 소프트 삭제 (DELETE)</summary>
         public static string ById(int id) => $"{Base}/{id}";
 
-        /// <summary>필터 + 페이지네이션 검색</summary>
-        public static string Search(int? store, int? productType, bool? isEnabled, int page, int pageSize)
+        /// <summary>
+        /// 필터 + 페이지네이션 검색.
+        /// store/productType은 Domain enum 타입으로 전달 — ASP.NET Core model binding이 enum name으로 파싱.
+        /// </summary>
+        public static string Search(IapStore? store, IapProductType? productType, bool? isEnabled, int page, int pageSize)
         {
             var parts = new List<string>();
+            // enum.ToString()은 "Google", "Apple" 등 enum name 반환 — 서버 model binding이 케이스 무관 파싱
             if (store.HasValue)       parts.Add($"store={store.Value}");
             if (productType.HasValue) parts.Add($"productType={productType.Value}");
             if (isEnabled.HasValue)   parts.Add($"isEnabled={isEnabled.Value.ToString().ToLower()}");
@@ -361,17 +367,21 @@ public static class ApiRoutes
     {
         private const string Base = "api/admin/iap/purchases";
 
-        /// <summary>필터 + 페이지네이션 검색</summary>
-        public static string Search(int? playerId, int? store, string? productId, int? status,
+        /// <summary>
+        /// 필터 + 페이지네이션 검색.
+        /// store/status는 Domain enum 타입으로 전달 — ASP.NET Core model binding이 enum name으로 파싱.
+        /// </summary>
+        public static string Search(int? playerId, IapStore? store, string? productId, IapPurchaseStatus? status,
             DateTime? from, DateTime? to, int page, int pageSize)
         {
             var parts = new List<string>();
-            if (playerId.HasValue)             parts.Add($"playerId={playerId.Value}");
-            if (store.HasValue)                parts.Add($"store={store.Value}");
-            if (!string.IsNullOrEmpty(productId)) parts.Add($"productId={Uri.EscapeDataString(productId)}");
-            if (status.HasValue)               parts.Add($"status={status.Value}");
-            if (from.HasValue)                 parts.Add($"from={Uri.EscapeDataString(from.Value.ToString("o"))}");
-            if (to.HasValue)                   parts.Add($"to={Uri.EscapeDataString(to.Value.ToString("o"))}");
+            if (playerId.HasValue)                    parts.Add($"playerId={playerId.Value}");
+            // enum.ToString()은 "Google", "Apple", "Pending" 등 enum name 반환
+            if (store.HasValue)                       parts.Add($"store={store.Value}");
+            if (!string.IsNullOrEmpty(productId))     parts.Add($"productId={Uri.EscapeDataString(productId)}");
+            if (status.HasValue)                      parts.Add($"status={status.Value}");
+            if (from.HasValue)                        parts.Add($"from={Uri.EscapeDataString(from.Value.ToString("o"))}");
+            if (to.HasValue)                          parts.Add($"to={Uri.EscapeDataString(to.Value.ToString("o"))}");
             parts.Add($"page={page}");
             parts.Add($"pageSize={pageSize}");
             return $"{Base}?{string.Join("&", parts)}";

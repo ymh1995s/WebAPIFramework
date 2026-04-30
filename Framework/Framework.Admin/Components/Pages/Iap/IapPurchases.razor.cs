@@ -1,5 +1,8 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
+using Framework.Domain.Enums;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 
@@ -11,14 +14,14 @@ namespace Framework.Admin.Components.Pages.Iap;
 /// </summary>
 public partial class IapPurchases : SafeComponentBase
 {
-    // 의존성 주입
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase enum JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     // ─── 필터 상태 ──────────────────────────────────
     private int? filterPlayerId;
-    private string filterStore = "";
+    private IapStore? filterStore;           // null = 전체
     private string filterProductId = "";
-    private string filterStatus = "";
+    private IapPurchaseStatus? filterStatus; // null = 전체
     private DateTime? filterFrom;
     private DateTime? filterTo;
 
@@ -35,21 +38,21 @@ public partial class IapPurchases : SafeComponentBase
     private bool isLoading;
     private string? errorMessage;
 
-    // 스토어 드롭다운 옵션 — IapStore enum과 일치해야 함
-    private static readonly List<(string Label, int Value)> StoreOptions = new()
+    // 스토어 드롭다운 옵션 — Domain IapStore enum 기반 (타입 안전)
+    private static readonly List<(string Label, IapStore Value)> StoreOptions = new()
     {
-        ("Google Play", 1),
-        ("Apple App Store", 2),
+        ("Google Play",     IapStore.Google),
+        ("Apple App Store", IapStore.Apple),
     };
 
-    // 상태 드롭다운 옵션 — IapPurchaseStatus enum과 일치해야 함
-    private static readonly List<(string Label, int Value)> StatusOptions = new()
+    // 상태 드롭다운 옵션 — Domain IapPurchaseStatus enum 기반
+    private static readonly List<(string Label, IapPurchaseStatus Value)> StatusOptions = new()
     {
-        ("Pending", 0),
-        ("Verified", 1),
-        ("Granted", 2),
-        ("Refunded", 3),
-        ("Failed", 4),
+        ("Pending",  IapPurchaseStatus.Pending),
+        ("Verified", IapPurchaseStatus.Verified),
+        ("Granted",  IapPurchaseStatus.Granted),
+        ("Refunded", IapPurchaseStatus.Refunded),
+        ("Failed",   IapPurchaseStatus.Failed),
     };
 
     /// <summary>조회 실행 — 페이지 1로 리셋</summary>
@@ -63,9 +66,9 @@ public partial class IapPurchases : SafeComponentBase
     private void Reset()
     {
         filterPlayerId = null;
-        filterStore = "";
+        filterStore = null;
         filterProductId = "";
-        filterStatus = "";
+        filterStatus = null;
         filterFrom = null;
         filterTo = null;
         page = 1;
@@ -87,28 +90,26 @@ public partial class IapPurchases : SafeComponentBase
         await Load();
     }
 
-    /// <summary>구매 이력 목록 API 호출 — GET /api/admin/iap/purchases</summary>
+    /// <summary>구매 이력 목록 API 호출 — enum 타입 필터를 ApiRoutes에 직접 전달</summary>
     private async Task Load()
     {
         isLoading = true;
         errorMessage = null;
 
-        // 필터 값 파싱 — 빈 문자열은 null로 처리
-        int? storeInt  = int.TryParse(filterStore,  out var s) ? s : (int?)null;
-        int? statusInt = int.TryParse(filterStatus, out var st) ? st : (int?)null;
+        // ProductId 빈 문자열은 null로 처리 (전체 조회)
         string? productIdFilter = string.IsNullOrWhiteSpace(filterProductId) ? null : filterProductId.Trim();
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var url = ApiRoutes.AdminIapPurchases.Search(
-            filterPlayerId, storeInt, productIdFilter, statusInt,
+            filterPlayerId, filterStore, productIdFilter, filterStatus,
             filterFrom, filterTo, page, pageSize);
 
-        var response = await client.GetAsync(url);
+        // GetRawAsync로 응답 코드 확인 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(url);
 
         if (response.IsSuccessStatusCode)
         {
             // API 응답 구조: { items: [...], total: N }
-            var raw = await response.Content.ReadFromJsonAsync<PurchaseSearchResult>();
+            var raw = await response.Content.ReadFromJsonAsync<PurchaseSearchResult>(AdminJsonOptions.Default);
             items = raw?.Items ?? new();
             totalCount = raw?.Total ?? 0;
         }
@@ -127,16 +128,15 @@ public partial class IapPurchases : SafeComponentBase
     // API 응답 래퍼 — { items, total } 구조
     private record PurchaseSearchResult(List<IapPurchaseItem> Items, int Total);
 
-    // 구매 이력 응답 DTO — IapPurchaseDto 구조 반영
-    // API가 enum을 int로 반환하므로 Store/Status는 int로 받아 표시 시 변환
+    // 구매 이력 응답 DTO — AdminJsonOptions.Default가 "google" → IapStore.Google 역직렬화
     private record IapPurchaseItem(
         int Id,
         int PlayerId,
-        int Store,              // IapStore enum int값 (1=Google, 2=Apple)
+        IapStore Store,              // Domain enum 타입으로 역직렬화
         string ProductId,
         string PurchaseToken,
         string? OrderId,
-        int Status,             // IapPurchaseStatus enum int값
+        IapPurchaseStatus Status,    // Domain enum 타입으로 역직렬화
         DateTime? PurchaseTimeUtc,
         DateTime? GrantedAt,
         DateTime? RefundedAt,
@@ -144,15 +144,20 @@ public partial class IapPurchases : SafeComponentBase
         DateTime CreatedAt
     )
     {
-        // 표시용 스토어 이름
-        public string StoreLabel => Store switch { 1 => "Google", 2 => "Apple", _ => Store.ToString() };
+        // 표시용 스토어 이름 변환 — enum switch로 타입 안전하게 처리
+        public string StoreLabel => Store switch
+        {
+            IapStore.Google => "Google",
+            IapStore.Apple  => "Apple",
+            _               => Store.ToString()
+        };
 
         // PurchaseToken 앞 20자 + 말줄임 — 긴 토큰을 테이블에 축약 표시
         public string PurchaseTokenShort => PurchaseToken.Length > 20
             ? PurchaseToken[..20] + "..."
             : PurchaseToken;
 
-        // StatusValue 별칭 — razor에서 int로 비교할 때 사용
-        public int StatusValue => Status;
+        // 환불 여부 확인용 — razor에서 행 강조 처리에 사용
+        public bool IsRefunded => Status == IapPurchaseStatus.Refunded;
     };
 }

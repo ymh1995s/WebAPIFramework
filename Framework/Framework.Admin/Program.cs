@@ -1,5 +1,6 @@
 using Framework.Admin.Components;
 using Framework.Admin.Handlers;
+using Framework.Admin.Http;
 using Framework.Admin.Logging;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -71,6 +72,9 @@ builder.Services.AddHttpClient("ApiClient", client =>
 })
 .AddHttpMessageHandler<AdminApiKeyHandler>()
 .AddHttpMessageHandler<HttpLogCaptureHandler>();
+
+// ApiHttpClient 래퍼 — 모든 API 호출에 AdminJsonOptions(camelCase enum) 적용
+builder.Services.AddScoped<ApiHttpClient>();
 
 var app = builder.Build();
 

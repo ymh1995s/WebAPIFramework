@@ -1,5 +1,7 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 
@@ -11,8 +13,8 @@ namespace Framework.Admin.Components.Pages.Items;
 /// </summary>
 public partial class Items : SafeComponentBase
 {
-    // 의존성 주입
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase enum JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     // 아이템 목록
     private List<ItemDto>? items;
@@ -54,10 +56,11 @@ public partial class Items : SafeComponentBase
     {
         isLoading = true;
         listMessage = null;
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(ApiRoutes.AdminItems.Collection);
+
+        // GetRawAsync로 응답 코드 확인 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(ApiRoutes.AdminItems.Collection);
         if (response.IsSuccessStatusCode)
-            items = await response.Content.ReadFromJsonAsync<List<ItemDto>>();
+            items = await response.Content.ReadFromJsonAsync<List<ItemDto>>(AdminJsonOptions.Default);
         else
             listMessage = $"목록 조회 실패: {response.StatusCode}";
         isLoading = false;
@@ -74,9 +77,9 @@ public partial class Items : SafeComponentBase
             return;
         }
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new { Name = newName, ItemType = newItemType, Description = newDescription, AuditLevel = newAuditLevel, AnomalyThreshold = newAnomalyThreshold };
-        var response = await client.PostAsJsonAsync(ApiRoutes.AdminItems.Collection, payload);
+        // PostAsync — AdminJsonOptions.Default로 enum 문자열 직렬화
+        var response = await ApiClient.PostAsync(ApiRoutes.AdminItems.Collection, payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -115,9 +118,9 @@ public partial class Items : SafeComponentBase
     /// <summary>수정 저장</summary>
     private async Task SaveEdit(int id)
     {
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new { Name = editName, ItemType = editItemType, Description = editDescription, AuditLevel = editAuditLevel, AnomalyThreshold = editAnomalyThreshold };
-        var response = await client.PutAsJsonAsync(ApiRoutes.AdminItems.ById(id), payload);
+        // PutAsync — AdminJsonOptions.Default로 enum 문자열 직렬화
+        var response = await ApiClient.PutAsync(ApiRoutes.AdminItems.ById(id), payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -134,8 +137,8 @@ public partial class Items : SafeComponentBase
     private async Task RequestDelete(int id)
     {
         listMessage = null;
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var result = await client.GetFromJsonAsync<HolderCountDto>(ApiRoutes.AdminItems.Holders(id));
+        // GetAsync<T>로 역직렬화까지 한 번에 처리
+        var result = await ApiClient.GetAsync<HolderCountDto>(ApiRoutes.AdminItems.Holders(id));
         holderCount = result?.Count ?? 0;
         confirmDeleteId = id;
     }
@@ -145,8 +148,7 @@ public partial class Items : SafeComponentBase
     {
         if (confirmDeleteId == null) return;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.DeleteAsync(ApiRoutes.AdminItems.ById(confirmDeleteId!.Value));
+        var response = await ApiClient.DeleteAsync(ApiRoutes.AdminItems.ById(confirmDeleteId!.Value));
 
         confirmDeleteId = null;
 

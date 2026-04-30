@@ -2,6 +2,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inherits SafeComponentBase
 @using Framework.Admin.Constants
+@using Framework.Domain.Enums
 
 <PageTitle>인앱결제 구매 이력</PageTitle>
 
@@ -108,13 +109,13 @@ else
             @foreach (var p in items)
             {
                 <!-- Refunded 행 전체 빨간색 강조 — 환불 감시 목적 -->
-                <tr class="@(p.StatusValue == 3 ? "table-danger" : "")">
+                <tr class="@(p.IsRefunded ? "table-danger" : "")">
                     <td>@p.Id</td>
                     <td>@p.PlayerId</td>
                     <td><span class="badge bg-primary">@p.StoreLabel</span></td>
                     <td><code>@p.ProductId</code></td>
                     <td><code title="@p.PurchaseToken">@p.PurchaseTokenShort</code></td>
-                    <td>@StatusBadge(p.StatusValue)</td>
+                    <td>@StatusBadge(p.Status)</td>
                     <td>@(p.PurchaseTimeUtc?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
                     <td>@(p.GrantedAt?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
                     <td>@(p.RefundedAt?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
@@ -131,15 +132,15 @@ else
     </div>
 }
 
-@* Status 뱃지 렌더 함수 — MarkupString 반환 *@
+@* Status 뱃지 렌더 함수 — IapPurchaseStatus enum 기반 MarkupString 반환 (타입 안전) *@
 @code {
-    private MarkupString StatusBadge(int status) => status switch
+    private MarkupString StatusBadge(IapPurchaseStatus status) => status switch
     {
-        0 => (MarkupString)"<span class='badge bg-warning text-dark'>Pending</span>",
-        1 => (MarkupString)"<span class='badge bg-primary'>Verified</span>",
-        2 => (MarkupString)"<span class='badge bg-success'>Granted</span>",
-        3 => (MarkupString)"<span class='badge bg-danger'>Refunded</span>",
-        4 => (MarkupString)"<span class='badge bg-danger'>Failed</span>",
-        _ => (MarkupString)$"<span class='badge bg-secondary'>{status}</span>"
+        IapPurchaseStatus.Pending  => (MarkupString)"<span class='badge bg-warning text-dark'>Pending</span>",
+        IapPurchaseStatus.Verified => (MarkupString)"<span class='badge bg-primary'>Verified</span>",
+        IapPurchaseStatus.Granted  => (MarkupString)"<span class='badge bg-success'>Granted</span>",
+        IapPurchaseStatus.Refunded => (MarkupString)"<span class='badge bg-danger'>Refunded</span>",
+        IapPurchaseStatus.Failed   => (MarkupString)"<span class='badge bg-danger'>Failed</span>",
+        _                          => (MarkupString)$"<span class='badge bg-secondary'>{status}</span>"
     };
 }

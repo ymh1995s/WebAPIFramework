@@ -1,4 +1,6 @@
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Framework.Application.Features.Matchmaking;
 using Framework.Domain.Enums;
 using Microsoft.AspNetCore.Components;
@@ -15,8 +17,8 @@ namespace Framework.Admin.Components.Pages.Operations;
 /// </summary>
 public partial class MatchMaking : ComponentBase, IAsyncDisposable
 {
-    // 의존성 주입
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase enum JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
     [Inject] private IConfiguration Configuration { get; set; } = default!;
 
     private string userId = string.Empty;
@@ -77,12 +79,13 @@ public partial class MatchMaking : ComponentBase, IAsyncDisposable
             joinedTierGroup = selectedTier;
         }
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.PostAsJsonAsync(ApiRoutes.Matchmaking.Join, new JoinMatchRequestDto(userId, selectedTier));
+        // PostAsync — AdminJsonOptions.Default로 Tier enum을 camelCase 문자열로 직렬화
+        var response = await ApiClient.PostAsync(ApiRoutes.Matchmaking.Join, new JoinMatchRequestDto(userId, selectedTier));
 
         if (response.IsSuccessStatusCode)
         {
-            var result = await response.Content.ReadFromJsonAsync<MatchResultDto>();
+            // AdminJsonOptions.Default로 역직렬화하여 enum 문자열 처리 보장
+            var result = await response.Content.ReadFromJsonAsync<MatchResultDto>(AdminJsonOptions.Default);
             if (result is not null) AddLog(result.Message);
         }
         else
@@ -98,12 +101,12 @@ public partial class MatchMaking : ComponentBase, IAsyncDisposable
     {
         if (string.IsNullOrWhiteSpace(userId)) return;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.DeleteAsync(ApiRoutes.Matchmaking.Cancel(userId));
+        var response = await ApiClient.DeleteAsync(ApiRoutes.Matchmaking.Cancel(userId));
 
         if (response.IsSuccessStatusCode)
         {
-            var result = await response.Content.ReadFromJsonAsync<MatchResultDto>();
+            // AdminJsonOptions.Default로 역직렬화하여 enum 문자열 처리 보장
+            var result = await response.Content.ReadFromJsonAsync<MatchResultDto>(AdminJsonOptions.Default);
             if (result is not null) AddLog(result.Message);
         }
         else
