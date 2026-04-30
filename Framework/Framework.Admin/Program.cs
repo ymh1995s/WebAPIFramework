@@ -2,6 +2,7 @@ using Framework.Admin.Components;
 using Framework.Admin.Handlers;
 using Framework.Admin.Http;
 using Framework.Admin.Logging;
+using Framework.Admin.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Serilog;
@@ -23,6 +24,13 @@ using System.Security.Claims;
 // DB 장애 자체가 크래시 원인인 경우, DB에 로그를 쓰는 시도도 실패한다.
 // 파일은 DB와 독립적으로 동작하므로 어떤 상황에서도 기록이 남는다.
 // ─────────────────────────────────────────────────────────────
+// --hash <비밀번호> 인자 실행 시 BCrypt 해시 출력 후 종료 — 운영 비밀번호 설정 도구
+if (args.Length >= 2 && args[0] == "--hash")
+{
+    Console.WriteLine(BCrypt.Net.BCrypt.HashPassword(args[1], workFactor: 12));
+    return;
+}
+
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
     // 개발/운영 공통: 콘솔 출력
@@ -61,6 +69,9 @@ builder.Services.AddCascadingAuthenticationState();
 
 // HTTP 로그 저장소 — Singleton으로 모든 컴포넌트가 동일 인스턴스를 공유
 builder.Services.AddSingleton<IHttpLogStore, InMemoryHttpLogStore>();
+
+// BCrypt 기반 Admin 비밀번호 검증기 등록
+builder.Services.AddSingleton<IAdminPasswordVerifier, AdminPasswordVerifier>();
 
 // X-Admin-Key 헤더 자동 주입 핸들러 등록
 builder.Services.AddTransient<AdminApiKeyHandler>();
@@ -110,10 +121,10 @@ app.Use(async (context, next) =>
 
 app.UseAuthorization();
 
-// 로그인 처리 엔드포인트 - 비밀번호 검증 후 인증 쿠키 발급
-app.MapPost("/admin-login", async (HttpContext context, IConfiguration config, [Microsoft.AspNetCore.Mvc.FromForm] string password) =>
+// 로그인 처리 엔드포인트 - BCrypt 해시 검증 후 인증 쿠키 발급
+app.MapPost("/admin-login", async (HttpContext context, IAdminPasswordVerifier verifier, [Microsoft.AspNetCore.Mvc.FromForm] string password) =>
 {
-    if (password != config["Admin:Password"])
+    if (!verifier.Verify(password))
         return Results.Redirect("/login?error=1");
 
     var claims = new List<Claim> { new(ClaimTypes.Name, "admin") };

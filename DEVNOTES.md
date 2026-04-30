@@ -58,7 +58,7 @@
 
 ## [필수] Framework.Admin/appsettings.json 교체값
 - `ApiBaseUrl` — 현재 `https://api.overture.io.kr`. 도메인 변경 시 교체 필요
-- `Admin:Password` — 운영툴(Blazor) 로그인 비밀번호. 운영 전 강력한 비밀번호로 직접 입력 필요
+- `Admin:PasswordHash` (.env 변수명: `Admin__PasswordHash`) — BCrypt 해시값으로 설정. 해시 생성 방법: `dotnet run --project Framework.Admin -- --hash "비밀번호"` 실행 후 출력값을 복사
 - `Admin:ApiKey` — Framework.Api의 `.env` `ADMIN_API_KEY`와 동일한 값으로 설정 필요
 
 ## [성능] DB 인덱스 미적용 항목
