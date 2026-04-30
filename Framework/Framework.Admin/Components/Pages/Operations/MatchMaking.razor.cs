@@ -30,13 +30,17 @@ public partial class MatchMaking : ComponentBase, IAsyncDisposable
     private bool isBusy;
     private Tier? joinedTierGroup;
     private HubConnection? hubConnection;
+    // 운영(Release) 빌드에서 SignalR 허브 연결 불가 상태를 나타내는 플래그
+    private bool hubUnavailable = false;
 
     /// <summary>SignalR 허브 연결 상태 확인</summary>
     private bool IsConnected => hubConnection?.State == HubConnectionState.Connected;
 
     protected override async Task OnInitializedAsync()
     {
-        // Api 서버의 SignalR 허브에 연결
+#if DEBUG
+        // DEBUG 빌드에서만 SignalR 허브 연결 시도
+        // Release 빌드에서는 Admin 서버와 API 서버가 별도로 배포되어 내부 토큰 없이 연결 불가
         var baseUrl = Configuration["ApiBaseUrl"] ?? "https://localhost:7034";
         hubConnection = new HubConnectionBuilder()
             .WithUrl($"{baseUrl}{ApiRoutes.Hubs.Matchmaking}")
@@ -60,6 +64,10 @@ public partial class MatchMaking : ComponentBase, IAsyncDisposable
         });
 
         await hubConnection.StartAsync();
+#else
+        // Release 빌드에서는 허브 연결을 시도하지 않고 안내 상태로 전환
+        hubUnavailable = true;
+#endif
     }
 
     /// <summary>매칭 참가 - Tier 그룹 구독 후 API 호출</summary>

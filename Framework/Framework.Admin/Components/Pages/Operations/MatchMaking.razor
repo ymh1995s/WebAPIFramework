@@ -10,6 +10,16 @@
 
 <h3>매칭 테스트</h3>
 
+@* 운영 빌드에서는 SignalR 허브 연결 미지원 안내 *@
+@if (hubUnavailable)
+{
+    <div class="alert alert-warning">
+        운영 빌드에서는 매치메이킹 모니터링을 지원하지 않습니다.
+    </div>
+}
+else
+{
+
 @* 입력 폼 *@
 <div class="mb-3 d-flex gap-2 align-items-center">
     <input class="form-control w-auto" @bind="userId" placeholder="UserId" />
@@ -55,3 +65,5 @@
         }
     </ul>
 </div>
+
+} @* hubUnavailable else 블록 끝 *@

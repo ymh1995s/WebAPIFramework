@@ -280,6 +280,20 @@ public static class ServiceExtensions
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
+                // SignalR WebSocket 연결 시 쿼리스트링 access_token을 Bearer 토큰으로 사용
+                // 브라우저 WebSocket API는 임의 헤더 부착 불가 — 표준 SignalR 토큰 전달 방식
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        var accessToken = context.Request.Query["access_token"];
+                        var path = context.HttpContext.Request.Path;
+                        if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                            context.Token = accessToken;
+                        return Task.CompletedTask;
+                    }
+                };
+
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     // 발급자(iss 클레임)가 appsettings의 Jwt:Issuer와 일치하는지 검증
