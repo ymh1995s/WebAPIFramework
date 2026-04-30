@@ -1,6 +1,7 @@
 using Framework.Api.Extensions;
 using Framework.Api.Hubs;
 using Framework.Api.ProblemDetails;
+using Framework.Api.Security;
 using Framework.Application.Features.SystemConfig;
 using Framework.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -67,6 +68,9 @@ builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddRateLimitingServices(builder.Configuration);
 builder.Services.AddMemoryCache();          // 점검 모드 등 설정 캐시
 
+// Admin Key 검증기 — Singleton: 시작 시점 1회 인코딩, 타이밍 공격 방어
+builder.Services.AddSingleton<IAdminKeyValidator, AdminKeyValidator>();
+
 // JSON 직렬화 옵션 설정
 // - EnumMemberJsonConverterFactory: 잘못된 enum 값 수신 시 EnumDeserializationException을 발생시켜 400 반환
 // - camelCase: 클라이언트(Unity/JS)에서 관례적으로 사용하는 camelCase 프로퍼티명 적용
@@ -131,9 +135,9 @@ app.UseRateLimiter();
 // 점검 모드 미들웨어 — X-Admin-Key 헤더가 있는 요청(Admin Blazor)은 통과, 나머지는 수동/예약 여부 확인 후 503 반환
 app.Use(async (context, next) =>
 {
+    var validator = context.RequestServices.GetRequiredService<IAdminKeyValidator>();
     var adminKey = context.Request.Headers["X-Admin-Key"].FirstOrDefault();
-    var expectedKey = context.RequestServices.GetRequiredService<IConfiguration>()["Admin:ApiKey"];
-    var isAdminRequest = !string.IsNullOrEmpty(adminKey) && adminKey == expectedKey;
+    var isAdminRequest = validator.IsValid(adminKey);
 
     if (!isAdminRequest)
     {
