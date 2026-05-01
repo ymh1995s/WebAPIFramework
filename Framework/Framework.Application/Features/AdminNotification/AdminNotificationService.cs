@@ -34,6 +34,8 @@ public class AdminNotificationService : IAdminNotificationService
             CreatedAt = DateTime.UtcNow
         };
         await _repo.AddIfNotDuplicateAsync(notification);
+        // Repository에서 변경 추적 후 서비스 레이어에서 명시적 저장
+        await _repo.SaveChangesAsync();
         _logger.LogInformation("Admin 알림 생성 — Category: {Category}, Title: {Title}", category, title);
     }
 
@@ -52,12 +54,27 @@ public class AdminNotificationService : IAdminNotificationService
         return (dtos, total);
     }
 
-    // 단건 읽음 처리
-    public async Task<bool> MarkReadAsync(long id) => await _repo.MarkReadAsync(id);
+    // 단건 읽음 처리 — 대상이 존재할 때만 저장
+    public async Task<bool> MarkReadAsync(long id)
+    {
+        var ok = await _repo.MarkReadAsync(id);
+        if (ok) await _repo.SaveChangesAsync();
+        return ok;
+    }
 
-    // 단건 안읽음으로 되돌리기 — repository 결과(존재 여부) 그대로 반환
-    public async Task<bool> MarkUnreadAsync(long id) => await _repo.MarkUnreadAsync(id);
+    // 단건 안읽음으로 되돌리기 — 대상이 존재할 때만 저장
+    public async Task<bool> MarkUnreadAsync(long id)
+    {
+        var ok = await _repo.MarkUnreadAsync(id);
+        if (ok) await _repo.SaveChangesAsync();
+        return ok;
+    }
 
-    // 전체 읽음 처리 — 카테고리 필터 선택적 적용
-    public async Task<int> MarkAllReadAsync(AdminNotificationCategory? category) => await _repo.MarkAllReadAsync(category);
+    // 전체 읽음 처리 — 카테고리 필터 선택적 적용, 변경 건수가 있을 때만 저장
+    public async Task<int> MarkAllReadAsync(AdminNotificationCategory? category)
+    {
+        var count = await _repo.MarkAllReadAsync(category);
+        if (count > 0) await _repo.SaveChangesAsync();
+        return count;
+    }
 }

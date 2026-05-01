@@ -15,10 +15,14 @@ public class RateLimitLogRepository
         _context = context;
     }
 
-    /// <summary>Rate Limit 초과 로그를 DB에 기록한다</summary>
-    public async Task AddAsync(RateLimitLog log)
+    /// <summary>Rate Limit 초과 로그를 변경 추적에 등록한다 — 실제 저장은 SaveChangesAsync로 처리</summary>
+    public Task AddAsync(RateLimitLog log)
     {
+        // 변경 추적만 등록 — 저장은 호출자(OnRejected 콜백)가 명시적으로 처리
         _context.RateLimitLogs.Add(log);
-        await _context.SaveChangesAsync();
+        return Task.CompletedTask;
     }
+
+    // 변경 사항을 DB에 저장 — 호출자가 SaveChanges 시점을 명시적으로 제어
+    public Task SaveChangesAsync() => _context.SaveChangesAsync();
 }

@@ -8,13 +8,17 @@ public class LevelTableAdminService : ILevelTableAdminService
 {
     private readonly ILevelThresholdRepository _repository;
     private readonly ILevelTableProvider _provider;
+    // 트랜잭션 원자성 보장용 작업 단위 — ReplaceAllAsync 시 커밋/롤백 경계 관리
+    private readonly IUnitOfWork _uow;
 
     public LevelTableAdminService(
         ILevelThresholdRepository repository,
-        ILevelTableProvider provider)
+        ILevelTableProvider provider,
+        IUnitOfWork uow)
     {
         _repository = repository;
         _provider = provider;
+        _uow = uow;
     }
 
     // 전체 레벨 임계값 목록 조회 (레벨 오름차순)
@@ -66,8 +70,12 @@ public class LevelTableAdminService : ILevelTableAdminService
             UpdatedAt = DateTime.UtcNow
         }).ToList();
 
-        // DB 교체 (트랜잭션 내 전체 삭제 → 삽입)
-        await _repository.ReplaceAllAsync(entities);
+        // IUnitOfWork 트랜잭션으로 감싸 전체 삭제 → 삽입을 원자적으로 처리
+        // ExecuteInTransactionAsync 소유자가 커밋 전 SaveChangesAsync를 호출하므로 람다 내부에서 중복 호출 불필요
+        await _uow.ExecuteInTransactionAsync(async () =>
+        {
+            await _repository.ReplaceAllAsync(entities);
+        });
 
         // 캐시 무효화 — 다음 레벨 계산 시 최신 테이블 반영
         _provider.Invalidate();

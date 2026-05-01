@@ -23,32 +23,17 @@ public class LevelThresholdRepository : ILevelThresholdRepository
             .ToListAsync();
     }
 
-    // 기존 데이터 전체를 삭제하고 새 목록으로 교체 — 트랜잭션 내에서 원자적으로 처리
+    // 기존 데이터 전체를 변경 추적에서 삭제하고 새 목록을 추가 — 트랜잭션/저장은 호출자(IUnitOfWork)가 처리
     public async Task ReplaceAllAsync(List<LevelThreshold> items)
     {
-        // 트랜잭션 시작 — RemoveRange + AddRange + SaveChanges가 한 단위로 커밋/롤백
-        await using var transaction = await _context.Database.BeginTransactionAsync();
+        // 기존 전체 데이터 삭제 (변경 추적 등록)
+        var existing = await _context.LevelThresholds.ToListAsync();
+        _context.LevelThresholds.RemoveRange(existing);
 
-        try
-        {
-            // 기존 전체 데이터 삭제
-            var existing = await _context.LevelThresholds.ToListAsync();
-            _context.LevelThresholds.RemoveRange(existing);
-
-            // 새 데이터 삽입
-            await _context.LevelThresholds.AddRangeAsync(items);
-
-            // 변경 사항 저장
-            await _context.SaveChangesAsync();
-
-            // 트랜잭션 커밋
-            await transaction.CommitAsync();
-        }
-        catch
-        {
-            // 오류 발생 시 롤백하여 데이터 일관성 보장
-            await transaction.RollbackAsync();
-            throw;
-        }
+        // 새 데이터 삽입 (변경 추적 등록)
+        await _context.LevelThresholds.AddRangeAsync(items);
     }
+
+    // 변경 사항을 DB에 저장 — 호출자가 SaveChanges 시점을 명시적으로 제어
+    public Task SaveChangesAsync() => _context.SaveChangesAsync();
 }

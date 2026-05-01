@@ -450,6 +450,8 @@ public static class ServiceExtensions
                         PlayerId = playerId,
                         UserAgent = string.IsNullOrEmpty(userAgent) ? null : userAgent
                     });
+                    // 변경 추적 후 명시적 저장 — SaveChanges 패턴 통일
+                    await repo.SaveChangesAsync();
                 }
                 catch (Exception ex)
                 {

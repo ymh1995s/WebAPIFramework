@@ -21,8 +21,8 @@ public class AdminNotificationRepository : IAdminNotificationRepository
             var exists = await _db.AdminNotifications.AnyAsync(n => n.DedupKey == notification.DedupKey);
             if (exists) return;
         }
+        // 변경 추적만 등록 — 실제 저장은 호출자가 SaveChangesAsync로 처리
         await _db.AdminNotifications.AddAsync(notification);
-        await _db.SaveChangesAsync();
     }
 
     // 미확인 알림 수 조회
@@ -50,7 +50,7 @@ public class AdminNotificationRepository : IAdminNotificationRepository
         if (n is null) return false;
         n.IsRead = true;
         n.ReadAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
+        // 변경 추적만 등록 — 실제 저장은 호출자가 SaveChangesAsync로 처리
         return true;
     }
 
@@ -61,7 +61,7 @@ public class AdminNotificationRepository : IAdminNotificationRepository
         if (n is null) return false;
         n.IsRead = false;
         n.ReadAt = null;
-        await _db.SaveChangesAsync();
+        // 변경 추적만 등록 — 실제 저장은 호출자가 SaveChangesAsync로 처리
         return true;
     }
 
@@ -73,7 +73,7 @@ public class AdminNotificationRepository : IAdminNotificationRepository
         var items = await query.ToListAsync();
         var now = DateTime.UtcNow;
         foreach (var item in items) { item.IsRead = true; item.ReadAt = now; }
-        await _db.SaveChangesAsync();
+        // 변경 추적만 등록 — 실제 저장은 호출자가 SaveChangesAsync로 처리
         return items.Count;
     }
 
