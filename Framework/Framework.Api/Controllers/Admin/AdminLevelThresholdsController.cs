@@ -1,4 +1,5 @@
 using Framework.Api.Filters;
+using Framework.Application.Common;
 using Framework.Application.Features.Exp;
 using Microsoft.AspNetCore.Mvc;
 
@@ -32,12 +33,12 @@ public class AdminLevelThresholdsController : ControllerBase
         try
         {
             await _service.ReplaceAllAsync(request.Items);
-            return Ok(new { message = "레벨 테이블이 업데이트되었습니다." });
+            return Ok(new MessageResponse("레벨 테이블이 업데이트되었습니다."));
         }
         catch (ArgumentException ex)
         {
             // 검증 실패 — 잘못된 요청 데이터
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new MessageResponse(ex.Message));
         }
     }
 }

@@ -5,6 +5,7 @@
 // ============================================================
 
 using Framework.Api.Filters;
+using Framework.Application.Common;
 using Framework.Application.Content.Stage;
 using Microsoft.AspNetCore.Mvc;
 
@@ -35,7 +36,7 @@ public class AdminStagesController : ControllerBase
         [FromQuery] int pageSize = 20)
     {
         var (items, total) = await _service.SearchAsync(keyword, page, pageSize);
-        return Ok(new { Items = items, TotalCount = total, Page = page, PageSize = pageSize });
+        return Ok(new PagedResultDto<StageDto>(items, total, page, pageSize));
     }
 
     // 스테이지 단건 조회
@@ -60,7 +61,7 @@ public class AdminStagesController : ControllerBase
                                     ex.InnerException?.Message.Contains("23505") == true)
         {
             // Code UNIQUE 위반
-            return Conflict(new { message = "동일한 코드의 스테이지가 이미 존재합니다." });
+            return Conflict(new MessageResponse("동일한 코드의 스테이지가 이미 존재합니다."));
         }
     }
 
@@ -70,6 +71,6 @@ public class AdminStagesController : ControllerBase
     {
         var success = await _service.UpdateStageAsync(id, dto);
         if (!success) return NotFound();
-        return Ok(new { message = "스테이지가 수정되었습니다." });
+        return Ok(new MessageResponse("스테이지가 수정되었습니다."));
     }
 }

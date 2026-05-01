@@ -1,4 +1,5 @@
 using Framework.Api.Filters;
+using Framework.Application.Common;
 using Framework.Application.Features.RewardTable;
 using Microsoft.AspNetCore.Mvc;
 
@@ -43,14 +44,14 @@ public class AdminRewardTablesController : ControllerBase
         {
             var result = await _service.CreateAsync(dto);
             if (result is null)
-                return Conflict(new { message = "동일한 SourceType + Code 조합의 보상 테이블이 이미 존재합니다." });
+                return Conflict(new MessageResponse("동일한 SourceType + Code 조합의 보상 테이블이 이미 존재합니다."));
 
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
         catch (ArgumentException ex)
         {
             // Code 형식 또는 길이 검증 실패
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new MessageResponse(ex.Message));
         }
     }
 
@@ -60,7 +61,7 @@ public class AdminRewardTablesController : ControllerBase
     {
         var success = await _service.UpdateAsync(id, dto);
         if (!success) return NotFound();
-        return Ok(new { message = "보상 테이블 설명이 수정되었습니다." });
+        return Ok(new MessageResponse("보상 테이블 설명이 수정되었습니다."));
     }
 
     // 보상 테이블 소프트 삭제 (IsDeleted = true)
@@ -69,7 +70,7 @@ public class AdminRewardTablesController : ControllerBase
     {
         var success = await _service.SoftDeleteAsync(id);
         if (!success) return NotFound();
-        return Ok(new { message = "보상 테이블이 삭제되었습니다." });
+        return Ok(new MessageResponse("보상 테이블이 삭제되었습니다."));
     }
 
     // 보상 테이블 항목 일괄 교체 — 기존 항목 전부 삭제 후 신규 항목 삽입
@@ -78,6 +79,6 @@ public class AdminRewardTablesController : ControllerBase
     {
         var success = await _service.ReplaceEntriesAsync(id, entries);
         if (!success) return NotFound();
-        return Ok(new { message = $"{entries.Count}개 항목으로 교체되었습니다." });
+        return Ok(new MessageResponse($"{entries.Count}개 항목으로 교체되었습니다."));
     }
 }

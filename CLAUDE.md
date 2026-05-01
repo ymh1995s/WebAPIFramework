@@ -137,6 +137,7 @@ Every task follows: **Question → Options → Decision → Draft → Approval**
 - Design request → architect / Implementation request → programmer / Verification request → qa-reviewer / Security review → security-master
 - Design → Implementation → Verification runs sequentially. qa-reviewer + security-master may run in parallel.
 - **All agents MUST run in the background (`run_in_background: true`) unless the user explicitly requests foreground execution. No exceptions.**
+- **Exception — file write permission required**: If a programmer agent needs to write/edit files and background execution prevents permission approval, re-invoke as foreground (`run_in_background: false`) so the user can approve each file operation interactively.
 
 ### programmer → qa-reviewer Auto-Loop (Orchestrator MUST)
 

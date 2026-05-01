@@ -243,7 +243,7 @@ public partial class RewardDispatch : SafeComponentBase
     }
 
     // API 응답 모델
-    private record GrantResponse(string Message, string UsedMode, int? MailId, bool AlreadyGranted = false);
+    private record GrantResponse(string Message, string? UsedMode, int? MailId, bool AlreadyGranted = false);
     private record ErrorResponse(string Message);
     private record GrantResultDetail(string UsedMode, int? MailId);
 }

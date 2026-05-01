@@ -51,6 +51,9 @@ public record UpdateIapProductRequest(
     bool? IsEnabled
 );
 
+// 인앱결제 구매 이력 검색 결과 응답
+public record IapPurchaseSearchResponse(List<IapPurchaseDto> Items, int Total);
+
 // 인앱결제 구매 이력 조회용 DTO
 public record IapPurchaseDto(
     int Id,

@@ -1,5 +1,6 @@
 using Framework.Api.Filters;
 using Framework.Api.Requests;
+using Framework.Application.Common;
 using Framework.Application.Features.AdminPlayer;
 using Framework.Application.Features.BanLog;
 using Microsoft.AspNetCore.Mvc;
@@ -63,10 +64,10 @@ public class AdminPlayersController : ControllerBase
         {
             BanOperationResult.PlayerNotFound => NotFound(),
             // 이미 밴 상태 — 중복 밴 불가 (409 Conflict)
-            BanOperationResult.AlreadyBanned  => Conflict(new { message = "이미 밴 상태인 플레이어입니다." }),
-            _ => Ok(new { message = request.BannedUntil.HasValue
+            BanOperationResult.AlreadyBanned  => Conflict(new MessageResponse("이미 밴 상태인 플레이어입니다.")),
+            _ => Ok(new MessageResponse(request.BannedUntil.HasValue
                 ? $"{request.BannedUntil:yyyy-MM-dd HH:mm} UTC까지 밴 처리됨"
-                : "영구 밴 처리됨" })
+                : "영구 밴 처리됨"))
         };
     }
 
@@ -82,8 +83,8 @@ public class AdminPlayersController : ControllerBase
         {
             BanOperationResult.PlayerNotFound => NotFound(),
             // 밴 상태가 아님 — 밴해제 불가 (409 Conflict)
-            BanOperationResult.NotBanned      => Conflict(new { message = "밴 상태가 아닌 플레이어입니다." }),
-            _                                 => Ok(new { message = "밴 해제 완료" })
+            BanOperationResult.NotBanned      => Conflict(new MessageResponse("밴 상태가 아닌 플레이어입니다.")),
+            _                                 => Ok(new MessageResponse("밴 해제 완료"))
         };
     }
 
@@ -93,6 +94,6 @@ public class AdminPlayersController : ControllerBase
     {
         var success = await _adminPlayerService.DeleteAsync(id);
         if (!success) return NotFound();
-        return Ok(new { message = "플레이어가 영구 삭제되었습니다." });
+        return Ok(new MessageResponse("플레이어가 영구 삭제되었습니다."));
     }
 }

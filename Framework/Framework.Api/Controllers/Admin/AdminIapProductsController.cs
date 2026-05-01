@@ -1,4 +1,5 @@
 using Framework.Api.Filters;
+using Framework.Application.Common;
 using Framework.Application.Features.IapProduct;
 using Framework.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
@@ -37,7 +38,7 @@ public class AdminIapProductsController : ControllerBase
         [FromQuery] int pageSize = 20)
     {
         var (items, totalCount) = await _productService.GetListAsync(store, productType, isEnabled, page, pageSize);
-        return Ok(new { items, totalCount, page, pageSize });
+        return Ok(new PagedResultDto<IapProductDto>(items, totalCount, page, pageSize));
     }
 
     // 인앱결제 상품 단건 조회
@@ -61,7 +62,7 @@ public class AdminIapProductsController : ControllerBase
         catch (InvalidOperationException ex)
         {
             // UNIQUE 위반 — 동일 Store + ProductId 상품 이미 존재
-            return Conflict(new { message = ex.Message });
+            return Conflict(new MessageResponse(ex.Message));
         }
     }
 
@@ -76,7 +77,7 @@ public class AdminIapProductsController : ControllerBase
         }
         catch (KeyNotFoundException)
         {
-            return NotFound(new { message = $"인앱결제 상품을 찾을 수 없습니다. Id={id}" });
+            return NotFound(new MessageResponse($"인앱결제 상품을 찾을 수 없습니다. Id={id}"));
         }
     }
 
@@ -87,11 +88,11 @@ public class AdminIapProductsController : ControllerBase
         try
         {
             await _productService.DeleteAsync(id);
-            return Ok(new { message = "인앱결제 상품이 삭제되었습니다." });
+            return Ok(new MessageResponse("인앱결제 상품이 삭제되었습니다."));
         }
         catch (KeyNotFoundException)
         {
-            return NotFound(new { message = $"인앱결제 상품을 찾을 수 없습니다. Id={id}" });
+            return NotFound(new MessageResponse($"인앱결제 상품을 찾을 수 없습니다. Id={id}"));
         }
     }
 
@@ -112,7 +113,7 @@ public class AdminIapProductsController : ControllerBase
         var (items, total) = await _purchaseService.SearchAsync(
             playerId, store, productId, status, from, to, page, pageSize);
 
-        return Ok(new { items, total });
+        return Ok(new IapPurchaseSearchResponse(items, total));
     }
 
     // 구매 이력 단건 조회

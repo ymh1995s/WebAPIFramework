@@ -1,4 +1,5 @@
 using Framework.Api.Filters;
+using Framework.Application.Common;
 using Framework.Application.Features.Item;
 using Microsoft.AspNetCore.Mvc;
 
@@ -43,7 +44,7 @@ public class AdminItemsController : ControllerBase
     public async Task<IActionResult> GetHolderCount(int id)
     {
         var count = await _itemMasterService.GetHolderCountAsync(id);
-        return Ok(new { count });
+        return Ok(new CountResponse(count));
     }
 
     // 아이템 소프트 삭제

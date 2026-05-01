@@ -1,4 +1,5 @@
 using Framework.Api.Filters;
+using Framework.Application.Common;
 using Framework.Application.Features.AdminNotification;
 using Framework.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
@@ -20,7 +21,7 @@ public class AdminNotificationsController : ControllerBase
     public async Task<IActionResult> GetUnreadCount()
     {
         var count = await _service.GetUnreadCountAsync();
-        return Ok(new { count });
+        return Ok(new CountResponse(count));
     }
 
     // GET api/admin/notifications — 알림 목록
@@ -32,7 +33,7 @@ public class AdminNotificationsController : ControllerBase
         [FromQuery] int pageSize = 50)
     {
         var (items, total) = await _service.SearchAsync(category, isRead, page, pageSize);
-        return Ok(new { items, totalCount = total });
+        return Ok(new AdminNotificationListResponse(items, total));
     }
 
     // POST api/admin/notifications/{id}/read — 단건 읽음
@@ -40,7 +41,7 @@ public class AdminNotificationsController : ControllerBase
     public async Task<IActionResult> MarkRead(long id)
     {
         var ok = await _service.MarkReadAsync(id);
-        return ok ? Ok(new { ok = true }) : NotFound();
+        return ok ? Ok() : NotFound();
     }
 
     // POST api/admin/notifications/{id}/unread — 단건 안읽음으로 되돌리기, 대상 없으면 404
@@ -48,7 +49,7 @@ public class AdminNotificationsController : ControllerBase
     public async Task<IActionResult> MarkUnread(long id)
     {
         var ok = await _service.MarkUnreadAsync(id);
-        return ok ? Ok(new { ok = true }) : NotFound();
+        return ok ? Ok() : NotFound();
     }
 
     // POST api/admin/notifications/read-all — 전체 읽음
@@ -56,6 +57,6 @@ public class AdminNotificationsController : ControllerBase
     public async Task<IActionResult> MarkAllRead([FromQuery] AdminNotificationCategory? category)
     {
         var count = await _service.MarkAllReadAsync(category);
-        return Ok(new { updatedCount = count });
+        return Ok(new MarkAllReadResponse(count));
     }
 }

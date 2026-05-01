@@ -1,4 +1,5 @@
 using Framework.Api.Filters;
+using Framework.Application.Common;
 using Framework.Application.Features.Reward;
 using Framework.Domain.Enums;
 using Framework.Domain.ValueObjects;
@@ -29,7 +30,7 @@ public class AdminRewardDispatchController : ControllerBase
         // 지급할 내용이 있는지 확인
         var hasItems = dto.Items is { Count: > 0 };
         if (dto.Exp <= 0 && !hasItems)
-            return BadRequest(new { message = "지급할 보상이 없습니다. (Exp/Items 중 하나 이상 입력)" });
+            return BadRequest(new MessageResponse("지급할 보상이 없습니다. (Exp/Items 중 하나 이상 입력)"));
 
         // RewardItem 목록 변환 — Items만 사용 (Gold/Gems는 Items에 ItemId=1/2로 포함)
         var rewardItems = hasItems
@@ -59,20 +60,15 @@ public class AdminRewardDispatchController : ControllerBase
 
         // 플레이어 미존재 시 404 반환
         if (result.IsNotFound)
-            return NotFound(new { message = result.Message });
+            return NotFound(new MessageResponse(result.Message));
 
         if (!result.Success)
-            return BadRequest(new { message = result.Message });
+            return BadRequest(new MessageResponse(result.Message));
 
         if (result.AlreadyGranted)
-            return Ok(new { message = "이미 지급된 보상입니다.", alreadyGranted = true });
+            return Ok(new AdminGrantResponse("이미 지급된 보상입니다.", null, null, true));
 
-        return Ok(new
-        {
-            message = result.Message,
-            usedMode = result.UsedMode.ToString(),
-            mailId = result.MailId
-        });
+        return Ok(new AdminGrantResponse(result.Message, result.UsedMode.ToString(), result.MailId));
     }
 }
 

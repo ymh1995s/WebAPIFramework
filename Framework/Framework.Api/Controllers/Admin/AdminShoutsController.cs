@@ -1,4 +1,5 @@
 using Framework.Api.Filters;
+using Framework.Application.Common;
 using Framework.Application.Features.Shout;
 using Microsoft.AspNetCore.Mvc;
 
@@ -41,12 +42,12 @@ public class AdminShoutsController : ControllerBase
         catch (ArgumentException ex)
         {
             // 입력값 검증 실패
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new MessageResponse(ex.Message));
         }
         catch (KeyNotFoundException ex)
         {
             // 존재하지 않는 플레이어
-            return NotFound(new { message = ex.Message });
+            return NotFound(new MessageResponse(ex.Message));
         }
     }
 
@@ -55,6 +56,6 @@ public class AdminShoutsController : ControllerBase
     public async Task<IActionResult> Deactivate(int id)
     {
         var success = await _shoutService.DeactivateAsync(id);
-        return success ? Ok() : NotFound(new { message = "해당 1회 공지를 찾을 수 없습니다." });
+        return success ? Ok() : NotFound(new MessageResponse("해당 1회 공지를 찾을 수 없습니다."));
     }
 }
