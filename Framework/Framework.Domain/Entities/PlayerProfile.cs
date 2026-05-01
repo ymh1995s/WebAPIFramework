@@ -15,12 +15,6 @@ public class PlayerProfile
     // 경험치
     public int Exp { get; set; } = 0;
 
-    // 소프트 재화 (골드)
-    public int Gold { get; set; } = 0;
-
-    // 하드 재화 (젬)
-    public int Gems { get; set; } = 0;
-
     // 마지막 갱신 일시 (UTC)
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

@@ -3,6 +3,7 @@ using System;
 using Framework.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Framework.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260501100332_AddCurrencyAsItem")]
+    partial class AddCurrencyAsItem
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -632,6 +635,11 @@ namespace Framework.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("IsCurrency")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
@@ -808,6 +816,12 @@ namespace Framework.Infrastructure.Migrations
 
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Gems")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Gold")
+                        .HasColumnType("integer");
 
                     b.Property<bool>("IsClaimed")
                         .IsConcurrencyToken()
@@ -996,6 +1010,12 @@ namespace Framework.Infrastructure.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<int>("Exp")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Gems")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Gold")
                         .HasColumnType("integer");
 
                     b.Property<int>("Level")

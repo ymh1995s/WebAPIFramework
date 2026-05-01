@@ -36,7 +36,8 @@ else
 {
     <!-- 전체 플레이어 Bulk 우편 발송 안내 -->
     <div class="alert alert-info py-2 small mb-3">
-        <strong>전체 발송:</strong> 전체 플레이어에게 우편(Gold/Gems/Exp + 아이템)을 발송합니다.
+        <strong>전체 발송:</strong> 전체 플레이어에게 우편(아이템 목록 + Exp)을 발송합니다.
+        Gold는 ItemId=1, Gems는 ItemId=2로 입력하세요.
     </div>
 }
 
@@ -88,56 +89,48 @@ else
                     }
                 </div>
 
-                <!-- 재화 지급 — Bulk와 단일 모두 지원 -->
-                <div class="card mb-3">
-                    <div class="card-header py-1 small"><strong>재화</strong></div>
-                    <div class="card-body py-2">
-                        <div class="row g-2">
-                            <div class="col-4">
-                                <label class="form-label small mb-1">Gold</label>
-                                <input type="number" class="form-control form-control-sm" @bind="gold" min="0" />
-                            </div>
-                            <div class="col-4">
-                                <label class="form-label small mb-1">Gems</label>
-                                <input type="number" class="form-control form-control-sm" @bind="gems" min="0" />
-                            </div>
-                            <div class="col-4">
-                                <label class="form-label small mb-1">Exp</label>
-                                <input type="number" class="form-control form-control-sm" @bind="exp" min="0" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 아이템 지급 -->
+                <!-- 아이템 지급 — 통화 아이템(Gold Id=1, Gems Id=2) 및 Exp 포함 -->
+                <!-- Currency-as-Item: Gold/Gems는 아이템 목록에 ItemId=1/2로 입력. Exp는 별도 필드 유지 -->
                 <div class="card mb-3">
                     <div class="card-header py-1 small d-flex justify-content-between align-items-center">
-                        <strong>아이템</strong>
+                        <span>
+                            <strong>아이템 목록</strong>
+                            <span class="text-muted ms-1 small">(Gold=ItemId:1, Gems=ItemId:2)</span>
+                        </span>
                         <button class="btn btn-outline-secondary btn-sm" @onclick="AddItem">+ 추가</button>
                     </div>
                     <div class="card-body py-2">
-                        @if (targetMode == "bulk")
-                        {
-                            <p class="small text-warning mb-1">Bulk 모드에서는 첫 번째 아이템만 적용됩니다.</p>
-                        }
-                        @if (!items.Any())
-                        {
-                            <p class="small text-muted mb-0">아이템 없음 (재화만 지급)</p>
-                        }
-                        @foreach (var item in items)
-                        {
-                            <div class="row g-2 mb-1 align-items-center">
-                                <div class="col-5">
-                                    <input type="number" class="form-control form-control-sm" @bind="item.ItemId" placeholder="ItemId" />
-                                </div>
-                                <div class="col-4">
-                                    <input type="number" class="form-control form-control-sm" @bind="item.Quantity" min="1" placeholder="수량" />
-                                </div>
-                                <div class="col-3">
-                                    <button class="btn btn-outline-danger btn-sm w-100" @onclick="() => RemoveItem(item)">×</button>
-                                </div>
+                        <div class="mb-2 row g-2 align-items-center">
+                            <div class="col-auto">
+                                <label class="form-label small mb-0">Exp</label>
                             </div>
-                        }
+                            <div class="col-3">
+                                <input type="number" class="form-control form-control-sm" @bind="exp" min="0" placeholder="0" />
+                            </div>
+                            <div class="col-auto">
+                                <small class="text-muted">(경험치는 별도 처리)</small>
+                            </div>
+                        </div>
+                        <div class="border-top pt-2">
+                            @if (!items.Any())
+                            {
+                                <p class="small text-muted mb-0">아이템 없음</p>
+                            }
+                            @foreach (var item in items)
+                            {
+                                <div class="row g-2 mb-1 align-items-center">
+                                    <div class="col-5">
+                                        <input type="number" class="form-control form-control-sm" @bind="item.ItemId" placeholder="ItemId (Gold=1, Gems=2)" />
+                                    </div>
+                                    <div class="col-4">
+                                        <input type="number" class="form-control form-control-sm" @bind="item.Quantity" min="1" placeholder="수량" />
+                                    </div>
+                                    <div class="col-3">
+                                        <button class="btn btn-outline-danger btn-sm w-100" @onclick="() => RemoveItem(item)">×</button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
                     </div>
                 </div>
 

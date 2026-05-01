@@ -22,22 +22,22 @@ public class AdminRewardDispatchController : ControllerBase
 
     // 수동 단일 보상 지급 — SourceType=AdminGrant 고정
     // mode: Auto(기본), Direct(즉시지급), Mail(우편지급)
+    // Gold/Gems는 Items 목록으로 변환하여 지급 (ItemId=1: Gold, ItemId=2: Gems)
     [HttpPost("grant")]
     public async Task<IActionResult> Grant([FromBody] AdminGrantRewardDto dto)
     {
         // 지급할 내용이 있는지 확인
         var hasItems = dto.Items is { Count: > 0 };
-        if (dto.Gold <= 0 && dto.Gems <= 0 && dto.Exp <= 0 && !hasItems)
-            return BadRequest(new { message = "지급할 보상이 없습니다. (Gold/Gems/Exp/Items 중 하나 이상 입력)" });
+        if (dto.Exp <= 0 && !hasItems)
+            return BadRequest(new { message = "지급할 보상이 없습니다. (Exp/Items 중 하나 이상 입력)" });
 
-        // RewardItem 목록 변환
+        // RewardItem 목록 변환 — Items만 사용 (Gold/Gems는 Items에 ItemId=1/2로 포함)
         var rewardItems = hasItems
             ? dto.Items!.Select(i => new RewardItem(i.ItemId, i.Quantity)).ToArray()
             : null;
 
+        // Gold/Gems는 dto.Items에 ItemId=1(Gold)/2(Gems)로 포함하여 전달 — RewardBundle에 Gold/Gems 필드 없음
         var bundle = new RewardBundle(
-            Gold: dto.Gold ?? 0,
-            Gems: dto.Gems ?? 0,
             Exp: dto.Exp ?? 0,
             Items: rewardItems
         );
@@ -75,6 +75,7 @@ public class AdminRewardDispatchController : ControllerBase
 }
 
 // 수동 보상 지급 요청 DTO
+// Gold/Gems는 Items 목록에 ItemId=1(Gold) / ItemId=2(Gems)로 포함하여 전달
 public record AdminGrantRewardDto(
     // 대상 플레이어 ID
     int PlayerId,
@@ -82,12 +83,10 @@ public record AdminGrantRewardDto(
     // 멱등성 키 — AdminGrant 내에서 유일해야 함 (예: "2026-04-29-event", "support-ticket-123")
     string SourceKey,
 
-    // 지급 재화 (미입력 시 0)
-    int? Gold,
-    int? Gems,
+    // 경험치 지급량 (미입력 시 0)
     int? Exp,
 
-    // 지급 아이템 목록 (미입력 시 없음)
+    // 지급 아이템 목록 (Gold=ItemId 1, Gems=ItemId 2, 미입력 시 없음)
     List<AdminGrantItemDto>? Items,
 
     // 지급 방식 (Auto=자동판단, Direct=즉시지급, Mail=우편)

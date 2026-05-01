@@ -8,7 +8,7 @@
 | 구글 OAuth 연동 | Google IdToken 검증, 신규 로그인 및 기존 계정 연결, 계정 충돌 감지(409)/해소, 게스트 계정 소프트 딜리트 |
 | 게스트 결제 차단 | `[RequireLinkedAccount]` 필터 — 구글 미연동 계정의 결제 엔드포인트 접근 시 403 반환 (결제 컨트롤러 구현 시 부착 필요) |
 | 랭킹 시스템 | 게임 결과 점수 기록, 상위 N명 랭킹 조회 |
-| 인벤토리 관리 | 플레이어 보유 아이템 조회, 아이템 획득. TODO: 인벤토리 조회 응답에 아이템 외 기본 재화(Gold, Gems 등 PlayerProfile 컬럼)도 함께 표기 고려 |
+| 인벤토리 관리 | 플레이어 보유 아이템 조회, 아이템 획득. Gold/Gems는 PlayerItem(ItemId=1/2)으로 관리되므로 인벤토리 조회 시 ItemType.Currency 항목이 재화로 함께 반환됨 |
 | 우편 시스템 | 우편 수신/수령 API, Admin 단건·일괄 발송 |
 | 일일 로그인 보상 | 로그인 시 당일 보상 우편 발송 (이번 달 로그인 횟수 기반, 매월 리셋). 빈 일자는 보상 없음. Current/Next 2슬롯 방식으로 이번 달·다음 달 보상 예약 관리. KST 하루 기준 시각(기본 00:00) Admin 설정 가능 |
 | 매치메이킹 | SignalR 기반 실시간 매칭, 대기열 관리 |
@@ -22,7 +22,7 @@
 | 클라이언트 앱 버전 체크 | GET /api/version/check, 강제 업데이트 여부 반환, Admin에서 최소/최신 버전 설정 (서버 버전 아님 — 앱스토어 배포 Unity 빌드 기준) |
 | 공지/1회 공지 시스템 | **공지**: `GET /api/notices/latest` 최신 활성 공지 1개 반환. 클라이언트가 NoticeId를 PlayerPrefs에 저장해 1회성 팝업 표시. Admin CRUD. **1회 공지**: Admin에서 전체/특정 플레이어 대상 HUD 텍스트 발송. DB 이력 기록. 클라이언트 접속 시 `GET /api/shouts/active` 1회 호출(폴링 방식) — 만료 시간 내 활성 1회 공지 수신. Admin `/notices`, `/shouts` 페이지 별도 관리 |
 | 플레이어 문의 | POST /api/inquiries 제출, GET /api/inquiries 내 목록 조회. Admin 답변 등록. 소원수리함 형태(자유 텍스트). Blazor 테스트 페이지 포함 |
-| 감사 로그 | 재화/아이템 변동 추적. Item.AuditLevel(AnomalyOnly/Full) + AnomalyThreshold 기준으로 저장 범위 차별화. Admin `/audit-logs` 페이지에서 플레이어·아이템·기간·이상치 필터 조회. 현재 훅은 `MailService.ClaimAsync` 적용. **[미구현] Currency(Gold/Gems/Exp) 로그 누락** — `AuditLog.ItemId`가 non-nullable int라 Currency 기록 불가. 구조 개선 전까지 우편 수령 시 Currency 변동은 감사 로그 미기록 |
+| 감사 로그 | 재화/아이템 변동 추적. Item.AuditLevel(AnomalyOnly/Full) + AnomalyThreshold 기준으로 저장 범위 차별화. Admin `/audit-logs` 페이지에서 플레이어·아이템·기간·이상치 필터 조회. 현재 훅은 `MailService.ClaimAsync` 적용. Gold/Gems는 Currency-as-Item 전환(ItemId=1/2)으로 감사 로그 기록 가능. Exp는 단조 증가 자원이므로 AuditLog 대상 아님 — 어뷰징 추적은 `RewardGrants(SourceKey="levelup:{N}")`로 위임 |
 | 광고 SSV 보상 | Unity Ads / IronSource SSV(Server Side Verification) 콜백 검증 및 보상 지급. Strategy 패턴으로 모듈화 — 새 네트워크 추가 시 검증기 클래스 1개 + DI 등록 1줄. HMAC-SHA256 서명 검증, 일일 한도 제한, RewardDispatcher 멱등성 보장. Admin `/ad-policies` 페이지에서 PlacementId별 보상 정책 CRUD 관리. 콜백 URL: `GET /api/ads/callback/unity-ads`, `GET /api/ads/callback/ironsource` |
 | 트랜잭션 추상화 | `IUnitOfWork` 인터페이스(Domain) + `UnitOfWork` 구현체(Infrastructure). RewardDispatcher가 IUnitOfWork를 통해 전체 보상 지급을 단일 트랜잭션으로 보장 |
 | 인앱 결제(IAP) | Google Play 영수증 서버 검증 및 보상 지급. Strategy 패턴으로 스토어별 모듈화(현재 Google Play 구현, Apple 예약). OIDC 기반 RTDN(환불 알림) 수신 및 자동 환불 처리. Admin `/iap-products` 상품 관리, `/iap-purchases` 구매 이력 조회. API: `POST /api/iap/google/verify`, `POST /api/iap/google/rtdn`. Rate Limit: iap-rtdn 600회/분 |
@@ -110,7 +110,8 @@ cycleDay는 이번 달 로그인 횟수 기반 (1번째 로그인 = Day 1, 28번
 
 | # | 결정 | 근거 |
 |---|---|---|
-| 1 | Gold/Gems/Exp — PlayerProfile 컬럼 유지, Item 마스터는 정의(이름·아이콘)용만 | 아이템 마스터는 조회용, 보유량은 PlayerProfile이 정원 |
+| 1 | Gold/Gems — PlayerItem(ItemId=1/2)으로 이동(Currency-as-Item). 통화 여부는 `ItemType.Currency`로 판별. 새 통화 추가 = Item 마스터 행 추가만으로 완료, 스키마 변경 불필요 | 재화 종류 확장 시 스키마 변경 필요 제거 |
+| 2 | Exp/Level — PlayerProfile 컬럼 유지. Exp는 차감 불가 단조 증가 자원이므로 Currency-as-Item 패턴 부적합. Level은 Exp의 파생값(캐시 컬럼)이므로 분리 불가 | Exp Item화 시 Exp/Level이 두 테이블에 쪼개져 동기화 책임 발생. 도메인적으로 Exp는 자원이 아닌 진행 상태 |
 | 2 | MailItems 테이블 도입 — 1통에 N종 아이템 묶음 발송 | 다중 보상 UX·트랜잭션 일관성 |
 | 3 | PlayerRecord 폐기 → GameResultParticipants로 대체 | 랭킹 데이터 미존재, 매치 식별자 없는 기존 구조 한계 |
 | 4 | DailyLoginLog + RewardGrants 이중보호 유지 | DailyLoginLog는 로그인 통계 겸용, RewardGrants는 범용 멱등성 |
@@ -122,7 +123,7 @@ cycleDay는 이번 달 로그인 횟수 기반 (1번째 로그인 = Day 1, 28번
   → [UnitOfWork 트랜잭션 진입]
   → [RewardGrant 선기록 + UNIQUE 위반 catch → Duplicate 반환]
   → [DetermineMode: Auto면 IsCurrencyOnly로 Direct/Mail 자동 결정]
-  → [Direct: PlayerProfile.Gold/Gems/Exp 가산 + PlayerItem 추가]
+  → [Direct: PlayerItem(Gold=ItemId1, Gems=ItemId2) 수량 증가 + PlayerProfile.Exp 가산]
     또는
    [Mail: Mail + MailItems 생성 → 수령 시 ClaimAsync에서 실지급]
   → [Mail 모드면 grant.MailId 업데이트]
@@ -173,7 +174,6 @@ cycleDay는 이번 달 로그인 횟수 기반 (1번째 로그인 = Day 1, 28번
 ## [미구현] 추가 개발 필요 항목
 - **공지사항 페이지** [선택] — 현재는 1회성 텍스트 공지만 구현됨. 공지 이력 열람, 카테고리 분류 등 게시판 형태가 필요해지면 별도 페이지 추가 고려
 - **감사 로그 훅 확장** — 현재는 `MailService.ClaimAsync`에만 훅 적용됨. 상점 구매/스테이지 보상/Admin 직접 지급 등 기능 구현 시 `IAuditLogService.RecordAsync` 호출 추가 필요
-- **감사 로그 Currency 구조 개선** — `AuditLog.ItemId`가 non-nullable int라 Gold/Gems/Exp 같은 Currency 변동을 기록할 수 없음. 개선 방향: `ItemId` nullable 전환 + `CurrencyType` 컬럼 추가(Gold/Gems/Exp enum), 또는 Currency 전용 별도 로그 테이블 분리. 현재는 `MailService.ClaimAsync`에 TODO 주석 기재(`MailService.cs:197`)
 - **백업 정책** — DB 백업은 애플리케이션 관할 아님. Docker로 운영 중인 PostgreSQL 컨테이너/볼륨 레벨에서 별도 설정 필요 (pg_dump, 볼륨 스냅샷 등). 최소 1일 1회 백업, 30일 보관 권장
 - **Apple IAP 검증기** — `IapStore.Apple(=2)` Enum은 예약되어 있으나 `AppleStoreVerifier` 구현체 미존재. Apple 플랫폼 출시 시 추가 필요
 - **이벤트 기간 관리** [중요도 낮음] — 기간 한정 이벤트 시작/종료 관리. 클라이언트가 현재 이벤트 진행 여부를 서버에 질의. 게임마다 구조가 달라 범용 설계 필요

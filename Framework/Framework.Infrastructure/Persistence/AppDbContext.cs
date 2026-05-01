@@ -221,6 +221,12 @@ public class AppDbContext : DbContext
             .WithMany(p => p.Items)
             .HasForeignKey(pi => pi.PlayerId);
 
+        // PlayerItem: UNIQUE(PlayerId, ItemId) — 동일 플레이어+아이템 조합은 수량만 증가
+        // Currency-as-Item 방식으로 Gold/Gems도 PlayerItem에서 관리하므로 유니크 제약 필수
+        modelBuilder.Entity<PlayerItem>()
+            .HasIndex(pi => new { pi.PlayerId, pi.ItemId })
+            .IsUnique();
+
         // Mail → Player (N:1)
         modelBuilder.Entity<Mail>()
             .HasOne(m => m.Player)

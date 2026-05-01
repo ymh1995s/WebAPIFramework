@@ -18,4 +18,5 @@ public class Item
     // AnomalyOnly일 때만 사용 — 1회 변동이 이 값을 넘으면 이상치로 기록
     // 0이면 이상치 검사를 하지 않음 (AnomalyOnly일 때 사실상 로그 비기록)
     public int AnomalyThreshold { get; set; } = 0;
+
 }

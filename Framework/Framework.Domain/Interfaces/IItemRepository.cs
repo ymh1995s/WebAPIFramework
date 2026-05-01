@@ -19,6 +19,8 @@ public interface IItemRepository
     Task DeleteAsync(int id);
     // 복수 ID 배치 조회 — AuditLog 아이템명 N+1 방지용
     Task<List<Item>> GetByIdsAsync(List<int> ids);
+    // 통화 아이템(ItemType.Currency) 전체 조회 — Gold/Gems 등 기본 재화 목록
+    Task<List<Item>> GetCurrencyItemsAsync();
     // 변경사항 저장
     Task SaveChangesAsync();
 }

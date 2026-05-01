@@ -13,6 +13,7 @@ public class PlayerItemService : IPlayerItemService
     }
 
     // 플레이어 보유 아이템 목록을 DTO로 변환하여 반환
+    // 통화 아이템(ItemType.Currency)도 인벤토리에 포함 — Gold/Gems는 PlayerItem에서 관리
     public async Task<List<PlayerItemDto>> GetByPlayerIdAsync(int playerId)
     {
         var items = await _repository.GetByPlayerIdAsync(playerId);

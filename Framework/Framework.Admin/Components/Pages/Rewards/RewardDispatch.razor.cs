@@ -27,9 +27,7 @@ public partial class RewardDispatch : SafeComponentBase
     // Bulk 모드에서는 "1"(Mail)로 강제 고정
     private string dispatchMode = "2";
 
-    // 재화 (단일 플레이어 전용)
-    private int? gold;
-    private int? gems;
+    // Exp (Currency-as-Item 전환 후 Gold/Gems는 아이템 목록으로 입력, Exp만 별도 필드 유지)
     private int? exp;
 
     // 아이템 목록 (단일/Bulk 공통)
@@ -115,12 +113,11 @@ public partial class RewardDispatch : SafeComponentBase
             return;
         }
 
-        // 지급할 보상 존재 여부 확인
-        var hasContent = (gold > 0) || (gems > 0) || (exp > 0)
-                         || items.Any(i => i.ItemId > 0 && i.Quantity > 0);
+        // 지급할 보상 존재 여부 확인 — Gold/Gems는 ItemId=1/2로 items 목록에 입력
+        var hasContent = (exp > 0) || items.Any(i => i.ItemId > 0 && i.Quantity > 0);
         if (!hasContent)
         {
-            resultMessage = "지급할 보상이 없습니다.";
+            resultMessage = "지급할 보상이 없습니다. (Exp 입력 또는 아이템 목록에 아이템을 추가하세요. Gold=1, Gems=2)";
             resultSuccess = false;
             return;
         }
@@ -152,12 +149,11 @@ public partial class RewardDispatch : SafeComponentBase
         if (!int.TryParse(dispatchMode, out var modeInt))
             modeInt = 2;
 
+        // Currency-as-Item: Gold/Gems는 아이템 목록에 ItemId=1/2로 전달, Exp만 별도 필드
         var payload = new
         {
             PlayerId = playerId,
             SourceKey = sourceKey,
-            Gold = gold,
-            Gems = gems,
             Exp = exp,
             Items = items.Where(i => i.ItemId > 0 && i.Quantity > 0)
                 .Select(i => new { i.ItemId, i.Quantity }).ToList(),
@@ -180,8 +176,6 @@ public partial class RewardDispatch : SafeComponentBase
 
             // 성공 시 입력 초기화
             sourceKey = "";
-            gold = null;
-            gems = null;
             exp = null;
             items = new();
         }
@@ -204,20 +198,19 @@ public partial class RewardDispatch : SafeComponentBase
             return;
         }
 
-        // Bulk는 아이템을 첫 번째 항목만 사용 (API 스펙에 따라 단일 아이템)
-        var firstItem = items.FirstOrDefault(i => i.ItemId > 0 && i.Quantity > 0);
-
-        // Bulk 우편 payload — Gold/Gems/Exp도 포함하여 발송 (수령 시 ClaimAsync에서 지급)
+        // Bulk 우편 payload — 모든 아이템 목록 전달 (Gold=ItemId1, Gems=ItemId2 포함)
+        // Currency-as-Item: Gold/Gems는 Items 목록의 ItemId=1/2로 전달
+        var validItems = items.Where(i => i.ItemId > 0 && i.Quantity > 0).ToList();
         var payload = new
         {
             Title = mailTitle,
             Body = mailBody,
-            ItemId = firstItem?.ItemId,
-            ItemCount = firstItem?.Quantity ?? 0,
-            Gold = gold ?? 0,
-            Gems = gems ?? 0,
+            // 레거시 단일 아이템 필드는 null/0 처리 — Items 목록으로 대체
+            ItemId = (int?)null,
+            ItemCount = 0,
             Exp = exp ?? 0,
-            ExpiresInDays = mailExpiresInDays
+            ExpiresInDays = mailExpiresInDays,
+            Items = validItems.Select(i => new { i.ItemId, i.Quantity }).ToList()
         };
 
         var client = HttpClientFactory.CreateClient("ApiClient");
@@ -229,6 +222,7 @@ public partial class RewardDispatch : SafeComponentBase
             resultMessage = "전체 플레이어에게 우편이 발송되었습니다.";
             mailTitle = "";
             mailBody = "";
+            exp = null;
             items = new();
         }
         else

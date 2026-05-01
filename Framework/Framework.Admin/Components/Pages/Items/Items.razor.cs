@@ -23,7 +23,8 @@ public partial class Items : SafeComponentBase
 
     // 추가 폼 상태
     private string newName = "";
-    private ItemType newItemType = ItemType.Currency;
+    // 신규 아이템 기본 타입 — 통화 아이템(Gold/Gems)은 예약 ItemId이므로 일반 Consumable을 기본으로 설정
+    private ItemType newItemType = ItemType.Consumable;
     private string newDescription = "";
     private AuditLevel newAuditLevel = AuditLevel.AnomalyOnly;
     private int newAnomalyThreshold = 0;

@@ -123,60 +123,63 @@ public class RewardDispatcher : IRewardDispatcher
                ex.InnerException?.Message.Contains("duplicate") == true);
 
     // 지급 방식 결정 — Auto이면 번들 구성에 따라 자동 판단
+    // Items가 있으면 Mail, Items가 없고 Exp만 있으면 Direct
     private static DispatchMode DetermineMode(DispatchMode requested, RewardBundle bundle)
     {
         if (requested != DispatchMode.Auto) return requested;
 
-        // 아이템이 있으면 Mail, 순수 Currency(Gold/Gems/Exp)만 있으면 Direct
+        // 아이템이 있으면 Mail, Exp만 있으면 Direct
         return bundle.IsCurrencyOnly ? DispatchMode.Direct : DispatchMode.Mail;
     }
 
-    // Direct 지급 — PlayerProfile 컬럼 직접 증가
+    // Direct 지급 — Currency-as-Item 방식
+    // Gold(ItemId=1) / Gems(ItemId=2): 호출자가 Items 목록에 포함하여 전달 — 별도 변환 없음
+    // Exp: PlayerProfile.Exp에 직접 증가 (레벨업 로직 포함)
     // 트랜잭션 내부에서 호출되므로 SaveChangesAsync()는 중간 flush 역할 (커밋 아님)
     private async Task<GrantRewardResult> DispatchDirectAsync(GrantRewardRequest request)
     {
-        var profile = await _profileRepo.GetByPlayerIdAsync(request.PlayerId)
-            ?? throw new InvalidOperationException($"PlayerProfile을 찾을 수 없습니다. PlayerId: {request.PlayerId}");
-
         var bundle = request.Bundle;
 
-        // Gold/Gems/Exp 직접 증가
-        if (bundle.Gold > 0) profile.Gold += bundle.Gold;
-        if (bundle.Gems > 0) profile.Gems += bundle.Gems;
-        if (bundle.Exp > 0) profile.Exp += bundle.Exp;
+        // Gold/Gems는 호출자가 Items에 ItemId=1/2로 포함하여 전달 — RewardBundle에 Gold/Gems 필드 없음
+        var allItems = (bundle.Items ?? Enumerable.Empty<Domain.ValueObjects.RewardItem>()).ToList();
 
-        profile.UpdatedAt = DateTime.UtcNow;
-        await _profileRepo.UpdateAsync(profile);
-
-        // 아이템도 있는 경우 PlayerItem 인벤토리에 직접 추가
-        // Profile 업데이트와 아이템 추가가 동일 트랜잭션 내 처리되어 부분 성공 불가
-        if (bundle.Items is { Count: > 0 })
+        foreach (var item in allItems)
         {
-            foreach (var item in bundle.Items)
-            {
-                var existing = await _itemRepo.GetByPlayerAndItemAsync(request.PlayerId, item.ItemId);
-                if (existing is not null)
-                    existing.Quantity += item.Quantity;
-                else
-                    await _itemRepo.AddAsync(new PlayerItem
-                    {
-                        PlayerId = request.PlayerId,
-                        ItemId = item.ItemId,
-                        Quantity = item.Quantity
-                    });
-            }
+            var existing = await _itemRepo.GetByPlayerAndItemAsync(request.PlayerId, item.ItemId);
+            if (existing is not null)
+                existing.Quantity += item.Quantity;
+            else
+                await _itemRepo.AddAsync(new PlayerItem
+                {
+                    PlayerId = request.PlayerId,
+                    ItemId = item.ItemId,
+                    Quantity = item.Quantity
+                });
+        }
+
+        // Exp는 PlayerProfile에 직접 증가 (레벨업 처리는 ExpService에서 담당)
+        // 보상 파이프라인에서 Exp는 별도 GrantAsync 완료 후 처리하므로 여기서는 Profile만 업데이트
+        if (bundle.Exp > 0)
+        {
+            var profile = await _profileRepo.GetByPlayerIdAsync(request.PlayerId)
+                ?? throw new InvalidOperationException($"PlayerProfile을 찾을 수 없습니다. PlayerId: {request.PlayerId}");
+            profile.Exp += bundle.Exp;
+            profile.UpdatedAt = DateTime.UtcNow;
+            await _profileRepo.UpdateAsync(profile);
         }
 
         return GrantRewardResult.DirectSuccess();
     }
 
-    // Mail 지급 — MailService를 통해 우편 + MailItems 생성
+    // Mail 지급 — MailItems로 우편 생성
+    // Currency-as-Item: Gold(ItemId=1) / Gems(ItemId=2)는 bundle.Items에 이미 포함되어 있어 별도 처리 불필요
+    // Exp는 수령(ClaimAsync) 시점에 처리되므로 Mail.Exp에 저장
     // 트랜잭션 내부에서 호출되므로 SaveChangesAsync()는 중간 flush 역할 (커밋 아님)
     private async Task<GrantRewardResult> DispatchMailAsync(GrantRewardRequest request)
     {
         var bundle = request.Bundle;
 
-        // 우편 엔티티 생성 (기존 단일 ItemId/ItemCount는 null/0으로 유지 — deprecated)
+        // 우편 엔티티 생성 — Gold/Gems는 bundle.Items에 ItemId=1/2로 포함되어 별도 처리 없음
         var mail = new Domain.Entities.Mail
         {
             PlayerId = request.PlayerId,
@@ -184,14 +187,12 @@ public class RewardDispatcher : IRewardDispatcher
             Body = request.MailBody,
             ItemId = null,
             ItemCount = 0,
-            // Gold/Gems/Exp는 Mail 엔티티에 저장 — ClaimAsync 수령 시 PlayerProfile에 직접 지급
-            Gold = bundle.Gold,
-            Gems = bundle.Gems,
+            // Gold/Gems 필드는 Currency-as-Item 전환으로 제거됨 — Exp만 레거시 경로 유지
             Exp = bundle.Exp,
             ExpiresAt = DateTime.UtcNow.AddDays(request.MailExpiresInDays)
         };
 
-        // MailItems 다중 아이템 첨부
+        // 아이템 목록 첨부 — Gold(ItemId=1) / Gems(ItemId=2) 통화 아이템 포함
         if (bundle.Items is { Count: > 0 })
         {
             foreach (var item in bundle.Items)

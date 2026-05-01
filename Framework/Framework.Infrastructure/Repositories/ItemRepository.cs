@@ -1,4 +1,5 @@
 using Framework.Domain.Entities;
+using Framework.Domain.Enums;
 using Framework.Domain.Interfaces;
 using Framework.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -42,6 +43,12 @@ public class ItemRepository : IItemRepository
         if (item != null)
             _context.Items.Remove(item);
     }
+
+    // 통화 아이템(ItemType.Currency) 전체 조회 — Gold/Gems 등 기본 재화 목록
+    public async Task<List<Item>> GetCurrencyItemsAsync()
+        => await _context.Items
+            .Where(i => i.ItemType == ItemType.Currency && !i.IsDeleted)
+            .ToListAsync();
 
     // 배치 IN 쿼리 — AuditLogService.SearchAsync N+1 방지
     public async Task<List<Item>> GetByIdsAsync(List<int> ids)

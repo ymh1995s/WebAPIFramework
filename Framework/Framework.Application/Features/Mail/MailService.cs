@@ -33,6 +33,7 @@ public class MailService : IMailService
     }
 
     // 내 우편함 조회 - JWT에서 추출한 PlayerId 기준
+    // MailItems 목록도 함께 반환 — 통화 아이템(Gold/Gems)은 MailItems에 포함됨
     public async Task<List<MailDto>> GetMyMailsAsync(int playerId)
     {
         var mails = await _mailRepository.GetByPlayerIdAsync(playerId);
@@ -40,11 +41,16 @@ public class MailService : IMailService
             m.Id, m.PlayerId, m.Title, m.Body,
             m.ItemId, m.Item?.Name, m.ItemCount,
             m.IsRead, m.IsClaimed, m.CreatedAt, m.ExpiresAt,
-            m.Gold, m.Gems, m.Exp
+            m.Exp,
+            // MailItems를 DTO로 변환 (없으면 null)
+            m.MailItems.Count > 0
+                ? m.MailItems.Select(mi => new MailItemDto(mi.ItemId, mi.Item?.Name ?? "", mi.Quantity)).ToList()
+                : null
         )).ToList();
     }
 
     // 단일 플레이어에게 우편 발송 (Admin 전용)
+    // Gold/Gems는 MailItems(통화 아이템)로 첨부하는 방식으로 전환 — Mail.Gold/Gems 레거시 필드 미사용
     public async Task SendAsync(SendMailDto dto)
     {
         var mail = new Domain.Entities.Mail
@@ -54,9 +60,7 @@ public class MailService : IMailService
             Body = dto.Body,
             ItemId = dto.ItemId,
             ItemCount = dto.ItemCount,
-            // 우편 첨부 재화 저장 — 수령 시 ClaimAsync에서 PlayerProfile에 직접 지급
-            Gold = dto.Gold,
-            Gems = dto.Gems,
+            // Gold/Gems 필드는 Currency-as-Item 전환으로 제거됨 — Exp만 레거시 경로 유지
             Exp = dto.Exp,
             ExpiresAt = DateTime.UtcNow.AddDays(dto.ExpiresInDays)
         };
@@ -65,22 +69,45 @@ public class MailService : IMailService
     }
 
     // 전체 플레이어에게 우편 일괄 발송 (Admin 전용)
+    // Items 목록이 있으면 MailItems로 첨부 — 통화 아이템(Gold Id=1, Gems Id=2) 포함 가능
     public async Task BulkSendAsync(BulkSendMailDto dto)
     {
         var players = await _playerRepository.GetAllAsync();
-        var mails = players.Select(p => new Domain.Entities.Mail
+
+        // 신규 Items 목록 기반 발송 여부 판단
+        var hasMailItems = dto.Items is { Count: > 0 };
+
+        var mails = players.Select(p =>
         {
-            PlayerId = p.Id,
-            Title = dto.Title,
-            Body = dto.Body,
-            ItemId = dto.ItemId,
-            ItemCount = dto.ItemCount,
-            // 우편 첨부 재화 저장 — 수령 시 ClaimAsync에서 PlayerProfile에 직접 지급
-            Gold = dto.Gold,
-            Gems = dto.Gems,
-            Exp = dto.Exp,
-            ExpiresAt = DateTime.UtcNow.AddDays(dto.ExpiresInDays)
-        });
+            var mail = new Domain.Entities.Mail
+            {
+                PlayerId = p.Id,
+                Title = dto.Title,
+                Body = dto.Body,
+                // 레거시 단일 아이템 필드 — Items 목록이 있으면 null 처리
+                ItemId = hasMailItems ? null : dto.ItemId,
+                ItemCount = hasMailItems ? 0 : dto.ItemCount,
+                // Gold/Gems 필드는 Currency-as-Item 전환으로 제거됨 — Exp만 레거시 경로 유지
+                Exp = dto.Exp,
+                ExpiresAt = DateTime.UtcNow.AddDays(dto.ExpiresInDays)
+            };
+
+            // Items 목록이 있으면 MailItems로 첨부 (통화 아이템 포함)
+            if (hasMailItems)
+            {
+                foreach (var item in dto.Items!)
+                {
+                    mail.MailItems.Add(new Domain.Entities.MailItem
+                    {
+                        ItemId = item.ItemId,
+                        Quantity = item.Quantity
+                    });
+                }
+            }
+
+            return mail;
+        }).ToList();
+
         await _mailRepository.AddRangeAsync(mails);
         await _mailRepository.SaveChangesAsync();
     }
@@ -102,21 +129,9 @@ public class MailService : IMailService
 
         var balanceBefore = 0;
 
-        // 우편에 첨부된 재화 지급 (Gold/Gems는 PlayerProfile, Exp는 IExpService를 통해 처리)
-        // Gold/Gems는 SaveChanges 전에 처리 — 동일 DbContext 공유로 한 번에 커밋
-        if (mail.Gold > 0 || mail.Gems > 0)
-        {
-            var profile = await _playerProfileRepository.GetByPlayerIdAsync(mail.PlayerId);
-            if (profile is not null)
-            {
-                if (mail.Gold > 0) profile.Gold += mail.Gold;
-                if (mail.Gems > 0) profile.Gems += mail.Gems;
-                profile.UpdatedAt = DateTime.UtcNow;
-                await _playerProfileRepository.UpdateAsync(profile);
-            }
-        }
-
         // [신규] MailItems 기반 다중 아이템 수령 처리 — 배치 조회로 N+1 방지
+        // Gold/Gems는 MailItems(통화 아이템 ItemId=1/2)로 첨부되어 여기서 함께 처리됨
+        // 레거시 Mail.Gold/Mail.Gems 경로는 기존 우편 호환을 위해 하단에 유지
         Dictionary<int, PlayerItem>? mailItemDict = null;
         if (mail.MailItems.Count > 0)
         {

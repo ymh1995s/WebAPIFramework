@@ -15,10 +15,13 @@ public class MailRepository : IMailRepository
         _context = context;
     }
 
-    // 특정 플레이어의 전체 우편 조회 (Item 네비게이션 프로퍼티 포함 — m.Item?.Name null 방지)
+    // 특정 플레이어의 전체 우편 조회
+    // Item(단일 레거시) + MailItems(다중 아이템, 통화 포함) 함께 로드
     public async Task<List<Mail>> GetByPlayerIdAsync(int playerId)
         => await _context.Mails
             .Include(m => m.Item)
+            .Include(m => m.MailItems)
+                .ThenInclude(mi => mi.Item)
             .Where(m => m.PlayerId == playerId)
             .ToListAsync();
 
