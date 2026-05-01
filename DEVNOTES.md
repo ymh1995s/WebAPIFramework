@@ -130,7 +130,7 @@ cycleDay는 이번 달 로그인 횟수 기반 (1번째 로그인 = Day 1, 28번
   → [트랜잭션 커밋 + 결과 반환]
 ```
 ※ Source별 권한/사전 검증은 호출자(Service) 책임. RewardDispatcher는 멱등성·지급·트랜잭션만 담당
-※ AuditLog 기록은 현재 `MailService.ClaimAsync`에서만 수행 (RewardDispatcher 내 미구현, [미구현] 섹션 참조)
+※ AuditLog 기록: `MailService.ClaimAsync`(MailClaim 사유) + `RewardDispatcher.DispatchDirectAsync`(Direct 보상 전체) 두 경로에서 수행
 
 #### 레벨업 처리
 
@@ -173,7 +173,6 @@ cycleDay는 이번 달 로그인 횟수 기반 (1번째 로그인 = Day 1, 28번
 
 ## [미구현] 추가 개발 필요 항목
 - **공지사항 페이지** [선택] — 현재는 1회성 텍스트 공지만 구현됨. 공지 이력 열람, 카테고리 분류 등 게시판 형태가 필요해지면 별도 페이지 추가 고려
-- **감사 로그 훅 확장** — 현재는 `MailService.ClaimAsync`에만 훅 적용됨. 상점 구매/스테이지 보상/Admin 직접 지급 등 기능 구현 시 `IAuditLogService.RecordAsync` 호출 추가 필요
 - **백업 정책** — DB 백업은 애플리케이션 관할 아님. Docker로 운영 중인 PostgreSQL 컨테이너/볼륨 레벨에서 별도 설정 필요 (pg_dump, 볼륨 스냅샷 등). 최소 1일 1회 백업, 30일 보관 권장
 - **Apple IAP 검증기** — `IapStore.Apple(=2)` Enum은 예약되어 있으나 `AppleStoreVerifier` 구현체 미존재. Apple 플랫폼 출시 시 추가 필요
 - **이벤트 기간 관리** [중요도 낮음] — 기간 한정 이벤트 시작/종료 관리. 클라이언트가 현재 이벤트 진행 여부를 서버에 질의. 게임마다 구조가 달라 범용 설계 필요

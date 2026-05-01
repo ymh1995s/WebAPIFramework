@@ -27,5 +27,11 @@ public record GrantRewardRequest(
     int MailExpiresInDays = 30,
 
     // 지급 방식 (Auto이면 번들 구성에 따라 자동 판단)
-    DispatchMode Mode = DispatchMode.Auto
+    DispatchMode Mode = DispatchMode.Auto,
+
+    // 감사 로그 행위자 유형 — 시스템 자동 보상(레벨업/스테이지)은 기본값 System 사용
+    AuditActorType ActorType = AuditActorType.System,
+
+    // 감사 로그 행위자 ID — Admin 등 식별자가 필요한 경우 지정, 일반 시스템 보상은 null
+    int? ActorId = null
 );

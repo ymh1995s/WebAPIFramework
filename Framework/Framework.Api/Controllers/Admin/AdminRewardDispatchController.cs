@@ -50,7 +50,9 @@ public class AdminRewardDispatchController : ControllerBase
             MailTitle: dto.MailTitle ?? "운영팀 보상이 도착했습니다",
             MailBody: dto.MailBody ?? "운영팀에서 보상을 지급했습니다.",
             MailExpiresInDays: dto.MailExpiresInDays ?? 30,
-            Mode: dto.Mode
+            Mode: dto.Mode,
+            // Admin이 수동으로 지급하는 보상 — 행위자는 Admin
+            ActorType: AuditActorType.Admin
         );
 
         var result = await _dispatcher.GrantAsync(request);

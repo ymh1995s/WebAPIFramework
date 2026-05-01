@@ -141,11 +141,19 @@ public class RewardDispatcher : IRewardDispatcher
         var bundle = request.Bundle;
 
         // Gold/Gems는 호출자가 Items에 ItemId=1/2로 포함하여 전달 — RewardBundle에 Gold/Gems 필드 없음
-        var allItems = (bundle.Items ?? Enumerable.Empty<Domain.ValueObjects.RewardItem>()).ToList();
+        // 동일 ItemId가 중복으로 들어올 경우 수량 합산 후 처리 (AddAsync 중복 키 오류 방지)
+        var allItems = (bundle.Items ?? Enumerable.Empty<Domain.ValueObjects.RewardItem>())
+            .GroupBy(i => i.ItemId)
+            .Select(g => new Domain.ValueObjects.RewardItem(g.Key, g.Sum(i => i.Quantity)))
+            .ToList();
+
+        // 감사 로그 기록용 — 변동 전후 잔량 추적
+        var auditEntries = new List<(int ItemId, int Delta, int Before, int After)>();
 
         foreach (var item in allItems)
         {
             var existing = await _itemRepo.GetByPlayerAndItemAsync(request.PlayerId, item.ItemId);
+            var before = existing?.Quantity ?? 0;
             if (existing is not null)
                 existing.Quantity += item.Quantity;
             else
@@ -155,6 +163,22 @@ public class RewardDispatcher : IRewardDispatcher
                     ItemId = item.ItemId,
                     Quantity = item.Quantity
                 });
+            auditEntries.Add((item.ItemId, item.Quantity, before, before + item.Quantity));
+        }
+
+        // 아이템 변동 감사 로그 기록 — AuditLevel 필터링은 AuditLogService 내부에서 처리
+        // Reason: "{sourcetype}:{sourcekey}" 형식으로 하드코딩 없이 호출 컨텍스트 식별
+        foreach (var entry in auditEntries)
+        {
+            await _auditLogService.RecordAsync(
+                request.PlayerId,
+                entry.ItemId,
+                reason: $"{request.SourceType.ToString().ToLower()}:{request.SourceKey}",
+                entry.Delta,
+                entry.Before,
+                entry.After,
+                request.ActorType,
+                request.ActorId);
         }
 
         // Exp는 PlayerProfile에 직접 증가 (레벨업 처리는 ExpService에서 담당)
@@ -192,10 +216,14 @@ public class RewardDispatcher : IRewardDispatcher
             ExpiresAt = DateTime.UtcNow.AddDays(request.MailExpiresInDays)
         };
 
-        // 아이템 목록 첨부 — Gold(ItemId=1) / Gems(ItemId=2) 통화 아이템 포함
+        // 아이템 목록 첨부 — 동일 ItemId 중복 시 수량 합산 후 저장 (MailItems 테이블 중복 행 방지)
         if (bundle.Items is { Count: > 0 })
         {
-            foreach (var item in bundle.Items)
+            var groupedItems = bundle.Items
+                .GroupBy(i => i.ItemId)
+                .Select(g => new Domain.ValueObjects.RewardItem(g.Key, g.Sum(i => i.Quantity)));
+
+            foreach (var item in groupedItems)
             {
                 mail.MailItems.Add(new Domain.Entities.MailItem
                 {

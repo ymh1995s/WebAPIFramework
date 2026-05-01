@@ -114,7 +114,10 @@ public class AdRewardService : IAdRewardService
             Bundle: bundle,
             MailTitle: "광고 시청 보상",
             MailBody: "광고 시청에 감사드립니다. 보상을 수령해 주세요.",
-            Mode: DispatchMode.Direct
+            Mode: DispatchMode.Direct,
+            // 플레이어가 광고를 시청하여 획득한 보상 — 행위자는 Player
+            ActorType: AuditActorType.Player,
+            ActorId: verified.PlayerId
         );
 
         var grantResult = await _dispatcher.GrantAsync(grantRequest);

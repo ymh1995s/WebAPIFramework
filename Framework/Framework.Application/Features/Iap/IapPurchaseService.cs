@@ -157,7 +157,10 @@ public class IapPurchaseService : IIapPurchaseService
                 Bundle: bundle,
                 MailTitle: "인앱결제 보상",
                 MailBody: $"'{product.Description}' 상품 구매에 감사드립니다. 보상을 수령해 주세요.",
-                Mode: DispatchMode.Direct
+                Mode: DispatchMode.Direct,
+                // 플레이어가 직접 결제한 보상 — 행위자는 Player
+                ActorType: AuditActorType.Player,
+                ActorId: playerId
             ));
 
             if (!grantResult.Success && !grantResult.AlreadyGranted)
