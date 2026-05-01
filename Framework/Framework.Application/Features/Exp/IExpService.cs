@@ -1,4 +1,4 @@
-namespace Framework.Domain.Interfaces;
+namespace Framework.Application.Features.Exp;
 
 // 경험치 처리 서비스 인터페이스 — 경험치 획득 및 레벨업 로직의 단일 진입점
 public interface IExpService

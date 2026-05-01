@@ -1,4 +1,4 @@
-namespace Framework.Domain.Interfaces;
+namespace Framework.Application.Features.Exp;
 
 // 런타임 레벨 계산 진입점 — 캐시 기반 조회로 매 요청마다 DB 호출 없이 레벨 계산 가능
 // Singleton으로 등록하여 캐시를 프로세스 전역에서 공유

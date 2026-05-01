@@ -4,6 +4,7 @@
 // 의존 방향: Content → Framework (역방향 금지)
 // ============================================================
 
+using Framework.Application.Features.Exp;
 using Framework.Application.Features.Reward;
 using Framework.Domain.Content.Entities;
 using Framework.Domain.Content.Interfaces;

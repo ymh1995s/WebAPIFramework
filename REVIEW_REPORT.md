@@ -9,20 +9,20 @@
 | 순서 | ID | 항목 | 이유 |
 |---|---|---|---|
 | ~~1~~ | ~~C-1~~ | ~~UnitOfWork 중첩 트랜잭션 수정~~ | ✅ 완료 |
-| 2 | C-2 | DispatchMailAsync Currency 지급 구현 | Mail 모드 재화 소실 |
-| 3 | H-1 | MatchMakingHub `[Authorize]` 추가 | 비인증 SignalR 접근 허용 상태 |
-| 4 | H-2 | AdminApiKeyAttribute FixedTimeEquals | 타이밍 공격 노출 |
-| 5 | H-9 | AuthService 다단계 쓰기 트랜잭션화 | Guest 로그인 중간 실패 시 데이터 불일치 |
+| ~~2~~ | ~~C-2~~ | ~~DispatchMailAsync Currency 지급 구현~~ | ~~Mail 모드 재화 소실~~ | (미완료 — 백로그 이동)
+| ~~3~~ | ~~H-1~~ | ~~MatchMakingHub `[Authorize]` 추가~~ | ✅ 완료 (기완료 확인) |
+| ~~4~~ | ~~H-2~~ | ~~AdminApiKeyAttribute FixedTimeEquals~~ | ✅ 완료 (기완료 확인) |
+| ~~5~~ | ~~H-9~~ | ~~AuthService 다단계 쓰기 트랜잭션화~~ | ✅ 완료 (기완료 확인) |
 | 6 | H-3 | Repository SaveChanges 패턴 통일 | 트랜잭션 내 flush 불일치 |
-| 7 | H-5 | AuthController Repository 주입 제거 | 레이어 책임 위반 |
-| 8 | M-14 | `int.Parse` → `int.TryParse` 12개소 | 방어적 프로그래밍 통일 |
-| 9 | M-10 | SubmitInquiryDto `[MaxLength]` 추가 | 입력 검증 누락 |
-| 10 | M-11 | 인게임 API Rate Limiting 추가 | 자동화 도구 DB 부하 |
-| 11 | H-6 | RTDN clawback Admin 알림 | 환불 악용 탐지 |
-| 12 | M-12 | Admin 비밀번호 해싱 | 평문 저장 |
-| 13 | M-9 | N+1 쿼리 제거 | 성능 |
-| 14 | M-8 | AdminPlayerService DB 페이지네이션 | OOM 위험 |
-| — | 나머지 | 백로그 | 아래 참조 |
+| ~~7~~ | ~~H-5~~ | ~~AuthController Repository 주입 제거~~ | ✅ 완료 |
+| ~~8~~ | ~~M-14~~ | ~~`int.Parse` → `int.TryParse` 12개소~~ | ✅ 완료 |
+| ~~9~~ | ~~M-10~~ | ~~SubmitInquiryDto `[MaxLength]` 추가~~ | ✅ 완료 |
+| ~~10~~ | ~~M-11~~ | ~~인게임 API Rate Limiting 추가~~ | ✅ 완료 |
+| ~~11~~ | ~~H-6~~ | ~~RTDN clawback Admin 알림~~ | ✅ 완료 |
+| ~~12~~ | ~~M-12~~ | ~~Admin 비밀번호 해싱~~ | ✅ 완료 |
+| ~~13~~ | ~~M-9~~ | ~~N+1 쿼리 제거~~ | ✅ 완료 |
+| ~~14~~ | ~~M-8~~ | ~~AdminPlayerService DB 페이지네이션~~ | ✅ 완료 |
+| — | H-3, H-4, C-2 | 미완료 — 백로그 참조 | |
 
 ---
 

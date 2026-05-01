@@ -14,7 +14,7 @@
 | 매치메이킹 | SignalR 기반 실시간 매칭, 대기열 관리 |
 | 보상 프레임워크 | 범용 보상 파이프라인 — 모든 보상 경로를 단일 IRewardDispatcher로 통합. 선기록 멱등성, Direct/Mail/Auto 분기, RewardTable 마스터 관리, Admin 수동 지급/우편 발송 통합 페이지 |
 | 아이템 마스터 관리 | Admin CRUD (추가/수정/소프트삭제), 보유 유저 수 확인 |
-| Admin 인증 | X-Admin-Key 헤더 기반 API 접근 제어. Admin 컨트롤러는 `[AdminApiKey]` 필터로 보호 (JWT [Authorize]와 독립). 점검 미들웨어에서 X-Admin-Key 확인 시 503 면제 |
+| Admin 인증 | X-Admin-Key 헤더 기반 API 접근 제어. Admin 컨트롤러는 `[AdminApiKey]` 필터로 보호 (JWT [Authorize]와 독립). 점검 미들웨어에서 X-Admin-Key 확인 시 503 면제. Admin 로그인 비밀번호는 BCrypt 해시 검증(`AdminPasswordVerifier`, `Admin:PasswordHash` 키) |
 | 시스템 설정 | 점검 모드, 앱 버전, 일일 보상 기준 시각 등 SystemConfig Admin 제어 |
 | 어뷰징 방어 | auth 엔드포인트 Rate Limiting (IP 기준, `RateLimiting:AuthPermitLimit` 설정), 429 발생 시 PlayerId·UserAgent 포함 DB 로그. Admin 보안 감시 — 통합 타임라인(Rate Limit 초과 / 재화 이상치 / 계정 정지 이벤트 병합), IP 집계, 타임라인에서 직접 영구밴 가능. 인게임 API: `game` 정책 PlayerId 기준 120회/분, IAP 검증: `iap-verify` 정책 20회/분 |
 | 점검 모드 | 수동 ON/OFF 및 시각 예약, 미들웨어에서 503 차단, Admin은 점검 중에도 접근 가능 |
@@ -28,6 +28,7 @@
 | 인앱 결제(IAP) | Google Play 영수증 서버 검증 및 보상 지급. Strategy 패턴으로 스토어별 모듈화(현재 Google Play 구현, Apple 예약). OIDC 기반 RTDN(환불 알림) 수신 및 자동 환불 처리. Admin `/iap-products` 상품 관리, `/iap-purchases` 구매 이력 조회. API: `POST /api/iap/google/verify`, `POST /api/iap/google/rtdn`. Rate Limit: iap-rtdn 600회/분 |
 | 레벨/경험치 | `IExpService` — Exp 누적, 임계값 초과 시 자동 레벨업 + 레벨업 보상 지급(`SourceKey="levelup:{level}"`). 다중 레벨업 while 루프. 임계값은 `LevelThresholds` DB 테이블로 외부화 — Admin `/level-thresholds` 페이지에서 CRUD 관리, `ILevelTableProvider`(Singleton 캐시) 통해 런타임 조회 |
 | 스테이지 클리어 [컨텐츠] | `POST /api/stages/{stageId}/complete`. 순차 진행 조건(`RequiredPrevStageId`), 최초 클리어 보상 + 재클리어 보상 감소(decay%), Exp/레벨업 연동. Admin 스테이지 마스터 CRUD. **`Content/` 영역 분리** — 게임 컨텐츠 코드, Framework 영역에서 참조 금지 |
+| 운영 알림(AdminNotification) | RTDN 환불 등 운영 이슈를 Admin에 즉시 통지. `AdminNotification` 엔티티 + Repository/Service 전 레이어 구현. API: `GET /api/admin/notifications/unread-count`, `GET /api/admin/notifications`, `POST /:id/read`, `POST /:id/unread`, `POST /read-all`. Admin UI: 헤더 `NotificationBell`(30초 폴링), `/admin-notifications` 페이지(필터/페이지네이션/읽음토글). RTDN 환불 시 자동 생성 — `Voided=Critical`, `Canceled=Warning` |
 
 ---
 
@@ -59,6 +60,7 @@
 ## [필수] Framework.Admin/appsettings.json 교체값
 - `ApiBaseUrl` — 현재 `https://api.overture.io.kr`. 도메인 변경 시 교체 필요
 - `Admin:PasswordHash` (.env 변수명: `Admin__PasswordHash`) — BCrypt 해시값으로 설정. 해시 생성 방법: `dotnet run --project Framework.Admin -- --hash "비밀번호"` 실행 후 출력값을 복사
+  - **[보안 주의]** 위 명령은 평문 비밀번호가 셸 히스토리/프로세스 목록에 기록됨. 해시 생성 후 셸 히스토리 삭제(`history -c` 또는 PowerShell `Clear-History`) 또는 격리된 1회용 환경에서 실행 권장
 - `Admin:ApiKey` — Framework.Api의 `.env` `ADMIN_API_KEY`와 동일한 값으로 설정 필요
 
 ## [성능] DB 인덱스 미적용 항목
@@ -131,6 +133,16 @@ cycleDay는 이번 달 로그인 횟수 기반 (1번째 로그인 = Day 1, 28번
 ## [기술 부채] 검토 항목
 - **Admin 컨트롤러 익명 객체 응답** — 일부 Admin 컨트롤러가 DTO 없이 익명 객체로 응답을 구성함. Admin 전용 단순 조회라 즉각 위험은 낮으나, 신규 Admin 기능 구현 시에는 DTO 정의 원칙 준수 필요
 - **일괄 우편 발송 성능** — `MailService.BulkSendAsync`가 전체 플레이어를 메모리 로드 후 단일 트랜잭션으로 N건 INSERT. 유저 수 증가 시 메모리 압박 + DB 락 시간 문제 발생. 배치 분할(500건씩 끊어서 INSERT + SaveChanges) 도입 필요
+
+### REVIEW_REPORT.md 미해결 항목
+- **C-2 DispatchMailAsync Currency 지급 누락** — Mail 모드 + Currency(Gold/Gems) 보상 지정 시 우편 자체는 발송되나 수령(Claim) 시 재화가 PlayerProfile에 반영되지 않는 버그. 현재 `MailService.ClaimAsync`가 MailItems의 Item만 지급하고 BundleSnapshot의 Currency 항목을 처리하지 않음. 보상 프레임워크 일관성 위반 — Direct 모드는 정상 지급, Mail 모드는 누락. 수정 시 Claim 경로에 Currency 가산 로직 추가 + 멱등성 보장 필요
+- **H-3 Repository SaveChanges 자동 호출 패턴 혼재** — `AdminNotificationRepository` 등 일부 Repository가 메서드 내부에서 `SaveChangesAsync`를 자체 호출(`AddAsync`, `MarkAsReadAsync` 등 4개 지점), 다른 Repository(`PlayerRepository`, `RefreshTokenRepository` 등)는 호출자에게 위임. 트랜잭션 경계 일관성 깨짐 — `IUnitOfWork`/Service에서 `SaveChangesAsync` 호출하는 표준 패턴으로 통일 필요. 단계적 전환 시 호출처 영향 범위 점검 필요
+- **H-4 Application 인터페이스의 Domain 위치 위반** — `IExpService`, `ILevelTableProvider`가 `Framework.Domain/Interfaces`에 위치. Clean Architecture 의존성 방향상 Application 유스케이스는 Application 레이어 소속이어야 함. Domain은 순수 도메인 규칙(엔티티/VO/Repository 인터페이스)만 보유. 이동 후 DI 등록 위치(Program.cs) 및 참조 경로 갱신 필요
+
+### 해결 완료 (참고)
+- ~~H-1 MatchMakingHub `[Authorize]` 미적용~~ → `Framework.Api/Hubs/MatchMakingHub.cs:8`에 `[Authorize]` 적용 완료
+- ~~H-2 AdminApiKeyAttribute 타이밍 공격 노출~~ → `Framework.Api/Security/AdminKeyValidator.cs`에서 `CryptographicOperations.FixedTimeEquals` 사용 (Singleton, 시작 시점 1회 인코딩)
+- ~~H-9 AuthService.GuestLoginAsync 비트랜잭션~~ → `Framework.Application/Features/Auth/AuthService.cs:48` `_unitOfWork.ExecuteInTransactionAsync`로 Player/PlayerProfile 원자성 확보 (LinkAsync 117번 라인도 동일 적용)
 
 ## [미구현] 추가 개발 필요 항목
 - **공지사항 페이지** [선택] — 현재는 1회성 텍스트 공지만 구현됨. 공지 이력 열람, 카테고리 분류 등 게시판 형태가 필요해지면 별도 페이지 추가 고려
