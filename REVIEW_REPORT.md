@@ -9,11 +9,11 @@
 | 순서 | ID | 항목 | 이유 |
 |---|---|---|---|
 | ~~1~~ | ~~C-1~~ | ~~UnitOfWork 중첩 트랜잭션 수정~~ | ✅ 완료 |
-| ~~2~~ | ~~C-2~~ | ~~DispatchMailAsync Currency 지급 구현~~ | ~~Mail 모드 재화 소실~~ | (미완료 — 백로그 이동)
+| ~~2~~ | ~~C-2~~ | ~~DispatchMailAsync Currency 지급 구현~~ | ✅ 완료 (기완료 확인 — Mail 엔티티 Gold/Gems/Exp 컬럼 + ClaimAsync 처리) |
 | ~~3~~ | ~~H-1~~ | ~~MatchMakingHub `[Authorize]` 추가~~ | ✅ 완료 (기완료 확인) |
 | ~~4~~ | ~~H-2~~ | ~~AdminApiKeyAttribute FixedTimeEquals~~ | ✅ 완료 (기완료 확인) |
 | ~~5~~ | ~~H-9~~ | ~~AuthService 다단계 쓰기 트랜잭션화~~ | ✅ 완료 (기완료 확인) |
-| 6 | H-3 | Repository SaveChanges 패턴 통일 | 트랜잭션 내 flush 불일치 |
+| ~~6~~ | ~~H-3~~ | ~~Repository SaveChanges 패턴 통일~~ | ✅ 완료 |
 | ~~7~~ | ~~H-5~~ | ~~AuthController Repository 주입 제거~~ | ✅ 완료 |
 | ~~8~~ | ~~M-14~~ | ~~`int.Parse` → `int.TryParse` 12개소~~ | ✅ 완료 |
 | ~~9~~ | ~~M-10~~ | ~~SubmitInquiryDto `[MaxLength]` 추가~~ | ✅ 완료 |
@@ -22,7 +22,8 @@
 | ~~12~~ | ~~M-12~~ | ~~Admin 비밀번호 해싱~~ | ✅ 완료 |
 | ~~13~~ | ~~M-9~~ | ~~N+1 쿼리 제거~~ | ✅ 완료 |
 | ~~14~~ | ~~M-8~~ | ~~AdminPlayerService DB 페이지네이션~~ | ✅ 완료 |
-| — | H-3, H-4, C-2 | 미완료 — 백로그 참조 | |
+| ~~15~~ | ~~H-4~~ | ~~IExpService/ILevelTableProvider Domain → Application 이동~~ | ✅ 완료 |
+| — | 우선순위 목록 전체 완료 — Medium/Low 백로그만 잔여 | | |
 
 ---
 

@@ -74,7 +74,23 @@
 | `Mails` | `ExpiresAt` | 만료 우편 정리 | 만료 처리 속도 개선 |
 
 
-## [SystemConfig] 일일 보상 관련 키
+## [SystemConfig] 전체 키 목록
+`SystemConfig` 테이블에 저장되는 모든 키 (`Framework.Domain/Constants/SystemConfigKeys.cs`). Admin 시스템 설정 페이지에서 관리 가능.
+
+### 점검 모드
+| 키 | 기본값 | 설명 |
+|---|---|---|
+| `maintenance_mode` | `"false"` | 점검 수동 강제 ON/OFF (`"true"`/`"false"`) |
+| `maintenance_start_at` | `""` | 점검 예약 시작 시각 (ISO 8601 UTC, 빈값이면 미예약) |
+| `maintenance_end_at` | `""` | 점검 예약 종료 시각 (ISO 8601 UTC, 빈값이면 미예약) |
+
+### 앱 버전
+| 키 | 기본값 | 설명 |
+|---|---|---|
+| `client_app_min_version` | `""` | 강제 업데이트 기준 최소 버전 — 이 버전 미만 클라이언트는 업데이트 강제. 서버 버전과 무관, 앱스토어 배포 Unity 빌드 기준 |
+| `client_app_latest_version` | `""` | 현재 최신 앱 버전 — 소프트 업데이트 안내용 |
+
+### 일일 보상
 | 키 | 기본값 | 설명 |
 |---|---|---|
 | `daily_reward_active_month` | `"202604"` | 현재 활성 연월 (YYYYMM) — 월 전환 감지용, 자동 갱신 |
@@ -83,71 +99,81 @@
 | `daily_reward_default_item_id` | `""` (미설정) | 월 28회 초과 시 지급할 기본 보상 아이템 ID. 빈값이면 보상 미발송 |
 | `daily_reward_default_item_count` | `"0"` | 기본 보상 아이템 수량. 0이면 보상 미발송 |
 
-기준 시각(00:00 기본) 미만이면 전날 날짜로 게임 날짜 계산. Admin 시스템 설정 페이지에서 변경 가능.
+기준 시각(00:00 기본) 미만이면 전날 날짜로 게임 날짜 계산.
 cycleDay는 이번 달 로그인 횟수 기반 (1번째 로그인 = Day 1, 28번째 = Day 28, 29번째 이후 = 기본 보상).
 
-## [설계 결정] 보상 프레임워크
+## [설계 결정]
 
-### 확정 사항
+### 보상 프레임워크
+
+#### 확정 사항
 
 | # | 결정 | 근거 |
 |---|---|---|
-| 1 | Gold/Gems — PlayerProfile 컬럼 유지, Item 마스터는 정의(이름·아이콘)용만 | 아이템 마스터는 조회용, 보유량은 PlayerProfile이 정원 |
+| 1 | Gold/Gems/Exp — PlayerProfile 컬럼 유지, Item 마스터는 정의(이름·아이콘)용만 | 아이템 마스터는 조회용, 보유량은 PlayerProfile이 정원 |
 | 2 | MailItems 테이블 도입 — 1통에 N종 아이템 묶음 발송 | 다중 보상 UX·트랜잭션 일관성 |
-| 3 | PlayerRecord 즉시 폐기 → GameResultParticipants로 대체 | 랭킹 데이터 미존재, 매치 식별자 없는 기존 구조 한계 |
+| 3 | PlayerRecord 폐기 → GameResultParticipants로 대체 | 랭킹 데이터 미존재, 매치 식별자 없는 기존 구조 한계 |
 | 4 | DailyLoginLog + RewardGrants 이중보호 유지 | DailyLoginLog는 로그인 통계 겸용, RewardGrants는 범용 멱등성 |
 
-### 공통 파이프라인
+#### 공통 파이프라인
 
 ```
-[Source 발생] → [Validate(권한·중복)] → [RewardBundle 결정]
-  → [RewardGrants 선기록(멱등)] → [Dispatcher: Direct/Mail 분기]
-  → [Result 반환]
+[호출자: 빈 번들·PlayerId 검증]
+  → [UnitOfWork 트랜잭션 진입]
+  → [RewardGrant 선기록 + UNIQUE 위반 catch → Duplicate 반환]
+  → [DetermineMode: Auto면 IsCurrencyOnly로 Direct/Mail 자동 결정]
+  → [Direct: PlayerProfile.Gold/Gems/Exp 가산 + PlayerItem 추가]
+    또는
+   [Mail: Mail + MailItems 생성 → 수령 시 ClaimAsync에서 실지급]
+  → [Mail 모드면 grant.MailId 업데이트]
+  → [트랜잭션 커밋 + 결과 반환]
 ```
-※ AuditLog 기록은 현재 각 서비스 레이어에서 개별 적용 (RewardDispatcher 내 미구현, [미구현] 섹션 참조)
+※ Source별 권한/사전 검증은 호출자(Service) 책임. RewardDispatcher는 멱등성·지급·트랜잭션만 담당
+※ AuditLog 기록은 현재 `MailService.ClaimAsync`에서만 수행 (RewardDispatcher 내 미구현, [미구현] 섹션 참조)
 
-### 신규 DB 테이블
-
-| 테이블 | 핵심 컬럼 | 인덱스 | 비고 |
-|---|---|---|---|
-| `RewardGrants` | PlayerId, SourceType, SourceKey, GrantedAt, MailId?, BundleSnapshot(text, JSON 직렬화) | UNIQUE(PlayerId, SourceType, SourceKey) | 멱등성 보장 |
-| `MailItems` | MailId(FK), ItemId, Quantity | FK MailId | 다중 아이템 우편 지원 |
-| `RewardTables` | SourceType, Code, Description | UNIQUE(SourceType, Code) | 보상 마스터 |
-| `RewardTableEntries` | RewardTableId(FK), ItemId, Count, Weight? | FK | 1보상 = N행 |
-| `GameResults` | Id(Guid), Tier, StartedAt, EndedAt?, State | PK Guid | 게임 결과 저장 |
-| `GameResultParticipants` | GameResultId(FK Guid), PlayerId, HumanType, Score?, Result? | UNIQUE(GameResultId, PlayerId) | 게임 참가자별 결과 |
-
-### 변경/폐기 테이블
-
-| 테이블 | 변경 내용 |
-|---|---|
-| `Mail` | ItemId/ItemCount → deprecated, MailItems FK로 전환. 기존 데이터는 코드 레벨 양립 처리(MailItems 우선, ItemId 폴백) — 데이터 이전 마이그레이션 미수행 |
-| `PlayerRecords` | 즉시 폐기 → GameResultParticipants로 대체. 랭킹 집계도 신규 테이블 기반으로 전환 |
-
-### 레벨업 처리
+#### 레벨업 처리
 
 - Exp는 PlayerProfile 컬럼 유지 (Item화하지 않음)
-- RewardDispatcher 외부에서 별도 `IExpService`가 Exp 임계값 초과 시 Level 증가 + 레벨업 보상을 다시 RewardDispatcher 호출
-- SourceKey="levelup:{level}" 로 멱등 보장
+- `IExpService` (위치: `Framework.Application/Features/Exp/`)가 Exp 누적 → 임계값 초과 시 Level 증가 → 레벨업 보상을 RewardDispatcher로 위임
+- 레벨 임계값은 `LevelThresholds` 테이블 + `ILevelTableProvider` Singleton 캐시
+- 레벨업 보상은 `RewardTable`에서 `Code="levelup:{level}"`로 조회, `SourceKey="levelup:{level}"`로 멱등 보장
+- 다중 레벨업 while 루프 지원 (한 번의 AddExp 호출로 여러 레벨 가능)
+- 호출 경로: `MailService.ClaimAsync`(우편 Exp 수령) 등에서 `IExpService.AddExpAsync` 호출
+
+### Strategy 패턴 — IAP/광고 검증기
+
+| 결정 | 근거 |
+|---|---|
+| 스토어별/네트워크별 검증 로직을 `IIapStoreVerifier` / `IAdNetworkVerifier` 인터페이스로 추상화 | 향후 Apple Store, AdMob 등 추가 시 검증기 클래스 1개 + DI 등록 1줄로 확장 |
+| Resolver 서비스가 런타임에 스토어/네트워크 키로 검증기 선택 | Controller → Resolver → 검증기 흐름 유지, 분기 로직 Controller 노출 방지 |
+
+현재 구현: Google Play(`GooglePlayStoreVerifier`), Unity Ads(`UnityAdsVerifier`), IronSource(`IronSourceVerifier`).
+미구현 예약: Apple(`AppleStoreVerifier`), AdMob 등.
+
+### Content 영역 분리
+
+`Framework.Application/Content/`, `Framework.Domain/Content/` 폴더에 게임 컨텐츠(스테이지 등) 코드 배치.
+- **규칙**: Framework 영역(Application/Domain/Infrastructure 비-Content 경로)에서 Content 영역 직접 참조 금지. Content → Framework 방향만 허용.
+- **근거**: 게임 컨텐츠 교체/대규모 변경 시 Framework 코어에 영향 없도록 의존 방향 제한. 현재는 폴더 컨벤션 수준 강제(컴파일러 강제 없음 — L-4 참조).
+
+### 일일 보상 Current/Next 2슬롯 방식
+
+`DailyRewardSlots` 테이블에 `(Slot, Day)` 복합 PK로 최대 56행 고정 (Slot: 1=이번달·2=다음달, Day: 1~28).
+- **운영**: 이번 달 보상 편집 중에도 다음 달 보상을 미리 등록 가능. 월말에 Slot 전환만 수행.
+- **근거**: 월 경계 운영 부담 분산. 달력 계산 단순화 — 날짜 범위 대신 로그인 횟수(cycleDay)로 보상 결정.
 
 ## [기술 부채] 검토 항목
 - **Admin 컨트롤러 익명 객체 응답** — 일부 Admin 컨트롤러가 DTO 없이 익명 객체로 응답을 구성함. Admin 전용 단순 조회라 즉각 위험은 낮으나, 신규 Admin 기능 구현 시에는 DTO 정의 원칙 준수 필요
 - **일괄 우편 발송 성능** — `MailService.BulkSendAsync`가 전체 플레이어를 메모리 로드 후 단일 트랜잭션으로 N건 INSERT. 유저 수 증가 시 메모리 압박 + DB 락 시간 문제 발생. 배치 분할(500건씩 끊어서 INSERT + SaveChanges) 도입 필요
 
-### REVIEW_REPORT.md 미해결 항목
-- **C-2 DispatchMailAsync Currency 지급 누락** — Mail 모드 + Currency(Gold/Gems) 보상 지정 시 우편 자체는 발송되나 수령(Claim) 시 재화가 PlayerProfile에 반영되지 않는 버그. 현재 `MailService.ClaimAsync`가 MailItems의 Item만 지급하고 BundleSnapshot의 Currency 항목을 처리하지 않음. 보상 프레임워크 일관성 위반 — Direct 모드는 정상 지급, Mail 모드는 누락. 수정 시 Claim 경로에 Currency 가산 로직 추가 + 멱등성 보장 필요
-- **H-3 Repository SaveChanges 자동 호출 패턴 혼재** — `AdminNotificationRepository` 등 일부 Repository가 메서드 내부에서 `SaveChangesAsync`를 자체 호출(`AddAsync`, `MarkAsReadAsync` 등 4개 지점), 다른 Repository(`PlayerRepository`, `RefreshTokenRepository` 등)는 호출자에게 위임. 트랜잭션 경계 일관성 깨짐 — `IUnitOfWork`/Service에서 `SaveChangesAsync` 호출하는 표준 패턴으로 통일 필요. 단계적 전환 시 호출처 영향 범위 점검 필요
-- **H-4 Application 인터페이스의 Domain 위치 위반** — `IExpService`, `ILevelTableProvider`가 `Framework.Domain/Interfaces`에 위치. Clean Architecture 의존성 방향상 Application 유스케이스는 Application 레이어 소속이어야 함. Domain은 순수 도메인 규칙(엔티티/VO/Repository 인터페이스)만 보유. 이동 후 DI 등록 위치(Program.cs) 및 참조 경로 갱신 필요
+### REVIEW_REPORT.md 우선순위 처리 결과
+우선순위 목록(C-1, C-2, H-1~H-6, H-9, M-8~M-12, M-14) 모두 완료. Medium/Low 백로그만 잔여 — REVIEW_REPORT.md 참조.
 
-### 해결 완료 (참고)
-- ~~H-1 MatchMakingHub `[Authorize]` 미적용~~ → `Framework.Api/Hubs/MatchMakingHub.cs:8`에 `[Authorize]` 적용 완료
-- ~~H-2 AdminApiKeyAttribute 타이밍 공격 노출~~ → `Framework.Api/Security/AdminKeyValidator.cs`에서 `CryptographicOperations.FixedTimeEquals` 사용 (Singleton, 시작 시점 1회 인코딩)
-- ~~H-9 AuthService.GuestLoginAsync 비트랜잭션~~ → `Framework.Application/Features/Auth/AuthService.cs:48` `_unitOfWork.ExecuteInTransactionAsync`로 Player/PlayerProfile 원자성 확보 (LinkAsync 117번 라인도 동일 적용)
 
 ## [미구현] 추가 개발 필요 항목
 - **공지사항 페이지** [선택] — 현재는 1회성 텍스트 공지만 구현됨. 공지 이력 열람, 카테고리 분류 등 게시판 형태가 필요해지면 별도 페이지 추가 고려
 - **감사 로그 훅 확장** — 현재는 `MailService.ClaimAsync`에만 훅 적용됨. 상점 구매/스테이지 보상/Admin 직접 지급 등 기능 구현 시 `IAuditLogService.RecordAsync` 호출 추가 필요
-- **감사 로그 Currency 구조 개선** — `AuditLog.ItemId`가 non-nullable int라 Gold/Gems/Exp 같은 Currency 변동을 기록할 수 없음. 개선 방향: `ItemId` nullable 전환 + `CurrencyType` 컬럼 추가(Gold/Gems/Exp enum), 또는 Currency 전용 별도 로그 테이블 분리. 현재는 `MailService.ClaimAsync`에 TODO 주석 기재(`MailService.cs:188`)
+- **감사 로그 Currency 구조 개선** — `AuditLog.ItemId`가 non-nullable int라 Gold/Gems/Exp 같은 Currency 변동을 기록할 수 없음. 개선 방향: `ItemId` nullable 전환 + `CurrencyType` 컬럼 추가(Gold/Gems/Exp enum), 또는 Currency 전용 별도 로그 테이블 분리. 현재는 `MailService.ClaimAsync`에 TODO 주석 기재(`MailService.cs:197`)
 - **밴/밴해제 로그** — `AdminPlayersController`의 Ban/Unban 엔드포인트 처리 후 별도 로그 기록 필요. 누가(Admin), 언제, 어떤 플레이어를 밴/해제했는지 감사 추적이 현재 없음. AuditLog 또는 전용 BanLog 테이블 중 택일하여 구현 필요
 - **백업 정책** — DB 백업은 애플리케이션 관할 아님. Docker로 운영 중인 PostgreSQL 컨테이너/볼륨 레벨에서 별도 설정 필요 (pg_dump, 볼륨 스냅샷 등). 최소 1일 1회 백업, 30일 보관 권장
 - **IAP Consumable consume API 호출** — `GooglePlayStoreVerifier`에서 소모성 상품 검증 후 Google Play `purchases.products.consume` API 호출이 TODO 상태로 남아있음. 미호출 시 동일 purchaseToken으로 재구매 불가. 구현 위치: `Framework.Infrastructure/Iap/GooglePlayStoreVerifier.cs`
