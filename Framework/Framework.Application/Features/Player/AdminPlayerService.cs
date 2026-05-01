@@ -1,4 +1,6 @@
+using Framework.Application.Features.BanLog;
 using Framework.Domain.Entities;
+using Framework.Domain.Enums;
 using Framework.Domain.Interfaces;
 
 namespace Framework.Application.Features.AdminPlayer;
@@ -9,9 +11,13 @@ public class AdminPlayerService : IAdminPlayerService
 {
     private readonly IPlayerRepository _playerRepository;
 
-    public AdminPlayerService(IPlayerRepository playerRepository)
+    // 밴/밴해제 감사 이력 서비스 — BanLog를 Player 변경과 단일 트랜잭션으로 기록
+    private readonly IBanLogService _banLogService;
+
+    public AdminPlayerService(IPlayerRepository playerRepository, IBanLogService banLogService)
     {
         _playerRepository = playerRepository;
+        _banLogService    = banLogService;
     }
 
     // Player 엔티티를 AdminPlayerDto로 변환하는 내부 헬퍼
@@ -53,26 +59,44 @@ public class AdminPlayerService : IAdminPlayerService
         return player is null ? null : ToDto(player);
     }
 
-    // 밴 처리 — 플레이어 존재 확인 후 Repository 위임, 존재하지 않으면 false 반환
-    public async Task<bool> BanAsync(int id, DateTime? bannedUntil)
+    // 실효 밴 여부 — IsBanned 플래그와 BannedUntil 시각을 모두 고려 (AuthService와 동일 기준)
+    private static bool IsEffectivelyBanned(Player p) =>
+        p.IsBanned && (p.BannedUntil == null || p.BannedUntil > DateTime.UtcNow);
+
+    // 밴 처리 — 실효 밴 상태이면 AlreadyBanned 반환 (토글 강제)
+    public async Task<BanOperationResult> BanAsync(int id, DateTime? bannedUntil, string? reason, string? actorIp)
     {
         var player = await _playerRepository.GetByIdAsync(id);
-        if (player is null) return false;
+        if (player is null) return BanOperationResult.PlayerNotFound;
+
+        // 현재 실효적으로 밴 상태이면 중복 밴 방지 (기간 밴 만료 시에는 재밴 허용)
+        if (IsEffectivelyBanned(player)) return BanOperationResult.AlreadyBanned;
 
         await _playerRepository.BanAsync(id, bannedUntil);
+
+        // BanLog 추가 — SaveChanges는 아래에서 한 번만 호출 (Player + BanLog 단일 트랜잭션)
+        await _banLogService.AddAsync(player.Id, BanAction.Ban, bannedUntil, reason, actorIp);
+
         await _playerRepository.SaveChangesAsync();
-        return true;
+        return BanOperationResult.Success;
     }
 
-    // 밴 해제 — 플레이어 존재 확인 후 Repository 위임, 존재하지 않으면 false 반환
-    public async Task<bool> UnbanAsync(int id)
+    // 밴 해제 — 실효 밴 상태가 아니면 NotBanned 반환 (토글 강제)
+    public async Task<BanOperationResult> UnbanAsync(int id, string? reason, string? actorIp)
     {
         var player = await _playerRepository.GetByIdAsync(id);
-        if (player is null) return false;
+        if (player is null) return BanOperationResult.PlayerNotFound;
+
+        // 실효적으로 밴 상태가 아니면 해제 불가 (만료된 기간 밴은 이미 자동 해제된 것으로 간주)
+        if (!IsEffectivelyBanned(player)) return BanOperationResult.NotBanned;
 
         await _playerRepository.UnbanAsync(id);
+
+        // BanLog 추가 — SaveChanges는 아래에서 한 번만 호출 (Player + BanLog 단일 트랜잭션)
+        await _banLogService.AddAsync(player.Id, BanAction.Unban, bannedUntil: null, reason, actorIp);
+
         await _playerRepository.SaveChangesAsync();
-        return true;
+        return BanOperationResult.Success;
     }
 
     // 영구 삭제 (Hard Delete) — DB에서 완전히 제거, 복구 불가

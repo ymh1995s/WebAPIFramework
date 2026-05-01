@@ -1,6 +1,7 @@
 using Framework.Api.Filters;
 using Framework.Api.Requests;
 using Framework.Application.Features.AdminPlayer;
+using Framework.Application.Features.BanLog;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Framework.Api.Controllers.Admin;
@@ -50,26 +51,40 @@ public class AdminPlayersController : ControllerBase
         return Ok(player);
     }
 
-    // 플레이어 밴 처리 — body: { bannedUntil: "2026-05-01T00:00:00Z" } 또는 null이면 영구 밴
+    // 플레이어 밴 처리 — body: { bannedUntil: "2026-05-01T00:00:00Z", reason: "..." } 또는 null이면 영구 밴
     [HttpPost("{id}/ban")]
     public async Task<IActionResult> Ban(int id, [FromBody] BanPlayerRequest request)
     {
-        var success = await _adminPlayerService.BanAsync(id, request.BannedUntil);
-        if (!success) return NotFound();
+        // 처리 요청 IP 추출 — BanLog 감사 이력에 기록
+        var actorIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var result = await _adminPlayerService.BanAsync(id, request.BannedUntil, request.Reason, actorIp);
 
-        var message = request.BannedUntil.HasValue
-            ? $"{request.BannedUntil:yyyy-MM-dd HH:mm} UTC까지 밴 처리됨"
-            : "영구 밴 처리됨";
-        return Ok(new { message });
+        return result switch
+        {
+            BanOperationResult.PlayerNotFound => NotFound(),
+            // 이미 밴 상태 — 중복 밴 불가 (409 Conflict)
+            BanOperationResult.AlreadyBanned  => Conflict(new { message = "이미 밴 상태인 플레이어입니다." }),
+            _ => Ok(new { message = request.BannedUntil.HasValue
+                ? $"{request.BannedUntil:yyyy-MM-dd HH:mm} UTC까지 밴 처리됨"
+                : "영구 밴 처리됨" })
+        };
     }
 
-    // 플레이어 밴 해제
+    // 플레이어 밴 해제 — body: { reason: "..." } (body 전체 생략 가능, 기존 호출과 호환)
     [HttpPost("{id}/unban")]
-    public async Task<IActionResult> Unban(int id)
+    public async Task<IActionResult> Unban(int id, [FromBody] UnbanPlayerRequest? request = null)
     {
-        var success = await _adminPlayerService.UnbanAsync(id);
-        if (!success) return NotFound();
-        return Ok(new { message = "밴 해제 완료" });
+        // 처리 요청 IP 추출 — BanLog 감사 이력에 기록
+        var actorIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var result = await _adminPlayerService.UnbanAsync(id, request?.Reason, actorIp);
+
+        return result switch
+        {
+            BanOperationResult.PlayerNotFound => NotFound(),
+            // 밴 상태가 아님 — 밴해제 불가 (409 Conflict)
+            BanOperationResult.NotBanned      => Conflict(new { message = "밴 상태가 아닌 플레이어입니다." }),
+            _                                 => Ok(new { message = "밴 해제 완료" })
+        };
     }
 
     // 플레이어 영구 삭제 (Hard Delete) — DB에서 완전히 제거, 복구 불가

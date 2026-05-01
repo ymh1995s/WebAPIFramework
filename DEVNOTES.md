@@ -174,7 +174,6 @@ cycleDay는 이번 달 로그인 횟수 기반 (1번째 로그인 = Day 1, 28번
 - **공지사항 페이지** [선택] — 현재는 1회성 텍스트 공지만 구현됨. 공지 이력 열람, 카테고리 분류 등 게시판 형태가 필요해지면 별도 페이지 추가 고려
 - **감사 로그 훅 확장** — 현재는 `MailService.ClaimAsync`에만 훅 적용됨. 상점 구매/스테이지 보상/Admin 직접 지급 등 기능 구현 시 `IAuditLogService.RecordAsync` 호출 추가 필요
 - **감사 로그 Currency 구조 개선** — `AuditLog.ItemId`가 non-nullable int라 Gold/Gems/Exp 같은 Currency 변동을 기록할 수 없음. 개선 방향: `ItemId` nullable 전환 + `CurrencyType` 컬럼 추가(Gold/Gems/Exp enum), 또는 Currency 전용 별도 로그 테이블 분리. 현재는 `MailService.ClaimAsync`에 TODO 주석 기재(`MailService.cs:197`)
-- **밴/밴해제 로그** — `AdminPlayersController`의 Ban/Unban 엔드포인트 처리 후 별도 로그 기록 필요. 누가(Admin), 언제, 어떤 플레이어를 밴/해제했는지 감사 추적이 현재 없음. AuditLog 또는 전용 BanLog 테이블 중 택일하여 구현 필요
 - **백업 정책** — DB 백업은 애플리케이션 관할 아님. Docker로 운영 중인 PostgreSQL 컨테이너/볼륨 레벨에서 별도 설정 필요 (pg_dump, 볼륨 스냅샷 등). 최소 1일 1회 백업, 30일 보관 권장
 - **Apple IAP 검증기** — `IapStore.Apple(=2)` Enum은 예약되어 있으나 `AppleStoreVerifier` 구현체 미존재. Apple 플랫폼 출시 시 추가 필요
 - **이벤트 기간 관리** [중요도 낮음] — 기간 한정 이벤트 시작/종료 관리. 클라이언트가 현재 이벤트 진행 여부를 서버에 질의. 게임마다 구조가 달라 범용 설계 필요

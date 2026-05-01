@@ -1,0 +1,121 @@
+@page "/ban-logs"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits SafeComponentBase
+@using Framework.Admin.Constants
+@using Framework.Domain.Enums
+
+<PageTitle>밴 이력</PageTitle>
+
+<h2>밴/밴해제 이력</h2>
+
+<!-- 필터 영역 -->
+<div class="row g-2 mb-3">
+    <div class="col-auto">
+        <label class="form-label mb-0 small">PlayerId</label>
+        <input type="number" class="form-control form-control-sm" style="width:110px"
+               @bind="filterPlayerId" placeholder="숫자 입력" />
+    </div>
+    <div class="col-auto">
+        <label class="form-label mb-0 small">액션</label>
+        <select class="form-select form-select-sm" style="width:120px" @bind="filterAction">
+            <option value="">전체</option>
+            <option value="1">밴</option>
+            <option value="2">밴해제</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label mb-0 small">시작일</label>
+        <input type="date" class="form-control form-control-sm" @bind="filterFrom" />
+    </div>
+    <div class="col-auto">
+        <label class="form-label mb-0 small">종료일</label>
+        <input type="date" class="form-control form-control-sm" @bind="filterTo" />
+    </div>
+    <div class="col-auto align-self-end">
+        <button class="btn btn-primary btn-sm" @onclick="Search">조회</button>
+        <button class="btn btn-outline-secondary btn-sm ms-1" @onclick="Reset">초기화</button>
+    </div>
+</div>
+
+<!-- 결과 영역 -->
+@if (isLoading)
+{
+    <p>불러오는 중...</p>
+}
+else if (result == null)
+{
+    <p class="text-muted">조회 버튼을 눌러주세요.</p>
+}
+else if (!result.Items.Any())
+{
+    <p class="text-muted">해당 조건의 밴 이력이 없습니다.</p>
+}
+else
+{
+    <p class="text-muted small">총 @result.TotalCount 건 (@currentPage / @TotalPages 페이지)</p>
+
+    <table class="table table-sm table-striped">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>PlayerId</th>
+                <th>닉네임</th>
+                <th>액션</th>
+                <th>만료일시 (UTC)</th>
+                <th>사유</th>
+                <th>IP</th>
+                <th>처리일시 (KST)</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in result.Items)
+            {
+                <tr>
+                    <td>@item.Id</td>
+                    <td>@item.PlayerId</td>
+                    <td>@(item.PlayerNickname ?? "-")</td>
+                    <!-- 밴은 빨강, 밴해제는 초록으로 시각 구분 -->
+                    <td>
+                        @if (item.Action == BanAction.Ban)
+                        {
+                            <span class="badge bg-danger">밴</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success">밴해제</span>
+                        }
+                    </td>
+                    <td>
+                        @if (item.BannedUntil.HasValue)
+                        {
+                            @item.BannedUntil.Value.ToString("yyyy-MM-dd HH:mm")
+                        }
+                        else if (item.Action == BanAction.Ban)
+                        {
+                            <span class="text-danger small">영구</span>
+                        }
+                        else
+                        {
+                            <span>-</span>
+                        }
+                    </td>
+                    <td>@(item.Reason ?? "-")</td>
+                    <td><code class="small">@(item.ActorIp ?? "-")</code></td>
+                    <td>@ToKst(item.CreatedAt).ToString("yyyy-MM-dd HH:mm:ss")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <!-- 페이지네이션 -->
+    <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-outline-secondary btn-sm" @onclick="PrevPage" disabled="@(currentPage <= 1)">이전</button>
+        <span>@currentPage / @TotalPages 페이지</span>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@(currentPage >= TotalPages)">다음</button>
+    </div>
+}
+
+@if (error != null)
+{
+    <p class="text-danger mt-2">@error</p>
+}

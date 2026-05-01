@@ -469,6 +469,27 @@ public static class ApiRoutes
         }
     }
 
+    // ── 밴 이력 Admin (AdminBanLogsController: Route = "api/admin/ban-logs") ──
+    public static class AdminBanLogs
+    {
+        private const string Base = "api/admin/ban-logs";
+
+        /// <summary>밴/밴해제 이력 필터+페이지네이션 검색 (GET)</summary>
+        public static string Search(int? playerId, BanAction? action, DateTime? from, DateTime? to, int page, int pageSize)
+        {
+            // 필수 페이지 파라미터 먼저 추가
+            var parts = new List<string> { $"page={page}", $"pageSize={pageSize}" };
+
+            // 선택적 필터 파라미터 추가
+            if (playerId.HasValue) parts.Add($"playerId={playerId.Value}");
+            if (action.HasValue)   parts.Add($"action={(int)action.Value}");
+            if (from.HasValue)     parts.Add($"from={Uri.EscapeDataString(from.Value.ToString("o"))}");
+            if (to.HasValue)       parts.Add($"to={Uri.EscapeDataString(to.Value.ToString("o"))}");
+
+            return $"{Base}?{string.Join("&", parts)}";
+        }
+    }
+
     // ── SignalR 허브 경로 ──────────────────────────────────────────────────
     public static class Hubs
     {

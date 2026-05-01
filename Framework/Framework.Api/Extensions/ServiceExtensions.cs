@@ -5,6 +5,7 @@ using Framework.Application.Features.AdPolicy;
 using Framework.Application.Features.AdReward;
 using Framework.Application.Features.AdminNotification;
 using Framework.Application.Features.AuditLog;
+using Framework.Application.Features.BanLog;
 using Framework.Application.Features.Auth;
 using Framework.Application.Features.DailyLogin;
 using Framework.Application.Features.DailyReward;
@@ -147,6 +148,10 @@ public static class ServiceExtensions
     public static IServiceCollection AddAdminServices(this IServiceCollection services)
     {
         services.AddScoped<IAdminPlayerService, AdminPlayerService>();
+
+        // 밴 이력 저장소 및 서비스 등록
+        services.AddScoped<IBanLogRepository, BanLogRepository>();
+        services.AddScoped<IBanLogService, BanLogService>();
 
         // 보상 프레임워크 Admin 서비스 등록
         services.AddScoped<IRewardTableService, RewardTableService>();

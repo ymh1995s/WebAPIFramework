@@ -62,6 +62,9 @@ public class AppDbContext : DbContext
     // Admin 운영 알림 테이블 — IAP 환불, 어뷰징 감지 등 운영 이슈 알림
     public DbSet<AdminNotification> AdminNotifications { get; set; }
 
+    // 밴/밴해제 감사 이력 테이블 — Admin 처리 이력 영구 보존
+    public DbSet<BanLog> BanLogs { get; set; }
+
     // 컨텐츠 영역 — 스테이지 마스터 및 클리어 기록
     public DbSet<Stage> Stages { get; set; }
     public DbSet<StageClear> StageClears { get; set; }
@@ -495,6 +498,28 @@ public class AppDbContext : DbContext
             // 분류별 조회
             entity.HasIndex(n => new { n.Category, n.CreatedAt });
         });
+
+        // ─────────────────────────────────────────────
+        // BanLog — 밴/밴해제 감사 이력
+        // ─────────────────────────────────────────────
+
+        // BanLog: 플레이어별+최신순 조회 인덱스 (가장 빈번한 쿼리)
+        modelBuilder.Entity<BanLog>()
+            .HasIndex(b => new { b.PlayerId, b.CreatedAt });
+
+        // BanLog: 전체 타임라인 최신순 조회 인덱스
+        modelBuilder.Entity<BanLog>()
+            .HasIndex(b => b.CreatedAt);
+
+        // BanLog: Reason 길이 제한 (500자)
+        modelBuilder.Entity<BanLog>()
+            .Property(b => b.Reason)
+            .HasMaxLength(500);
+
+        // BanLog: ActorIp 길이 제한 (IPv6 포함 최대 45자)
+        modelBuilder.Entity<BanLog>()
+            .Property(b => b.ActorIp)
+            .HasMaxLength(45);
 
         // LevelThreshold: Level을 PK로 사용
         modelBuilder.Entity<LevelThreshold>().HasKey(t => t.Level);

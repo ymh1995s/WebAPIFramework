@@ -87,23 +87,27 @@
                         <td>@(p.IsDeleted ? "true" : "false")</td>
                         <!-- MergedIntoPlayerId 원시 값 (병합 흡수된 대상 PlayerA의 int Id) -->
                         <td>@(p.MergedIntoPlayerId?.ToString() ?? "-")</td>
-                        <!-- 밴/밴 해제/삭제 버튼 (소프트 딜리트 계정은 비활성화) -->
+                        <!-- 밴/밴 해제/삭제/밴 이력 버튼 (소프트 딜리트 계정은 비활성화) -->
                         <td>
                             @if (p.IsDeleted)
                             {
                                 <span class="text-muted small">삭제됨</span>
+                                @* 삭제된 계정도 이력 확인 가능 *@
+                                <a href="/ban-logs?playerId=@p.Id" class="btn btn-sm btn-outline-secondary ms-1">밴 이력</a>
                             }
                             else if (!p.IsBanned)
                             {
                                 <button class="btn btn-danger btn-sm" @onclick="() => BanPlayer(p.Id, null)">밴</button>
                                 @* 삭제 버튼 — IsDeleted가 false인 경우에만 표시 *@
                                 <button class="btn btn-outline-danger btn-sm ms-1" @onclick="() => OpenDeleteModal(p)">삭제</button>
+                                <a href="/ban-logs?playerId=@p.Id" class="btn btn-sm btn-outline-secondary ms-1">밴 이력</a>
                             }
                             else
                             {
                                 <button class="btn btn-outline-secondary btn-sm" @onclick="() => UnbanPlayer(p.Id)">밴 해제</button>
                                 @* 밴 상태에서도 삭제 가능 *@
                                 <button class="btn btn-outline-danger btn-sm ms-1" @onclick="() => OpenDeleteModal(p)">삭제</button>
+                                <a href="/ban-logs?playerId=@p.Id" class="btn btn-sm btn-outline-secondary ms-1">밴 이력</a>
                             }
                         </td>
                     </tr>
@@ -186,23 +190,27 @@
                             <td>@(p.IsDeleted ? "true" : "false")</td>
                             <!-- MergedIntoPlayerId 원시 값 -->
                             <td>@(p.MergedIntoPlayerId?.ToString() ?? "-")</td>
-                            <!-- 밴/밴 해제/삭제 버튼 (소프트 딜리트 계정은 비활성화) -->
+                            <!-- 밴/밴 해제/삭제/밴 이력 버튼 (소프트 딜리트 계정은 비활성화) -->
                             <td>
                                 @if (p.IsDeleted)
                                 {
                                     <span class="text-muted small">삭제됨</span>
+                                    @* 삭제된 계정도 이력 확인 가능 *@
+                                    <a href="/ban-logs?playerId=@p.Id" class="btn btn-sm btn-outline-secondary ms-1">밴 이력</a>
                                 }
                                 else if (!p.IsBanned)
                                 {
                                     <button class="btn btn-danger btn-sm" @onclick="() => BanPlayer(p.Id, null)">밴</button>
                                     @* 삭제 버튼 — IsDeleted가 false인 경우에만 표시 *@
                                     <button class="btn btn-outline-danger btn-sm ms-1" @onclick="() => OpenDeleteModal(p)">삭제</button>
+                                    <a href="/ban-logs?playerId=@p.Id" class="btn btn-sm btn-outline-secondary ms-1">밴 이력</a>
                                 }
                                 else
                                 {
                                     <button class="btn btn-outline-secondary btn-sm" @onclick="() => UnbanPlayer(p.Id)">밴 해제</button>
                                     @* 밴 상태에서도 삭제 가능 *@
                                     <button class="btn btn-outline-danger btn-sm ms-1" @onclick="() => OpenDeleteModal(p)">삭제</button>
+                                    <a href="/ban-logs?playerId=@p.Id" class="btn btn-sm btn-outline-secondary ms-1">밴 이력</a>
                                 }
                             </td>
                         </tr>
