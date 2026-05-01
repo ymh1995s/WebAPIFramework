@@ -62,4 +62,19 @@ public class IapPurchase
 
     // 최종 수정 시각 (UTC)
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    // 상품 유형 스냅샷 — 구매 시점 ProductType 기록 (retry 워커의 Consumable 필터링용)
+    public IapProductType? ProductType { get; set; }
+
+    // Google Play consume API 완료 시각 (UTC) — null이면 미호출 또는 retry 대기 중
+    public DateTime? ConsumedAt { get; set; }
+
+    // consume 시도 횟수 — retry 워커의 지수 백오프 계산 기준
+    public int ConsumeAttempts { get; set; } = 0;
+
+    // 마지막 consume 시도 시각 (UTC) — 백오프 대기 시간 계산 기준점
+    public DateTime? LastConsumeAttemptAt { get; set; }
+
+    // 마지막 consume 실패 메시지 — 운영 디버깅 및 Admin 알림 참고용
+    public string? LastConsumeError { get; set; }
 }

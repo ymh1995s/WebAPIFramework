@@ -1,27 +1,24 @@
 using System.Text.Json;
 using Framework.Application.Features.Iap;
 using Framework.Domain.Enums;
-using Google.Apis.AndroidPublisher.v3;
-using Google.Apis.Auth.OAuth2;
-using Google.Apis.Services;
 using IapStoreEnum = Framework.Domain.Enums.IapStore;
 
 namespace Framework.Api.Services.IapStore;
 
 // Google Play Store 영수증 검증기 — IIapStoreVerifier Strategy 구현체
 // Google Play Developer API (purchases.products.get)를 호출하여 구매 유효성 확인
-// 서비스 계정 인증 방식 사용 (OAuth2 ServiceAccountCredential)
+// AndroidPublisherService 초기화는 GooglePlayClientFactory에 위임 — Consumer와 중복 제거
 public class GooglePlayStoreVerifier : IIapStoreVerifier
 {
     // 이 검증기가 담당하는 스토어
     public IapStoreEnum Store => IapStoreEnum.Google;
 
-    private readonly IConfiguration _config;
+    private readonly GooglePlayClientFactory _clientFactory;
     private readonly ILogger<GooglePlayStoreVerifier> _logger;
 
-    public GooglePlayStoreVerifier(IConfiguration config, ILogger<GooglePlayStoreVerifier> logger)
+    public GooglePlayStoreVerifier(GooglePlayClientFactory clientFactory, ILogger<GooglePlayStoreVerifier> logger)
     {
-        _config = config;
+        _clientFactory = clientFactory;
         _logger = logger;
     }
 
@@ -30,42 +27,13 @@ public class GooglePlayStoreVerifier : IIapStoreVerifier
     // 검증 성공 시 IapReceiptVerified 반환, 실패 시 예외 발생
     public async Task<IapReceiptVerified> VerifyAsync(string productId, string purchaseToken)
     {
-        // appsettings.json에서 Google IAP 설정 로드
-        var packageName = _config["Iap:Google:PackageName"]
-            ?? throw new InvalidOperationException("Google Play PackageName이 설정되지 않았습니다.");
-
-        var serviceAccountJsonPath = _config["Iap:Google:ServiceAccountJsonPath"]
-            ?? throw new InvalidOperationException("Google Play ServiceAccountJsonPath가 설정되지 않았습니다.");
+        // GooglePlayClientFactory에서 PackageName 및 API 클라이언트 로드
+        var packageName = _clientFactory.GetPackageName();
 
         try
         {
-            // 서비스 계정 JSON 파일로 ServiceAccountCredential 생성
-            // System.Text.Json으로 서비스 계정 키 파일 파싱 후 직접 초기화
-            var jsonContent = await File.ReadAllTextAsync(serviceAccountJsonPath);
-            using var jsonDoc = JsonDocument.Parse(jsonContent);
-            var root = jsonDoc.RootElement;
-
-            var clientEmail = root.GetProperty("client_email").GetString()
-                ?? throw new InvalidOperationException("서비스 계정 JSON에 client_email이 없습니다.");
-            var privateKey = root.GetProperty("private_key").GetString()
-                ?? throw new InvalidOperationException("서비스 계정 JSON에 private_key가 없습니다.");
-
-            var serviceAccountCredential = new ServiceAccountCredential(
-                new ServiceAccountCredential.Initializer(clientEmail)
-                {
-                    Scopes = new[] { AndroidPublisherService.Scope.Androidpublisher }
-                }.FromPrivateKey(privateKey)
-            );
-
-            // ServiceAccountCredential → GoogleCredential으로 래핑
-            var credential = serviceAccountCredential.ToGoogleCredential();
-
-            // AndroidPublisher API 서비스 클라이언트 생성
-            using var service = new AndroidPublisherService(new BaseClientService.Initializer
-            {
-                HttpClientInitializer = credential,
-                ApplicationName = "FrameworkGameServer"
-            });
+            // AndroidPublisherService 생성 — 팩토리로 중복 초기화 코드 제거
+            using var service = await _clientFactory.CreateAsync();
 
             // purchases.products.get 호출 — 단건 상품 구매 조회
             _logger.LogDebug(

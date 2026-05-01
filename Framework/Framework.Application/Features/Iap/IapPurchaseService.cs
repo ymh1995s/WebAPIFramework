@@ -1,3 +1,4 @@
+using Framework.Application.Features.AdminNotification;
 using Framework.Application.Features.Reward;
 using Framework.Domain.Entities;
 using Framework.Domain.Enums;
@@ -10,36 +11,44 @@ namespace Framework.Application.Features.Iap;
 
 // 인앱결제 메인 처리 서비스 — 검증 + 보상 지급 파이프라인
 // [흐름] 상품 조회 → 중복 방지 → 트랜잭션 시작 → Pending 저장 → 외부 검증 → 보상 지급 → Granted
+// 소모성 상품의 경우 트랜잭션 커밋 후 consume 호출, 실패 시 retry 워커 위임
 public class IapPurchaseService : IIapPurchaseService
 {
     private readonly IIapProductRepository _productRepo;
     private readonly IIapPurchaseRepository _purchaseRepo;
     private readonly IIapStoreVerifierResolver _verifierResolver;
+    private readonly IIapConsumerResolver _consumerResolver;
     private readonly IRewardDispatcher _rewardDispatcher;
     private readonly IRewardTableRepository _rewardTableRepo;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<IapPurchaseService> _logger;
+    private readonly IAdminNotificationService _notificationService;
 
     public IapPurchaseService(
         IIapProductRepository productRepo,
         IIapPurchaseRepository purchaseRepo,
         IIapStoreVerifierResolver verifierResolver,
+        IIapConsumerResolver consumerResolver,
         IRewardDispatcher rewardDispatcher,
         IRewardTableRepository rewardTableRepo,
         IUnitOfWork unitOfWork,
-        ILogger<IapPurchaseService> logger)
+        ILogger<IapPurchaseService> logger,
+        IAdminNotificationService notificationService)
     {
         _productRepo = productRepo;
         _purchaseRepo = purchaseRepo;
         _verifierResolver = verifierResolver;
+        _consumerResolver = consumerResolver;
         _rewardDispatcher = rewardDispatcher;
         _rewardTableRepo = rewardTableRepo;
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     // 구매 영수증 검증 후 보상 지급 — 멱등성 보장 (동일 토큰 재요청 처리)
     // [흐름] 트랜잭션 외부: 상품 조회 + 중복 체크 → 트랜잭션 스코프: Pending 저장 → 검증 → 보상 지급 → Granted
+    //        → 트랜잭션 커밋 후: Consumable이면 consume 호출 (실패해도 유저 응답 불변)
     // RewardDispatcher도 ExecuteInTransactionAsync 사용 → 자동으로 참여자가 되어 중첩 트랜잭션 없음
     public async Task<IapVerifyResult> VerifyAndGrantAsync(
         int playerId, IapVerifyRequest request, string? clientIp)
@@ -73,9 +82,12 @@ public class IapPurchaseService : IIapPurchaseService
             }
         }
 
-        // (c)~(k) 트랜잭션 스코프 — Pending 저장부터 Granted까지 원자적 처리
+        // consume 호출이 필요한 경우 트랜잭션 외부에서 처리하기 위해 변수 선언
+        IapPurchase? purchaseForConsume = null;
+
+        // (c)~(i) 트랜잭션 스코프 — Pending 저장부터 Granted까지 원자적 처리
         // RewardDispatcher도 ExecuteInTransactionAsync 사용 → 자동으로 참여자가 되어 중첩 트랜잭션 없음
-        return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        var result = await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             // (d) 구매 이력 Pending 상태로 먼저 저장
             var purchase = new IapPurchase
@@ -86,6 +98,7 @@ public class IapPurchaseService : IIapPurchaseService
                 PurchaseToken = request.PurchaseToken,
                 OrderId = request.OrderId,
                 Status = IapPurchaseStatus.Pending,
+                ProductType = product.ProductType, // 상품 유형 스냅샷 — retry 워커 필터링용
                 ClientIp = clientIp,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -166,23 +179,80 @@ public class IapPurchaseService : IIapPurchaseService
                 "인앱결제 처리 완료 — PlayerId: {PlayerId}, PurchaseId: {Id}, ProductId: {ProductId}, AlreadyGranted: {Already}",
                 playerId, purchase.Id, request.ProductId, grantResult.AlreadyGranted);
 
-            // (k) Consumable 상품 consume 처리
+            // Consumable 상품은 트랜잭션 커밋 후 consume 호출 — 람다 외부 변수에 참조 전달
             if (product.ProductType == IapProductType.Consumable)
-            {
-                try
-                {
-                    _logger.LogDebug(
-                        "Consumable 상품 consume 호출 예정 — PurchaseId: {Id}, ProductId: {ProductId}",
-                        purchase.Id, request.ProductId);
-                }
-                catch (Exception consumeEx)
-                {
-                    _logger.LogWarning(consumeEx, "Google consume 호출 실패 (무시) — PurchaseId: {Id}", purchase.Id);
-                }
-            }
+                purchaseForConsume = purchase;
 
             return new IapVerifyResult(Ok: true, AlreadyGranted: grantResult.AlreadyGranted, PurchaseId: purchase.Id);
         });
+
+        // (k) 트랜잭션 커밋 완료 후 consume 호출 — 실패해도 유저 응답 불변, retry 워커 위임
+        if (purchaseForConsume is not null)
+            await ExecuteConsumeAsync(purchaseForConsume, request.ProductId, request.PurchaseToken);
+
+        return result;
+    }
+
+    // 트랜잭션 커밋 후 Google Play consume 호출 — 실패해도 유저 응답 불변
+    // 영구실패: ConsumedAt 마킹 후 중단. 일시실패: 시도 횟수 증가 + retry 워커 위임
+    private async Task ExecuteConsumeAsync(IapPurchase purchase, string productId, string purchaseToken)
+    {
+        try
+        {
+            var consumer = _consumerResolver.Resolve(IapStore.Google);
+            await consumer.ConsumeAsync(productId, purchaseToken);
+
+            // 성공 — ConsumedAt 기록
+            purchase.ConsumedAt = DateTime.UtcNow;
+            purchase.UpdatedAt = DateTime.UtcNow;
+            await _purchaseRepo.SaveChangesAsync();
+
+            _logger.LogInformation("consume 완료 — PurchaseId: {Id}", purchase.Id);
+        }
+        catch (IapConsumeException ex)
+        {
+            // 시도 횟수 및 마지막 시도 시각 갱신
+            purchase.ConsumeAttempts++;
+            purchase.LastConsumeAttemptAt = DateTime.UtcNow;
+            purchase.LastConsumeError = ex.Message;
+            purchase.UpdatedAt = DateTime.UtcNow;
+
+            if (ex.IsPermanent)
+            {
+                // 영구실패: 재시도 무의미 — ConsumedAt 강제 마킹으로 retry 워커 제외
+                purchase.ConsumedAt = DateTime.UtcNow;
+                _logger.LogError(ex,
+                    "consume 영구실패 (재시도 중단) — PurchaseId: {Id}, ProductId: {ProductId}",
+                    purchase.Id, productId);
+
+                // retry 워커 대상에서 영구 제외되므로 Admin에 즉시 알림 발송
+                try
+                {
+                    await _notificationService.CreateAsync(
+                        category: AdminNotificationCategory.IapConsumeFailure,
+                        severity: AdminNotificationSeverity.Critical,
+                        title: $"IAP consume 영구실패 — PurchaseId {purchase.Id}",
+                        message: $"소모성 상품 consume이 영구실패로 종료되었습니다. " +
+                                 $"PlayerId={purchase.PlayerId}, ProductId={productId}. 수동 처리 필요.",
+                        relatedEntityType: "IapPurchase",
+                        relatedEntityId: purchase.Id,
+                        dedupKey: $"iap-consume-fail:{purchase.Id}");
+                }
+                catch (Exception notifEx)
+                {
+                    _logger.LogError(notifEx, "Admin 알림 발송 실패 — PurchaseId: {Id}", purchase.Id);
+                }
+            }
+            else
+            {
+                // 일시실패: retry 워커가 후속 처리 — ConsumedAt 미기록으로 폴링 대상 유지
+                _logger.LogWarning(ex,
+                    "consume 일시실패 (retry 워커 위임) — PurchaseId: {Id}",
+                    purchase.Id);
+            }
+
+            await _purchaseRepo.SaveChangesAsync();
+        }
     }
 
     // RewardTable의 항목으로 RewardBundle 구성

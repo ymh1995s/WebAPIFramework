@@ -28,4 +28,7 @@ public interface IIapPurchaseRepository
 
     // 변경사항 저장
     Task SaveChangesAsync();
+
+    // consume 재시도 대상 조회 — Granted 상태 + Consumable + ConsumedAt 미기록 + 최대 시도 미달
+    Task<List<IapPurchase>> FindPendingConsumesAsync(int maxAttempts);
 }

@@ -32,6 +32,7 @@ using Framework.Domain.Content.Interfaces;
 using Framework.Infrastructure.Persistence;
 using Framework.Infrastructure.Repositories;
 using Framework.Infrastructure.Content.Repositories;
+using Framework.Api.BackgroundServices;
 using Framework.Api.Notifications;
 using Framework.Api.Services;
 using Framework.Api.Services.AdNetwork;
@@ -236,14 +237,23 @@ public static class ServiceExtensions
     }
 
     // 서비스 등록 - 인앱결제(IAP)
-    // Google Play 검증기 + 메인 구매 처리 서비스
+    // Google Play 검증기 + 메인 구매 처리 서비스 + consume 재시도 워커
     public static IServiceCollection AddIapServices(this IServiceCollection services)
     {
+        // Google Play 클라이언트 팩토리 — Verifier/Consumer 공유 초기화 (Transient: 요청마다 새 클라이언트)
+        services.AddTransient<GooglePlayClientFactory>();
+
         // Google Play 영수증 검증기 등록 (IIapStoreVerifier Strategy 구현체)
         services.AddScoped<IIapStoreVerifier, GooglePlayStoreVerifier>();
 
         // 스토어 검증기 팩토리 (Resolver) 등록
         services.AddScoped<IIapStoreVerifierResolver, IapStoreVerifierResolver>();
+
+        // Google Play consume 구현체 등록 (IIapConsumer Strategy)
+        services.AddScoped<IIapConsumer, GooglePlayConsumer>();
+
+        // consume 해석자 등록 — 스토어별 IIapConsumer 구현체 분기
+        services.AddScoped<IIapConsumerResolver, IapConsumerResolver>();
 
         // 인앱결제 메인 검증+지급 서비스 등록
         services.AddScoped<IIapPurchaseService, IapPurchaseService>();
@@ -253,6 +263,9 @@ public static class ServiceExtensions
 
         // Google Pub/Sub OIDC 검증기 — Singleton: 내부 JWKS ConfigurationManager 캐시 공유
         services.AddSingleton<GooglePubSubAuthenticator>();
+
+        // consume 재시도 백그라운드 서비스 — 일시실패 건 폴링 + 지수 백오프 재시도
+        services.AddHostedService<IapConsumeRetryService>();
 
         return services;
     }

@@ -80,4 +80,13 @@ public class IapPurchaseRepository : IIapPurchaseRepository
     // 변경사항 저장
     public async Task SaveChangesAsync()
         => await _db.SaveChangesAsync();
+
+    // consume 재시도 대상 조회 — Granted 상태 + Consumable + ConsumedAt null + 시도 횟수 미달
+    public async Task<List<IapPurchase>> FindPendingConsumesAsync(int maxAttempts)
+        => await _db.IapPurchases
+            .Where(p => p.Status == IapPurchaseStatus.Granted
+                     && p.ProductType == IapProductType.Consumable
+                     && p.ConsumedAt == null
+                     && p.ConsumeAttempts < maxAttempts)
+            .ToListAsync();
 }
