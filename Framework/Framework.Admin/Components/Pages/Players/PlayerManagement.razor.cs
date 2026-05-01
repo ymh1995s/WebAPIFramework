@@ -243,10 +243,10 @@ public partial class PlayerManagement : SafeComponentBase
         }
     }
 
-    // ─── 밴 상태 표시 문자열 — 기간 밴이면 해제 일시 함께 표기 ───
+    // ─── 밴 상태 표시 문자열 — 실효 밴 기준으로 표시, 기간 밴이면 해제 일시 함께 표기 ───
     private string GetBanLabel(PlayerDto p)
     {
-        if (!p.IsBanned) return "정상";
+        if (!p.IsEffectivelyBanned) return "정상";
         if (p.BannedUntil.HasValue) return $"밴됨 (~{p.BannedUntil.Value.ToLocalTime():MM-dd HH:mm})";
         return "영구밴";
     }
@@ -261,7 +261,7 @@ public partial class PlayerManagement : SafeComponentBase
         return $"삭제됨 ({deletedAt})";
     }
 
-    // ─── 로컬 DTO — IsBanned/BannedUntil + PublicId/소프트 딜리트 정보 포함 ───
+    // ─── 로컬 DTO — IsBanned/BannedUntil/IsEffectivelyBanned + PublicId/소프트 딜리트 정보 포함 ───
     private record PlayerDto(
         int Id,
         Guid PublicId,
@@ -272,6 +272,8 @@ public partial class PlayerManagement : SafeComponentBase
         DateTime LastLoginAt,
         bool IsBanned,
         DateTime? BannedUntil,
+        // 실효 밴 여부 — 만료된 기간 밴은 false, 버튼 분기 및 상태 표시에 사용
+        bool IsEffectivelyBanned,
         bool IsDeleted,
         DateTime? DeletedAt,
         int? MergedIntoPlayerId);

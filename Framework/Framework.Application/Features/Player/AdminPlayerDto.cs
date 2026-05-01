@@ -11,6 +11,8 @@ public record AdminPlayerDto(
     DateTime LastLoginAt,
     bool IsBanned,
     DateTime? BannedUntil,
+    // 실효 밴 여부 — 만료된 기간 밴은 false, Admin UI 표시 및 버튼 분기에 사용
+    bool IsEffectivelyBanned,
     bool IsDeleted,
     DateTime? DeletedAt,
     int? MergedIntoPlayerId

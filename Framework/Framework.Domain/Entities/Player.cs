@@ -30,6 +30,11 @@ public class Player
     // 밴 해제 일시 (null이면 영구 밴, 값이 있으면 해당 시각까지 기간 밴)
     public DateTime? BannedUntil { get; set; }
 
+    // 실효 밴 여부 — IsBanned 플래그와 BannedUntil 시각을 모두 고려 (AuthService, AdminPlayerService와 공통 기준)
+    // BannedUntil이 null이면 영구 밴, 미래이면 기간 밴 진행 중, 과거이면 만료로 간주
+    public bool IsEffectivelyBanned =>
+        IsBanned && (BannedUntil == null || BannedUntil > DateTime.UtcNow);
+
     // 인게임 프로필 (1:1)
     public PlayerProfile? Profile { get; set; }
 

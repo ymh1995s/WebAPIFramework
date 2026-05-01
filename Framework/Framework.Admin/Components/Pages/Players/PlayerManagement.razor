@@ -72,9 +72,9 @@
                         <td>@(string.IsNullOrEmpty(p.GoogleId) ? "-" : "연동됨")</td>
                         <td>@p.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
                         <td>@p.LastLoginAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
-                        <!-- 밴 상태: 정상이면 초록, 밴이면 빨강 -->
+                        <!-- 밴 상태: 정상이면 초록, 실효 밴이면 빨강 (만료된 기간 밴은 정상으로 표시) -->
                         <td>
-                            @if (p.IsBanned)
+                            @if (p.IsEffectivelyBanned)
                             {
                                 <span class="text-danger fw-semibold">@GetBanLabel(p)</span>
                             }
@@ -95,7 +95,7 @@
                                 @* 삭제된 계정도 이력 확인 가능 *@
                                 <a href="/ban-logs?playerId=@p.Id" class="btn btn-sm btn-outline-secondary ms-1">밴 이력</a>
                             }
-                            else if (!p.IsBanned)
+                            else if (!p.IsEffectivelyBanned)
                             {
                                 <button class="btn btn-danger btn-sm" @onclick="() => BanPlayer(p.Id, null)">밴</button>
                                 @* 삭제 버튼 — IsDeleted가 false인 경우에만 표시 *@
@@ -175,9 +175,9 @@
                             <td>@(string.IsNullOrEmpty(p.GoogleId) ? "-" : "연동됨")</td>
                             <td>@p.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
                             <td>@p.LastLoginAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
-                            <!-- 밴 상태: 정상이면 초록, 밴이면 빨강 -->
+                            <!-- 밴 상태: 정상이면 초록, 실효 밴이면 빨강 (만료된 기간 밴은 정상으로 표시) -->
                             <td>
-                                @if (p.IsBanned)
+                                @if (p.IsEffectivelyBanned)
                                 {
                                     <span class="text-danger fw-semibold">@GetBanLabel(p)</span>
                                 }
@@ -198,7 +198,7 @@
                                     @* 삭제된 계정도 이력 확인 가능 *@
                                     <a href="/ban-logs?playerId=@p.Id" class="btn btn-sm btn-outline-secondary ms-1">밴 이력</a>
                                 }
-                                else if (!p.IsBanned)
+                                else if (!p.IsEffectivelyBanned)
                                 {
                                     <button class="btn btn-danger btn-sm" @onclick="() => BanPlayer(p.Id, null)">밴</button>
                                     @* 삭제 버튼 — IsDeleted가 false인 경우에만 표시 *@

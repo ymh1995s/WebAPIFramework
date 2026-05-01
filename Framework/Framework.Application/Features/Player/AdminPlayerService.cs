@@ -31,6 +31,7 @@ public class AdminPlayerService : IAdminPlayerService
         p.LastLoginAt,
         p.IsBanned,
         p.BannedUntil,
+        p.IsEffectivelyBanned,
         p.IsDeleted,
         p.DeletedAt,
         p.MergedIntoPlayerId
@@ -59,10 +60,6 @@ public class AdminPlayerService : IAdminPlayerService
         return player is null ? null : ToDto(player);
     }
 
-    // 실효 밴 여부 — IsBanned 플래그와 BannedUntil 시각을 모두 고려 (AuthService와 동일 기준)
-    private static bool IsEffectivelyBanned(Player p) =>
-        p.IsBanned && (p.BannedUntil == null || p.BannedUntil > DateTime.UtcNow);
-
     // 밴 처리 — 실효 밴 상태이면 AlreadyBanned 반환 (토글 강제)
     public async Task<BanOperationResult> BanAsync(int id, DateTime? bannedUntil, string? reason, string? actorIp)
     {
@@ -70,7 +67,7 @@ public class AdminPlayerService : IAdminPlayerService
         if (player is null) return BanOperationResult.PlayerNotFound;
 
         // 현재 실효적으로 밴 상태이면 중복 밴 방지 (기간 밴 만료 시에는 재밴 허용)
-        if (IsEffectivelyBanned(player)) return BanOperationResult.AlreadyBanned;
+        if (player.IsEffectivelyBanned) return BanOperationResult.AlreadyBanned;
 
         await _playerRepository.BanAsync(id, bannedUntil);
 
@@ -88,7 +85,7 @@ public class AdminPlayerService : IAdminPlayerService
         if (player is null) return BanOperationResult.PlayerNotFound;
 
         // 실효적으로 밴 상태가 아니면 해제 불가 (만료된 기간 밴은 이미 자동 해제된 것으로 간주)
-        if (!IsEffectivelyBanned(player)) return BanOperationResult.NotBanned;
+        if (!player.IsEffectivelyBanned) return BanOperationResult.NotBanned;
 
         await _playerRepository.UnbanAsync(id);
 

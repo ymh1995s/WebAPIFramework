@@ -37,9 +37,8 @@ public class AuthService : IAuthService
         var player = await _playerRepo.GetByDeviceIdAsync(deviceId);
         var isNew = player is null;
 
-        // 기존 플레이어인 경우 밴 여부 확인 — 신규 가입(isNew)은 밴 대상 없음
-        if (player is not null && player.IsBanned &&
-            (player.BannedUntil == null || player.BannedUntil > DateTime.UtcNow))
+        // 기존 플레이어인 경우 실효 밴 여부 확인 — 신규 가입(isNew)은 밴 대상 없음
+        if (player is not null && player.IsEffectivelyBanned)
             throw new UnauthorizedAccessException("정지된 계정입니다.");
 
         if (isNew)
@@ -82,6 +81,10 @@ public class AuthService : IAuthService
             await _refreshTokenRepo.SaveChangesAsync();
             throw new UnauthorizedAccessException("리프래시 토큰이 만료되었습니다.");
         }
+
+        // 토큰 갱신 시점에도 실효 밴 여부 재확인 — 로그인 후 밴 처리된 계정의 추가 갱신 차단
+        if (stored.Player.IsEffectivelyBanned)
+            throw new UnauthorizedAccessException("정지된 계정입니다.");
 
         // 기존 토큰 삭제 후 새 토큰 발급 (토큰 교체 방식)
         // DeleteAsync는 ChangeTracker에만 등록 — IssueTokensAsync의 SaveChanges에서 Delete + Add 함께 flush
@@ -133,8 +136,8 @@ public class AuthService : IAuthService
         // [분기 B] 비인증 요청(currentPlayerId == null) → 기존 계정으로 정상 재로그인
         if (currentPlayerId is null)
         {
-            // 밴 여부 확인 — 정지 기간이 남아있으면 로그인 거부
-            if (existing.IsBanned && (existing.BannedUntil == null || existing.BannedUntil > DateTime.UtcNow))
+            // 실효 밴 여부 확인 — 정지 기간이 남아있으면 로그인 거부
+            if (existing.IsEffectivelyBanned)
                 throw new UnauthorizedAccessException("정지된 계정입니다.");
 
             existing.LastLoginAt = DateTime.UtcNow;
