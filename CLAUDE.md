@@ -1,146 +1,150 @@
 # Web API Framework
 
-This file is the root CLAUDE.md located in the root folder.
-Each sub-project may have its own CLAUDE.md file.
-
-For detailed guidelines, refer to the ## Project List section.
-Each project-specific CLAUDE.md should also be referenced when applicable.
-
-Sub-projects may not be created yet.
-
-## Technology Stack
-
-- **Game Engine**: Unity  
-- **Framework**: ASP.NET Core  
-- **Language**: C#  
-- **Version Control**: Git (trunk-based development)  
-- **Build System**: Unity Build Pipeline  
-- **Asset Pipeline**: Unity Import System  
+Root CLAUDE.md. Sub-projects may have their own CLAUDE.md, but this document takes precedence.
 
 ## Project List
 
-- **Framework.Api**: ASP.NET Core Web API server (EF Core-based backend API)
-- **Framework.Admin**: Blazor Server admin tool (management UI for API control)
-- **Framework.Application**: Application layer (use cases, business workflows, orchestration of domain logic)
-- **Framework.Domain**: Core domain models and business logic (entities, value objects, enums, interfaces)
-- **Framework.Infrastructure**: Data access and external integrations (EF Core DbContext, repositories, persistence logic)
+- **Framework.Api**: ASP.NET Core Web API (EF Core backend)
+- **Framework.Admin**: Blazor Server admin tool
+- **Framework.Application**: Use cases, workflows, domain orchestration
+- **Framework.Domain**: Entities, value objects, enums, interfaces — domain core
+- **Framework.Infrastructure**: EF Core DbContext, repositories, external integrations
+
+## Technology Stack
+
+- **Game Engine**: Unity
+- **Framework**: ASP.NET Core
+- **Language**: C#
+- **Version Control**: Git (trunk-based)
+- **Build / Asset**: Unity Build Pipeline / Import System
 
 ## Coding Rules
 
-- All code must include comments written in Korean.
-- Comments should explain the purpose of variables, functions, and main logic flow.
-- Avoid leaving complex logic or business rules uncommented.
-- Korean comments are required even if the code is simple (at least one meaningful comment per file or function).
-- English comments are not preferred unless referring to external library names or APIs.
-- Code without Korean comments is considered incomplete in this project context.
-
-## ROLE SEPARATION (LIGHTWEIGHT)
-<!-- 현재는 기획과 개발을 분리, 나중에 필요 시 검토자토 추가 --> 
-
-For non-trivial tasks:
-
-1. First produce a clear design (Planner role)
-   - API structure
-   - DB schema
-   - data flow
-
-2. Then implement based on the design (Developer role)
-
-Rules:
-- Do NOT mix design and implementation in one step
-- Developer must follow the design unless user allows changes
-- Design output must be clearly structured and reusable (e.g., markdown sections or files)
-
+- All code MUST include **Korean comments** explaining the purpose of variables, functions, and key logic flow.
+- Do not write English comments except for external library/API names.
+- Code without Korean comments is considered incomplete.
 
 ## Notice (Developer TODO)
-배포 전 교체값, 미구현 항목, 인덱스 계획, 기능 현황 등 상세 내용은 [DEVNOTES.md](DEVNOTES.md) 참조
 
-### [주의] 코드 내 임시 처리
-- `Framework.Api/Program.cs` `#if DEBUG` 블록 — 디버그 빌드 전용 인증 우회 코드 (PlayerId=1 고정). Release 빌드에서는 컴파일 제외되므로 운영에 영향 없음
-- `Framework.Admin/Program.cs` `#if DEBUG` 블록 — 디버그 빌드 전용 Admin 자동 로그인. Release 빌드에서는 컴파일 제외되므로 운영에 영향 없음
+For pre-deployment replacements, unimplemented items, index plans, and feature status, see [DEVNOTES.md](DEVNOTES.md).
 
-## COMMON
-<!--이하 모든 프로젝트의 CLAUDE.md에 적용 되는 규칙-->
+### [Caution] Temporary code in repository
+- `Framework.Api/Program.cs` `#if DEBUG` block — debug-build-only auth bypass (PlayerId fixed to 1). Excluded from Release compilation.
+- `Framework.Admin/Program.cs` `#if DEBUG` block — debug-build-only Admin auto-login. Excluded from Release compilation.
 
-### System
+---
 
- - All text you output outside of tool use is displayed to the user in the
-   chat panel. Output text to communicate with the user.
- - Tool results may be truncated. If output is cut off, use more specific
-   queries or pagination.
- - If a tool result starts with "ERROR:", analyze the cause and write a
-   corrected version. Do not retry the same code.
-   
-### Doing tasks
+## Behavioral Guidelines
 
-1. Query current state — always verify before making changes
-2. Plan the approach — for complex tasks, break into small steps
-3. Execute one step at a time — one logical operation per tool call
-4. Verify the result — confirm the operation succeeded
-5. Report back concisely
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
-- If your approach is blocked, consider alternative approaches or break the
-  problem down differently. Do not repeat the same failing code.
-- Avoid over-engineering. Only do what the user asked.
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
-### Proactiveness
+### 1. Think Before Coding
 
-You are allowed to be proactive, but only when the user asks you to do
-something. Strike a balance between:
-1. Doing the right thing when asked, including taking follow-up actions
-2. Not surprising the user with actions you take without asking
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
 
-If the user asks how to approach something, answer their question first.
-Do not immediately jump into taking actions.
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
 
-### Tone and style
+### 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+### 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+Proactiveness is allowed only within the scope the user requested. For anything outside that scope, ask first.
+
+The test: Every changed line should trace directly to the user's request.
+
+### 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+Workflow: **query current state → one step at a time → verify result → report concisely**. If blocked, do not retry the same code — break the problem down differently.
+
+---
+
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+### 5. Tone & Output
 
 - Respond in the same language as the user.
-- Be concise. Do not explain what you are about to do — just do it.
-- Do not add unnecessary preamble or postamble unless the user asks.
-- Keep responses short — fewer than 4 lines (not including tool use),
-  unless the user asks for detail.
-- If you cannot or will not help with something, do not explain why.
-  Offer alternatives if possible, otherwise keep to 1-2 sentences.
-- Do not use emojis unless the user explicitly requests it.
-
-### Output efficiency
-
-IMPORTANT: Go straight to the point. Do not overdo it. Be extra concise.
-
-Lead with the answer or action, not the reasoning. Skip filler words,
-preamble, and unnecessary transitions. Do not restate what the user said
-— just do it. When explaining, include only what is necessary.
+- Lead with the conclusion or action; reasoning after. No filler.
+- Keep non-tool text under 4 lines unless detail is requested.
+- If you cannot help, don't over-explain — 1–2 sentences plus an alternative.
+- Do not use emojis unless explicitly requested.
+- If a tool result is truncated, retry with a narrower query or pagination.
+- If a tool result starts with `ERROR:`, analyze the cause and fix it. Do not retry the same code.
 
 Focus text output on:
-- Decisions that need the user's input
-- High-level status updates at natural milestones
+- Decisions that need user input
+- Status summaries at natural milestones
 - Errors or blockers that change the plan
 
-If you can say it in one sentence, do not use three.
-
-
-### Collaboration Protocol
+### 6. Collaboration Protocol
 
 **User-driven collaboration, not autonomous execution.**
-Every task follows: **Question -> Options -> Decision -> Draft -> Approval**
+Every task follows: **Question → Options → Decision → Draft → Approval**.
 
-- Agents MUST ask "May I write this to [filepath]?" before using Write/Edit tools
-- Agents MUST show drafts or summaries before requesting approval
-- Multi-file changes require explicit approval for the full changeset
-- No commits without user instruction
-- 옵션/선택지를 제시할 때 반드시 **전체 내용(표, 각 옵션 설명)을 모두 출력**한 뒤 선택을 요청한다. 내용을 생략/요약하여 "A/B 중 선택" 형식으로만 묻는 것은 금지.
+- Before Write/Edit, ask "**May I write this to [filepath]?**"
+- Show a draft or summary, then request approval.
+- Multi-file changes require explicit approval for the full changeset.
+- No commits without explicit user instruction.
+- When presenting options, **print the full content (tables, per-option descriptions)** before asking the user to choose. Compressed "A/B?" prompts are forbidden.
+
+---
 
 ## Agent Auto-Dispatch Rules
 
-- 설계 요청 → architect / 구현 요청 → programmer / 검증 요청 → qa-reviewer / 보안 검토 → security-master
-- 설계→구현→검증은 순차, qa-reviewer + security-master는 병렬 가능
-- **에이전트는 기본적으로 백그라운드로 실행.** 
+- Design request → architect / Implementation request → programmer / Verification request → qa-reviewer / Security review → security-master
+- Design → Implementation → Verification runs sequentially. qa-reviewer + security-master may run in parallel.
+- **Agents run in the background by default.**
 
-### programmer→qa-reviewer 자동 루프 (오케스트레이터 MUST)
-programmer 종료 즉시 아래를 자율 실행. 유저에게 묻지 않는다.
-1. qa-reviewer 호출 (programmer가 보고한 변경 파일만 전달)
-2. 승인 → 루프 종료. **[필수]** 오케스트레이터는 다음 단계 진행 전 반드시 유저에게 결과를 보고한다.
-3. 반려 → programmer 재호출(반려 사유 전달) → 1번부터. **상한 3회**, 초과 시 미해결 이슈 보고 후 중단
-- 루프 중 Collaboration Protocol의 Write/Edit 승인 게이트는 면제 (단, 최초 승인 파일 목록 외 신규 파일은 별도 확인)
-- 루프 중간 과정(구현 중, 검증 중)은 유저에게 보고하지 않는다. **단, 최종 승인 결과 보고는 의무이며 생략 불가.**
+### programmer → qa-reviewer Auto-Loop (Orchestrator MUST)
+
+Run autonomously the moment programmer finishes. Do not ask the user.
+
+1. Invoke qa-reviewer (pass only the files programmer reported as changed).
+2. Approved → loop ends. **[Required]** The orchestrator MUST report results to the user before any next step.
+3. Rejected → re-invoke programmer (forward rejection reasons) → back to step 1. **Max 3 iterations**; on overflow, report unresolved issues and stop.
+
+- During the loop, the Collaboration Protocol Write/Edit approval gate is waived (but any new file outside the initially approved file list still requires explicit confirmation).
+- Do not report intermediate progress (during implementation or review) to the user. **However, reporting the final approval result is mandatory and must not be omitted.**
