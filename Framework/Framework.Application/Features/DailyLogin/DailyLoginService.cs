@@ -17,6 +17,7 @@ public class DailyLoginService : IDailyLoginService
     private readonly IMailService _mailService;
     private readonly IPlayerRepository _playerRepository;
     private readonly ISystemConfigService _systemConfigService;
+    private readonly IUnitOfWork _unitOfWork;
 
     // KST 오프셋 상수 (UTC+9)
     private static readonly TimeSpan KstOffset = TimeSpan.FromHours(9);
@@ -27,7 +28,8 @@ public class DailyLoginService : IDailyLoginService
         IDailyRewardSlotService slotService,
         IMailService mailService,
         IPlayerRepository playerRepository,
-        ISystemConfigService systemConfigService)
+        ISystemConfigService systemConfigService,
+        IUnitOfWork unitOfWork)
     {
         _loginLogRepository = loginLogRepository;
         _slotRepository = slotRepository;
@@ -35,6 +37,7 @@ public class DailyLoginService : IDailyLoginService
         _mailService = mailService;
         _playerRepository = playerRepository;
         _systemConfigService = systemConfigService;
+        _unitOfWork = unitOfWork;
     }
 
     // 클라이언트 로그인 시 — 오늘 보상 미수령 시 우편 발송
@@ -83,39 +86,46 @@ public class DailyLoginService : IDailyLoginService
             mailBody = $"출석 {cycleDay}일차 보상입니다.";
         }
 
-        // 로그를 먼저 기록 — (PlayerId, LoginDate) 유니크 인덱스로 동시 요청 중복 차단
-        try
+        // 로그 INSERT ~ 메일 발송 구간을 트랜잭션으로 묶어 원자성 보장
+        // DbUpdateException(UNIQUE 위반)은 트랜잭션 람다 안에서 처리 — DetachEntry 후 false 반환
+        return await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
-            await _loginLogRepository.AddAsync(new DailyLoginLog
+            // 로그를 먼저 기록 — (PlayerId, LoginDate) 유니크 인덱스로 동시 요청 중복 차단
+            var loginLog = new DailyLoginLog
             {
                 PlayerId = playerId,
                 LoginDate = today,
                 RewardDay = rewardDayForLog
-            });
-            await _loginLogRepository.SaveChangesAsync();
-        }
-        catch (DbUpdateException)
-        {
-            // 같은 날 중복 기록 시도 (동시 요청) — 이미 다른 쪽에서 처리 중이거나 완료됨
-            return false;
-        }
+            };
+            try
+            {
+                await _loginLogRepository.AddAsync(loginLog);
+                await _loginLogRepository.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                // 같은 날 중복 기록 시도 (동시 요청) — DetachEntry로 실패 엔티티를 ChangeTracker에서 제거 후 중단
+                _unitOfWork.DetachEntry(loginLog);
+                return false;
+            }
 
-        // 누적 출석 카운터 증가 (통계용)
-        await _playerRepository.IncrementAttendanceCountAsync(new[] { playerId });
+            // 누적 출석 카운터 증가 (통계용)
+            await _playerRepository.IncrementAttendanceCountAsync(new[] { playerId });
 
-        // 보상 아이템이 설정되어 있을 때만 메일 발송
-        if (rewardItemId.HasValue && rewardItemCount > 0)
-        {
-            await _mailService.SendAsync(new SendMailDto(
-                playerId,
-                "일일 로그인 보상",
-                mailBody,
-                rewardItemId.Value,
-                rewardItemCount
-            ));
-        }
+            // 보상 아이템이 설정되어 있을 때만 메일 발송
+            if (rewardItemId.HasValue && rewardItemCount > 0)
+            {
+                await _mailService.SendAsync(new SendMailDto(
+                    playerId,
+                    "일일 로그인 보상",
+                    mailBody,
+                    rewardItemId.Value,
+                    rewardItemCount
+                ));
+            }
 
-        return true;
+            return true;
+        });
     }
 
     // KST 기준 시각을 적용하여 게임 날짜를 계산한다.

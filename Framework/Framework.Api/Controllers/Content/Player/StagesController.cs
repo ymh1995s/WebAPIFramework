@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
-namespace Framework.Api.Controllers.Content;
+namespace Framework.Api.Controllers.Content.Player;
 
 // 스테이지 클라이언트용 컨트롤러
 // - GET  /api/stages              : 활성 스테이지 목록

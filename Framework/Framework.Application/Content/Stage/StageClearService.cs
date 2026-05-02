@@ -24,6 +24,7 @@ public class StageClearService : IStageClearService
     private readonly IRewardDispatcher _rewardDispatcher;
     private readonly IRewardTableRepository _rewardTableRepo;
     private readonly IExpService _expService;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<StageClearService> _logger;
 
     public StageClearService(
@@ -32,6 +33,7 @@ public class StageClearService : IStageClearService
         IRewardDispatcher rewardDispatcher,
         IRewardTableRepository rewardTableRepo,
         IExpService expService,
+        IUnitOfWork unitOfWork,
         ILogger<StageClearService> logger)
     {
         _stageRepo = stageRepo;
@@ -39,125 +41,126 @@ public class StageClearService : IStageClearService
         _rewardDispatcher = rewardDispatcher;
         _rewardTableRepo = rewardTableRepo;
         _expService = expService;
+        _unitOfWork = unitOfWork;
         _logger = logger;
     }
 
     // 스테이지 클리어 완료 처리
     // [순서]
     // 1. 스테이지 마스터 조회 (없거나 비활성이면 KeyNotFoundException)
-    // 2. 선행 스테이지 클리어 여부 확인 (미클리어 시 InvalidOperationException)
-    // 3. StageClear 기록 upsert (최초 클리어 or 재클리어 판단)
-    // 4. 최초 클리어 보상 지급
-    // 5. 재클리어 보상 지급 (감소율 적용)
-    // 6. 경험치 지급 (ExpService 위임)
+    // 2. 순차 진행 조건 확인 (미클리어 시 InvalidOperationException)
+    // 3. 클리어 기록 upsert (최초 클리어 or 재클리어 판단)
+    // 4. 보상 지급 처리 (최초 클리어 보상 or 재클리어 보상, 상호 배타)
+    // 5. 경험치 지급 (ExpService 위임)
     public async Task<StageClearResponseDto> CompleteAsync(int playerId, int stageId, StageClearRequestDto request)
     {
-        // 1단계: 스테이지 마스터 조회
-        var stage = await _stageRepo.GetByIdAsync(stageId);
-        if (stage is null || !stage.IsActive)
+        return await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
-            _logger.LogWarning(
-                "스테이지 클리어 실패 — 스테이지 없음/비활성 PlayerId: {PlayerId}, StageId: {StageId}",
-                playerId, stageId);
-            throw new KeyNotFoundException($"스테이지를 찾을 수 없습니다. StageId: {stageId}");
-        }
-
-        // 2단계: 순차 진행 조건 확인
-        if (stage.RequiredPrevStageId.HasValue)
-        {
-            var prevClear = await _clearRepo.FindAsync(playerId, stage.RequiredPrevStageId.Value);
-            if (prevClear is null)
+            // 1단계: 스테이지 마스터 조회
+            var stage = await _stageRepo.GetByIdAsync(stageId);
+            if (stage is null || !stage.IsActive)
             {
                 _logger.LogWarning(
-                    "스테이지 클리어 실패 — 선행 스테이지 미클리어 PlayerId: {PlayerId}, RequiredPrevStageId: {PrevId}",
-                    playerId, stage.RequiredPrevStageId.Value);
-                throw new InvalidOperationException(
-                    $"선행 스테이지를 먼저 클리어해야 합니다. RequiredPrevStageId: {stage.RequiredPrevStageId.Value}");
+                    "스테이지 클리어 실패 — 스테이지 없음/비활성 PlayerId: {PlayerId}, StageId: {StageId}",
+                    playerId, stageId);
+                throw new KeyNotFoundException($"스테이지를 찾을 수 없습니다. StageId: {stageId}");
             }
-        }
 
-        // 3단계: 클리어 기록 upsert
-        var existing = await _clearRepo.FindAsync(playerId, stageId);
-        bool isFirstClear;
-        int clearCount;
-
-        if (existing is null)
-        {
-            // 최초 클리어 — 신규 레코드 생성
-            isFirstClear = true;
-            clearCount = 1;
-            var newClear = new StageClear
+            // 2단계: 순차 진행 조건 확인
+            if (stage.RequiredPrevStageId.HasValue)
             {
-                PlayerId = playerId,
-                StageId = stageId,
-                FirstClearedAt = DateTime.UtcNow,
-                LastClearedAt = DateTime.UtcNow,
-                ClearCount = 1,
-                BestScore = request.Score,
-                BestStars = request.Stars,
-                BestClearTimeMs = request.ClearTimeMs
-            };
-            await _clearRepo.AddAsync(newClear);
-        }
-        else
-        {
-            // 재클리어 — 기록 갱신
-            isFirstClear = false;
-            existing.ClearCount++;
-            clearCount = existing.ClearCount;
-            existing.LastClearedAt = DateTime.UtcNow;
+                var prevClear = await _clearRepo.FindAsync(playerId, stage.RequiredPrevStageId.Value);
+                if (prevClear is null)
+                {
+                    _logger.LogWarning(
+                        "스테이지 클리어 실패 — 선행 스테이지 미클리어 PlayerId: {PlayerId}, RequiredPrevStageId: {PrevId}",
+                        playerId, stage.RequiredPrevStageId.Value);
+                    throw new InvalidOperationException(
+                        $"선행 스테이지를 먼저 클리어해야 합니다. RequiredPrevStageId: {stage.RequiredPrevStageId.Value}");
+                }
+            }
 
-            // 최고 기록 갱신
-            if (request.Score > existing.BestScore) existing.BestScore = request.Score;
-            if (request.Stars > existing.BestStars) existing.BestStars = request.Stars;
-            if (request.ClearTimeMs > 0 &&
-                (existing.BestClearTimeMs == 0 || request.ClearTimeMs < existing.BestClearTimeMs))
-                existing.BestClearTimeMs = request.ClearTimeMs;
-        }
+            // 3단계: 클리어 기록 upsert (최초 클리어 or 재클리어 판단)
+            var existing = await _clearRepo.FindAsync(playerId, stageId);
+            bool isFirstClear;
+            int clearCount;
 
-        await _clearRepo.SaveChangesAsync();
+            if (existing is null)
+            {
+                // 최초 클리어 — 신규 레코드 생성
+                isFirstClear = true;
+                clearCount = 1;
+                var newClear = new StageClear
+                {
+                    PlayerId = playerId,
+                    StageId = stageId,
+                    FirstClearedAt = DateTime.UtcNow,
+                    LastClearedAt = DateTime.UtcNow,
+                    ClearCount = 1,
+                    BestScore = request.Score,
+                    BestStars = request.Stars,
+                    BestClearTimeMs = request.ClearTimeMs
+                };
+                await _clearRepo.AddAsync(newClear);
+            }
+            else
+            {
+                // 재클리어 — 기록 갱신
+                isFirstClear = false;
+                existing.ClearCount++;
+                clearCount = existing.ClearCount;
+                existing.LastClearedAt = DateTime.UtcNow;
 
-        // 4단계: 보상 지급 처리
-        string? firstRewardMessage = null;
-        string? replayRewardMessage = null;
+                // 최고 기록 갱신
+                if (request.Score > existing.BestScore) existing.BestScore = request.Score;
+                if (request.Stars > existing.BestStars) existing.BestStars = request.Stars;
+                if (request.ClearTimeMs > 0 &&
+                    (existing.BestClearTimeMs == 0 || request.ClearTimeMs < existing.BestClearTimeMs))
+                    existing.BestClearTimeMs = request.ClearTimeMs;
+            }
 
-        if (isFirstClear && !string.IsNullOrEmpty(stage.RewardTableCode))
-        {
-            // 최초 클리어 보상 — SourceKey: "stage:{stageId}:first"
-            firstRewardMessage = await GrantStageRewardAsync(
-                playerId,
-                stage.RewardTableCode,
-                $"stage:{stageId}:first",
-                $"스테이지 {stage.Name} 최초 클리어 보상",
-                "첫 번째 클리어를 축하합니다! 보상을 수령하세요.");
-        }
-        else if (!isFirstClear && !string.IsNullOrEmpty(stage.RePlayRewardTableCode))
-        {
-            // 재클리어 보상 — 감소율 적용 후 지급 (SourceKey: "stage:{stageId}:replay:{clearCount}")
-            replayRewardMessage = await GrantReplayRewardAsync(
-                playerId,
-                stage,
-                clearCount,
-                $"stage:{stageId}:replay:{clearCount}");
-        }
+            // 4단계: 보상 지급 처리
+            string? firstRewardMessage = null;
+            string? replayRewardMessage = null;
 
-        // 5단계: 경험치 지급 (ExpService 위임)
-        if (stage.ExpReward > 0)
-        {
-            await _expService.AddExpAsync(playerId, stage.ExpReward, $"stage:{stageId}");
-        }
+            if (isFirstClear && !string.IsNullOrEmpty(stage.RewardTableCode))
+            {
+                // 최초 클리어 보상 — SourceKey: "stage:{stageId}:first"
+                firstRewardMessage = await GrantStageRewardAsync(
+                    playerId,
+                    stage.RewardTableCode,
+                    $"stage:{stageId}:first",
+                    $"스테이지 {stage.Name} 최초 클리어 보상",
+                    "첫 번째 클리어를 축하합니다! 보상을 수령하세요.");
+            }
+            else if (!isFirstClear && !string.IsNullOrEmpty(stage.RePlayRewardTableCode))
+            {
+                // 재클리어 보상 — 감소율 적용 후 지급 (SourceKey: "stage:{stageId}:replay:{clearCount}")
+                replayRewardMessage = await GrantReplayRewardAsync(
+                    playerId,
+                    stage,
+                    clearCount,
+                    $"stage:{stageId}:replay:{clearCount}");
+            }
 
-        _logger.LogInformation(
-            "스테이지 클리어 완료 — PlayerId: {PlayerId}, StageId: {StageId}, IsFirst: {IsFirst}, ClearCount: {Count}",
-            playerId, stageId, isFirstClear, clearCount);
+            // 5단계: 경험치 지급 (ExpService 위임)
+            if (stage.ExpReward > 0)
+            {
+                await _expService.AddExpAsync(playerId, stage.ExpReward, $"stage:{stageId}");
+            }
 
-        return new StageClearResponseDto(
-            IsFirstClear: isFirstClear,
-            ClearCount: clearCount,
-            ExpGranted: stage.ExpReward,
-            FirstRewardMessage: firstRewardMessage,
-            ReplayRewardMessage: replayRewardMessage
-        );
+            _logger.LogInformation(
+                "스테이지 클리어 완료 — PlayerId: {PlayerId}, StageId: {StageId}, IsFirst: {IsFirst}, ClearCount: {Count}",
+                playerId, stageId, isFirstClear, clearCount);
+
+            return new StageClearResponseDto(
+                IsFirstClear: isFirstClear,
+                ClearCount: clearCount,
+                ExpGranted: stage.ExpReward,
+                FirstRewardMessage: firstRewardMessage,
+                ReplayRewardMessage: replayRewardMessage
+            );
+        });
     }
 
     // 최초 클리어 보상 지급 헬퍼

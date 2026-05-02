@@ -15,6 +15,7 @@ public class ExpService : IExpService
     private readonly IRewardDispatcher _rewardDispatcher;
     private readonly IRewardTableRepository _rewardTableRepo;
     private readonly ILevelTableProvider _levelTable;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<ExpService> _logger;
 
     public ExpService(
@@ -22,61 +23,66 @@ public class ExpService : IExpService
         IRewardDispatcher rewardDispatcher,
         IRewardTableRepository rewardTableRepo,
         ILevelTableProvider levelTable,
+        IUnitOfWork unitOfWork,
         ILogger<ExpService> logger)
     {
         _profileRepo = profileRepo;
         _rewardDispatcher = rewardDispatcher;
         _rewardTableRepo = rewardTableRepo;
         _levelTable = levelTable;
+        _unitOfWork = unitOfWork;
         _logger = logger;
     }
 
     // 경험치 추가 — 레벨업 발생 시 레벨업 보상도 연속 처리
     // [흐름] 프로필 조회 → Exp 추가 → 레벨업 while 루프 → SaveChanges → 레벨업 보상 지급
+    // 프로필 변경과 레벨업 보상 지급까지 하나의 트랜잭션으로 묶어 원자성 보장
     public async Task AddExpAsync(int playerId, int expAmount, string sourceKey)
     {
         // 경험치가 0 이하면 처리 불필요
         if (expAmount <= 0) return;
 
-        // 플레이어 프로필 조회
-        var profile = await _profileRepo.GetByPlayerIdAsync(playerId);
-        if (profile is null)
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
-            _logger.LogWarning("ExpService: PlayerProfile 없음 — PlayerId: {PlayerId}", playerId);
-            return;
-        }
+            // 플레이어 프로필 조회
+            var profile = await _profileRepo.GetByPlayerIdAsync(playerId);
+            if (profile is null)
+            {
+                _logger.LogWarning("ExpService: PlayerProfile 없음 — PlayerId: {PlayerId}", playerId);
+                return;
+            }
 
-        // 최대 레벨이면 경험치 추가 생략
-        if (profile.Level >= _levelTable.MaxLevel)
-        {
-            _logger.LogDebug("ExpService: 최대 레벨 도달, Exp 추가 생략 — PlayerId: {PlayerId}", playerId);
-            return;
-        }
+            // 최대 레벨이면 경험치 추가 생략
+            if (profile.Level >= _levelTable.MaxLevel)
+            {
+                _logger.LogDebug("ExpService: 최대 레벨 도달, Exp 추가 생략 — PlayerId: {PlayerId}", playerId);
+                return;
+            }
 
-        // 경험치 누적
-        profile.Exp += expAmount;
-        profile.UpdatedAt = DateTime.UtcNow;
+            // 경험치 누적
+            profile.Exp += expAmount;
+            profile.UpdatedAt = DateTime.UtcNow;
 
-        // 레벨업 대상 레벨 수집 — 다중 레벨업 지원 (while 루프)
-        var leveledUp = new List<int>();
-        while (profile.Level < _levelTable.MaxLevel &&
-               profile.Exp >= _levelTable.GetThreshold(profile.Level + 1))
-        {
-            profile.Level++;
-            leveledUp.Add(profile.Level);
-            _logger.LogInformation(
-                "레벨업 — PlayerId: {PlayerId}, Level: {Level}", playerId, profile.Level);
-        }
+            // 레벨업 대상 레벨 수집 — 다중 레벨업 지원 (while 루프)
+            var leveledUp = new List<int>();
+            while (profile.Level < _levelTable.MaxLevel &&
+                   profile.Exp >= _levelTable.GetThreshold(profile.Level + 1))
+            {
+                profile.Level++;
+                leveledUp.Add(profile.Level);
+                _logger.LogInformation(
+                    "레벨업 — PlayerId: {PlayerId}, Level: {Level}", playerId, profile.Level);
+            }
 
-        // 프로필 저장 (Exp + Level 반영)
-        await _profileRepo.UpdateAsync(profile);
-        await _profileRepo.SaveChangesAsync();
+            // 프로필 저장 (Exp + Level 반영)
+            await _profileRepo.UpdateAsync(profile);
 
-        // 레벨업 보상 지급 — 레벨별로 RewardTable 조회 후 지급
-        foreach (var level in leveledUp)
-        {
-            await GrantLevelUpRewardAsync(playerId, level);
-        }
+            // 레벨업 보상 지급 — 레벨별로 RewardTable 조회 후 지급
+            foreach (var level in leveledUp)
+            {
+                await GrantLevelUpRewardAsync(playerId, level);
+            }
+        });
     }
 
     // 레벨업 보상 지급 — 레벨업 보상 테이블에서 번들을 조회하여 지급
