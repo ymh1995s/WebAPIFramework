@@ -19,6 +19,9 @@ secrets/
 # Claude Code 에이전트 메모리 (로컬 전용)
 .claude/agent-memory/
 
+# 풀리뷰 라운드 산출물 (로컬 전용, 최종 REVIEW_REPORT.md만 루트 보존)
+review/
+
 
 # By default unity supports Blender asset imports, *.blend1 blender files do not need to be commited to version control.
 *.blend1
