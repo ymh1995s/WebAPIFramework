@@ -32,14 +32,17 @@ public class GooglePlayStoreVerifier : IIapStoreVerifier
 
         try
         {
-            // AndroidPublisherService 생성 — 팩토리로 중복 초기화 코드 제거
+            // (1) Google 서비스 계정 키로 인증된 AndroidPublisher API 클라이언트 생성
+            // 모든 요청에 OAuth 2.0 토큰 자동 첨부 → Google 서버는 인증된 호출만 처리
             using var service = await _clientFactory.CreateAsync();
 
-            // purchases.products.get 호출 — 단건 상품 구매 조회
             _logger.LogDebug(
                 "Google Play 구매 조회 요청 — PackageName: {PackageName}, ProductId: {ProductId}",
                 packageName, productId);
 
+            // (2) [핵심] Google Play Developer API 호출 — 영수증 진위 검증의 본체
+            // 호출: GET /androidpublisher/v3/applications/{pkg}/purchases/products/{sku}/tokens/{token}
+            // 위조 토큰은 Google이 404로 응답. 검증의 권한자는 Google이며 우리 서버는 응답을 신뢰.
             var request = service.Purchases.Products.Get(packageName, productId, purchaseToken);
             var productPurchase = await request.ExecuteAsync();
 
@@ -54,12 +57,7 @@ public class GooglePlayStoreVerifier : IIapStoreVerifier
                     $"구매 상태가 완료 상태가 아닙니다. PurchaseState={productPurchase.PurchaseState}");
             }
 
-            // packageName 일치 검증 — 다른 앱의 구매 토큰 재사용 방지
-            if (!string.Equals(productPurchase.RegionCode, null) &&
-                productPurchase.DeveloperPayload is not null)
-            {
-                // packageName은 API 호출 파라미터로 이미 검증됨 (오류 시 API가 예외 발생)
-            }
+            // packageName 일치 검증은 API 호출 파라미터에 이미 포함되어 Google이 자체 검증 — 별도 처리 불필요
 
             // 상품 유형 판별: consumptionState 기반
             // consumptionState = 0: 아직 소비하지 않음 → Consumable (소모성)
@@ -93,6 +91,8 @@ public class GooglePlayStoreVerifier : IIapStoreVerifier
                 "Google Play 영수증 검증 성공 — ProductId: {ProductId}, PurchaseTimeUtc: {Time}",
                 productId, purchaseTimeUtc);
 
+            // 검증 성공 — 후속 처리에 필요한 정보만 추려서 반환
+            // RawReceiptJson은 분쟁/환불/감사 시 증거로 사용하기 위해 Google 원본 응답을 그대로 보존
             return new IapReceiptVerified(
                 ProductId: productId,
                 ProductType: productType,
