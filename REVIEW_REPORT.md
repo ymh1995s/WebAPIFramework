@@ -183,7 +183,7 @@
 
 | ID | 항목 | 파일 | Phase |
 |---|---|---|---|
-| H-1 | Admin 컨트롤러 2곳 AppDbContext 직접 주입 + EF 쿼리 인라인 | AdminRateLimitLogsController.cs:14, AdminSecurityController.cs:14 | P1.1 |
+| ~~H-1~~ | **[해결]** ISecurityAdminService(통합) 신설 + IRateLimitLogRepository 인터페이스 분리. 두 Controller에서 AppDbContext 완전 제거. IgnoreQueryFilters는 IPlayerRepository에 캡슐화. M-5/L-23 동시 해소 | AdminRateLimitLogsController.cs, AdminSecurityController.cs | P1.1 |
 | ~~H-2~~ | **[해결]** UseSerilogRequestLogging 적용(Authentication 이후) + EnrichDiagnosticContext(ClientIp/UserAgent/TraceId/PlayerId). M-24와 함께 처리 | Framework.Api/Program.cs | P2.1 |
 | ~~H-3~~ | **[해결]** PlayerItem.xmin 그림자 속성 매핑 + RewardDispatcher/MailService 재시도 루프(3회) + IUnitOfWork.ClearChangeTracker. Mail/PlayerItem 충돌 구분 (DEVNOTES `[설계 결정] 낙관적 동시성 토큰 — PostgreSQL xmin 채택` 박제) | AppDbContext.cs + RewardDispatcher.cs + MailService.cs | P2.3 |
 | H-4 | 테스트 프로젝트 0개 — RewardDispatcher/Auth/IAP 자동화 검증 전무 | 솔루션 전체 | P2.4 |
@@ -211,7 +211,7 @@
 | M-2 | Application Service 7곳 DbUpdateException catch — UNIQUE/동시성 처리 누수 | AdPolicy/IapProduct/IapPurchase/RewardTable/RewardDispatcher/DailyLogin/Mail |
 | M-3 | IapRtdnController 페이로드 디코딩/PackageName 검증 인라인 | IapRtdnController.cs:43-110 |
 | M-4 | Player 영역 17건 익명 객체 응답 잔존(IapPurchase 7, IapRtdn 7, AdsCallback 6) | Controllers/Player |
-| M-5 | RateLimitLogRepository 인터페이스 없이 구체 클래스 등록 | ServiceExtensions.cs:347 |
+| ~~M-5~~ | **[해결]** IRateLimitLogRepository 도입 + DI 인터페이스 등록 + OnRejected 콜백 인터페이스 참조 전환 (H-1과 동시 해소) | ServiceExtensions.cs |
 | M-6 | LevelTableProvider Singleton 동기 블로킹(.GetAwaiter().GetResult()) | LevelTableProvider.cs:65 |
 | M-7 | IItemMasterCache 미구현 — 핫패스 매 요청 DB 조회 | ItemMasterService 전반 |
 | M-8 | GooglePlayClientFactory 인터페이스 부재 — Strategy 구현체가 구체 어댑터 결합 | GooglePlayClientFactory.cs |
@@ -297,7 +297,7 @@
 | L-20 | CurrencyIds 시드 보호 가드 부재(ItemId=1/2 수정/삭제 차단 없음) |
 | L-21 | CancellationToken 전체 미전파 |
 | L-22 | AsNoTracking 전역 미사용 다수 |
-| L-23 | RateLimitLogRepository 인터페이스 미정의 |
+| ~~L-23~~ | **[해결]** M-5와 동일 항목 — IRateLimitLogRepository 도입 완료 |
 | L-24 | RefreshTokenRepository.DeleteAllByPlayerIdAsync 지연 실행 |
 | L-25 | 14개 Razor 페이지 SafeComponentBase 상속하나 SafeExecute 미사용 |
 | L-26 | LevelThresholds 페이지 다수 행 편집인데 DirtyGuardBase 미적용 |

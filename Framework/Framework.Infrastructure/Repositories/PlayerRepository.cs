@@ -159,6 +159,41 @@ public class PlayerRepository : IPlayerRepository
             .ExecuteUpdateAsync(s => s.SetProperty(p => p.AttendanceCount, p => p.AttendanceCount + 1));
     }
 
+    // Timeline용 밴 여부 배치 조회 — 주어진 PlayerId 집합 중 IsBanned=true인 ID 집합 반환
+    // IgnoreQueryFilters: 소프트 딜리트 계정도 밴 여부 확인 가능하도록 전역 필터 우회
+    // EF API는 Repository 내부에 캡슐화 — Domain 레이어가 EF를 직접 참조하지 않음
+    public async Task<HashSet<int>> GetBannedIdsAsync(IEnumerable<int> playerIds)
+    {
+        var idList = playerIds.ToList();
+        if (idList.Count == 0) return [];
+
+        var bannedIds = await _db.Players
+            .IgnoreQueryFilters()
+            .Where(p => idList.Contains(p.Id) && p.IsBanned)
+            .Select(p => p.Id)
+            .ToListAsync();
+
+        return [.. bannedIds];
+    }
+
+    // Timeline용 활성 밴 목록 조회 — IsBanned=true인 플레이어 (BannedUntil 내림차순, 영구밴 포함)
+    // IgnoreQueryFilters: 소프트 딜리트 계정도 포함하여 밴 전체 현황 파악
+    public async Task<List<Player>> GetActiveBansAsync(int? playerId, int take)
+    {
+        var query = _db.Players
+            .IgnoreQueryFilters()
+            .Where(p => p.IsBanned);
+
+        // playerId 지정 시 해당 플레이어만 필터
+        if (playerId.HasValue)
+            query = query.Where(p => p.Id == playerId.Value);
+
+        return await query
+            .OrderByDescending(p => p.BannedUntil)
+            .Take(take)
+            .ToListAsync();
+    }
+
     // 변경사항을 DB에 반영 — 호출자(Service)가 명시적으로 호출
     public async Task SaveChangesAsync() => await _db.SaveChangesAsync();
 }

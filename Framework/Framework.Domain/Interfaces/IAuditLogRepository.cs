@@ -19,5 +19,9 @@ public interface IAuditLogRepository
         int page,
         int pageSize);
 
+    // Timeline용 — IsAnomaly=true 고정, 기간 + 선택 필터(playerId)로 최근 N건 조회
+    // SearchAsync와 차별화: 페이지네이션 없음, IsAnomaly=true 강제, Timeline 전용
+    Task<List<AuditLog>> GetRecentAnomaliesAsync(DateTime fromUtc, DateTime toUtc, int? playerId, int take);
+
     Task SaveChangesAsync();
 }

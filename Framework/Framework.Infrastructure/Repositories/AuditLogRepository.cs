@@ -46,6 +46,25 @@ public class AuditLogRepository : IAuditLogRepository
         return (items, total);
     }
 
+    // Timeline용 이상치 감사 로그 조회 — IsAnomaly=true 강제, 기간 + playerId 필터, 최대 take건
+    // SearchAsync와 달리 페이지네이션 없음 (Timeline 전용 단순 조회)
+    public async Task<List<AuditLog>> GetRecentAnomaliesAsync(
+        DateTime fromUtc, DateTime toUtc, int? playerId, int take)
+    {
+        // IsAnomaly=true 강제 + 기간 필터
+        var query = _context.AuditLogs
+            .Where(l => l.IsAnomaly && l.CreatedAt >= fromUtc && l.CreatedAt <= toUtc);
+
+        // 선택 필터 — null이면 적용 안 함
+        if (playerId.HasValue)
+            query = query.Where(l => l.PlayerId == playerId.Value);
+
+        return await query
+            .OrderByDescending(l => l.CreatedAt)
+            .Take(take)
+            .ToListAsync();
+    }
+
     public async Task SaveChangesAsync()
         => await _context.SaveChangesAsync();
 }

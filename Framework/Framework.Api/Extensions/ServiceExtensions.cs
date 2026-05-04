@@ -7,6 +7,7 @@ using Framework.Application.Features.AdminNotification;
 using Framework.Application.Features.AuditLog;
 using Framework.Application.Features.BanLog;
 using Framework.Application.Features.Auth;
+using Framework.Application.Features.Security;
 using Framework.Application.Features.DailyLogin;
 using Framework.Application.Features.DailyReward;
 using Framework.Application.Features.Iap;
@@ -169,6 +170,9 @@ public static class ServiceExtensions
 
         // Admin 알림 서비스 등록
         services.AddScoped<IAdminNotificationService, AdminNotificationService>();
+
+        // 보안 통합 Admin 서비스 등록 — RateLimit 집계 + 타임라인 조합 (H-1 해소)
+        services.AddScoped<ISecurityAdminService, SecurityAdminService>();
 
         return services;
     }
@@ -345,8 +349,8 @@ public static class ServiceExtensions
     // Rate Limiter 정책 등록 — 한도값은 appsettings.json RateLimiting 섹션에서 관리
     public static IServiceCollection AddRateLimitingServices(this IServiceCollection services, IConfiguration config)
     {
-        // RateLimitLogRepository는 OnRejected 콜백에서 직접 생성하므로 Scoped 등록
-        services.AddScoped<RateLimitLogRepository>();
+        // RateLimitLogRepository는 인터페이스로 등록 — OnRejected 콜백도 인터페이스로 해석
+        services.AddScoped<IRateLimitLogRepository, RateLimitLogRepository>();
 
         // 인증 엔드포인트 Rate Limit 한도
         // AuthPermitLimit: 미인증(IP) 기준 분당 허용 횟수 — 미설정 시 15 기본값
@@ -476,8 +480,9 @@ public static class ServiceExtensions
                     var userAgent = context.HttpContext.Request.Headers.UserAgent.ToString();
                     if (userAgent.Length > 256) userAgent = userAgent[..256];
 
+                    // 인터페이스로 해석 — 직접 구현체 참조 제거 (M-5/L-23 해소)
                     var repo = context.HttpContext.RequestServices
-                        .GetRequiredService<RateLimitLogRepository>();
+                        .GetRequiredService<IRateLimitLogRepository>();
                     await repo.AddAsync(new RateLimitLog
                     {
                         IpAddress = ip,

@@ -50,6 +50,14 @@ public interface IPlayerRepository
     // 지정된 플레이어들의 AttendanceCount를 1씩 증가 (배치 처리용 ExecuteUpdate)
     Task IncrementAttendanceCountAsync(IEnumerable<int> playerIds);
 
+    // Timeline용 — 주어진 PlayerId 집합 중 IsBanned=true인 ID 집합 반환
+    // IgnoreQueryFilters 포함 — 소프트 딜리트 계정도 밴 여부 확인 가능
+    Task<HashSet<int>> GetBannedIdsAsync(IEnumerable<int> playerIds);
+
+    // Timeline용 — 활성 밴 목록 (BannedUntil 내림차순, 영구밴 포함, IgnoreQueryFilters)
+    // playerId 지정 시 해당 플레이어만 반환
+    Task<List<Player>> GetActiveBansAsync(int? playerId, int take);
+
     // 변경사항을 DB에 반영 — 호출자(Service)가 명시적으로 호출
     Task SaveChangesAsync();
 }
