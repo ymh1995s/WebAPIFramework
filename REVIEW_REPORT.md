@@ -184,7 +184,7 @@
 | ID | 항목 | 파일 | Phase |
 |---|---|---|---|
 | H-1 | Admin 컨트롤러 2곳 AppDbContext 직접 주입 + EF 쿼리 인라인 | AdminRateLimitLogsController.cs:14, AdminSecurityController.cs:14 | P1.1 |
-| H-2 | UseSerilogRequestLogging 미호출 — HTTP 요청 자동 구조화 로그 미활성 | Framework.Api/Program.cs | P2.1 |
+| ~~H-2~~ | **[해결]** UseSerilogRequestLogging 적용(Authentication 이후) + EnrichDiagnosticContext(ClientIp/UserAgent/TraceId/PlayerId). M-24와 함께 처리 | Framework.Api/Program.cs | P2.1 |
 | ~~H-3~~ | **[해결]** PlayerItem.xmin 그림자 속성 매핑 + RewardDispatcher/MailService 재시도 루프(3회) + IUnitOfWork.ClearChangeTracker. Mail/PlayerItem 충돌 구분 (DEVNOTES `[설계 결정] 낙관적 동시성 토큰 — PostgreSQL xmin 채택` 박제) | AppDbContext.cs + RewardDispatcher.cs + MailService.cs | P2.3 |
 | H-4 | 테스트 프로젝트 0개 — RewardDispatcher/Auth/IAP 자동화 검증 전무 | 솔루션 전체 | P2.4 |
 | H-5 | JWT SecretKey 길이 가드 부재 — 32자 미만 키 주입 시 사전 차단 없음 | JwtTokenProvider.cs:24 | P3.1 |
@@ -235,7 +235,7 @@
 | M-21 | SourceKey 패턴 문자열 산재(7가지 패턴) — 상수화 부재 | 5+ Service |
 | M-22 | AdsCallback/IapPurchase catch-all로 GlobalExceptionHandler 우회 | AdsCallbackController/IapPurchaseController |
 | M-23 | Rate Limit 정책명 5종 문자열 리터럴 산재 — 오타 silent fail | ServiceExtensions + 8개 Controller |
-| M-24 | Serilog Enrichment 미적용(Enrich.FromLogContext 등) — 요청 단위 PlayerId/TraceId 부재 | Framework.Api/Program.cs |
+| ~~M-24~~ | **[해결]** Enricher 4종 적용 — FromLogContext / WithMachineName / WithEnvironmentName / WithProperty("Application","Framework.Api"). `Serilog.Enrichers.Environment 3.0.1` 패키지 추가. H-2와 함께 처리 | Framework.Api/Program.cs |
 | M-25 | RewardDispatch.razor.cs CS8604 — UsedMode null 가능 | RewardDispatch.razor.cs:175 |
 | M-26 | Razor 미적용 3페이지 SafeComponentBase 미상속 | InquiryTest/MatchMaking/AdminNotifications |
 | M-27 | Admin 전용 GetAllAsync 3곳 페이지네이션 미적용 | NoticeRepository/InquiryRepository/RewardTableRepository |

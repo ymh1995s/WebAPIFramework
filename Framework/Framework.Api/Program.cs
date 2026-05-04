@@ -21,6 +21,14 @@ using Serilog;
 // ─────────────────────────────────────────────────────────────
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
+    // 요청 단위 컨텍스트(LogContext.PushProperty 등) 전파에 필수
+    .Enrich.FromLogContext()
+    // 컨테이너/노드 식별 — Docker 멀티 인스턴스 환경에서 어느 노드인지 구분
+    .Enrich.WithMachineName()
+    // Development/Production 구분 — 동일 Sink 공유 시 환경 식별 (ASPNETCORE_ENVIRONMENT 환경변수 사용)
+    .Enrich.WithEnvironmentName()
+    // 멀티 앱(Api/Admin) 로그 통합 시 필터링용 고정 속성
+    .Enrich.WithProperty("Application", "Framework.Api")
     .WriteTo.Console()
 #if !DEBUG
     .WriteTo.File(
@@ -173,6 +181,29 @@ app.Use(async (context, next) =>
     await next();
 });
 #endif
+
+// 모든 HTTP 요청을 한 줄 구조화 로그로 기록 — 인증 이후 위치이므로 PlayerId 클레임 사용 가능
+// 인증/인가 결과(401/403)와 일반 4xx/5xx 응답은 자동 캡처. 단 점검 모드 503·RateLimiter 429는
+// 본 미들웨어 앞에서 short-circuit(next 미호출)되므로 캡처 대상 외 — 필요 시 해당 미들웨어에서 별도 로깅
+app.UseSerilogRequestLogging(options =>
+{
+    // 로그 메시지 형식: HTTP 메서드, 경로, 상태 코드, 응답 시간(ms)
+    options.MessageTemplate =
+        "HTTP {RequestMethod} {RequestPath} → {StatusCode} ({Elapsed:0}ms)";
+
+    // 요청별 추가 컨텍스트 속성 삽입
+    options.EnrichDiagnosticContext = (diag, ctx) =>
+    {
+        // 클라이언트 IP 주소
+        diag.Set("ClientIp", ctx.Connection.RemoteIpAddress?.ToString());
+        // 클라이언트 User-Agent (Unity SDK 버전 식별 등에 활용)
+        diag.Set("UserAgent", ctx.Request.Headers.UserAgent.ToString());
+        // ASP.NET Core 요청 추적 식별자 — 분산 추적 연계용
+        diag.Set("TraceId", ctx.TraceIdentifier);
+        // 인증된 요청만 PlayerId 기록 — 미인증 요청은 null
+        diag.Set("PlayerId", ctx.User.GetPlayerId());
+    };
+});
 
 app.UseAuthorization();
 
