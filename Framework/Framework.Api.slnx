@@ -4,4 +4,5 @@
   <Project Path="Framework.Application/Framework.Application.csproj" Id="b4cf2d82-183d-4e74-83c1-fa0e76940e30" />
   <Project Path="Framework.Domain/Framework.Domain.csproj" Id="efe2a5e6-2715-4651-8c93-28d01d2e460a" />
   <Project Path="Framework.Infrastructure/Framework.Infrastructure.csproj" Id="d18f3d5c-b719-438a-9e43-fcec922d3568" />
+  <Project Path="Framework.Tests/Framework.Tests.csproj" />
 </Solution>
