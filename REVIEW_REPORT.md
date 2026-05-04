@@ -18,7 +18,7 @@
 | 심각도 | 건수 | 즉시 조치 |
 |---|---|---|
 | Critical | 2 | 2 |
-| High | 14 | 14 |
+| High | 14 | 12 (H-14/H-15 방치) |
 | Med | 51 | 0 |
 | Low | 34 | 0 |
 
@@ -26,9 +26,9 @@
 
 | # | ID | 위치 | 영향 |
 |---|---|---|---|
-| 1 | C-1 | Framework.Admin/Program.cs:67 + Routes.razor + 전체 Razor 페이지 | 로그인 없이 모든 Admin 페이지/데이터 노출·변경 가능 |
+| 1 | ~~C-1~~ | Framework.Admin/Program.cs:67 + Razor 페이지 4건 | **[해결]** FallbackPolicy(RequireAuthenticatedUser) 적용 + AdminNotifications [Authorize] / Errors [AllowAnonymous] 부착 |
 | 2 | C-2 | Framework.Api/Extensions/ServiceExtensions.cs:371 | 단일 공격자로 전체 인증 API 차단(전체 가용성 결함) |
-| 3 | H-15 | .gitignore + appsettings.Development.json | 평문 JWT/DB Password/Admin ApiKey/Google ClientId git 노출 |
+| 3 | ~~H-15~~ | — | **방치 — 개발용 더미값 정책 (운영은 .env 교체)** |
 | 4 | H-9 | Framework.Admin/Program.cs:125 | /admin-login Rate Limit 부재 → 분산 비밀번호 추측 공격 |
 | 5 | H-12 | AuthService.cs:180 + AppDbContext.cs:404 | IAP 이력 보유 플레이어 탈퇴 시 FK 위반으로 GDPR 삭제 실패 |
 
@@ -157,10 +157,14 @@
 
 ## 4장. Critical Issues (즉시 조치)
 
-### C-1. Framework.Admin 모든 Razor 페이지 인가 누락
-- **파일**: `Framework.Admin/Program.cs:67` + `Components/Routes.razor` + 운영 Razor 페이지 27개 전부
-- **영향**: 익명 사용자가 `/players`, `/admin-notifications`, `/reward-dispatch` 등 모든 Admin 페이지 직접 URL 접근. ApiHttpClient의 X-Admin-Key 자동 부착으로 데이터 조회/변경 가능
-- **해결**: `AddAuthorization(opts => opts.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())` 또는 `_Imports.razor`에 `@attribute [Authorize]` 일괄 적용 + Login/Error/NotFound만 `[AllowAnonymous]`
+### ~~C-1~~. Framework.Admin Razor 페이지 인가 누락 — **[해결] (round_20260503)**
+- **파일**: `Framework.Admin/Program.cs:67` + Razor 페이지 3건 (실측: 24개 부착됨, AdminNotifications 1건만 누락)
+- **영향**: 익명 사용자가 `/admin-notifications` 직접 URL 접근. ApiHttpClient의 X-Admin-Key 자동 부착으로 RTDN 환불 알림 조회·읽음 처리 가능 (결제 사고 은폐 벡터)
+- **해결 적용**:
+  - `AddAuthorization()` → `FallbackPolicy = RequireAuthenticatedUser()` 설정 (구조적 안전망)
+  - `Pages/Operations/AdminNotifications.razor` `[Authorize]` 부착
+  - `Pages/Errors/NotFound.razor` / `Pages/Errors/Error.razor` `[AllowAnonymous]` 부착 (FallbackPolicy 도입에 따른 명시 처리)
+- **검증**: qa-reviewer 승인 — 빌드 성공, 미들웨어 순서 정합, 27개 페이지 어노테이션 누락 0건
 
 ### C-2. `auth` Rate Limit 파티션 키 부재 — 인증 API 전체 가용성 결함
 - **파일**: `Framework.Api/Extensions/ServiceExtensions.cs:371-377`
@@ -186,8 +190,8 @@
 | H-11 | /admin-login Rate Limit 부재 + Antiforgery Disable — 분산 비밀번호 추측 차단 불가 | Framework.Admin/Program.cs:125 | P3.1 / P3.2 / P3.4 |
 | H-12 | IapPurchase.PlayerId Restrict ↔ Withdraw hard delete FK 충돌 — IAP 이력 보유자 탈퇴 실패 | AuthService.cs:180 + AppDbContext.cs:404 | P3.4 |
 | H-13 | (중복 — H-6과 동일 항목 — RefreshToken 평문) | RefreshToken.cs:13 | P3.4 |
-| H-14 | appsettings.Development.json git 추적 — 평문 JWT SecretKey/DB Password/Admin ApiKey/Google ClientId 노출 | .gitignore + appsettings.Development.json | P3.3 / P3.5 |
-| H-15 | .gitignore에 `**/appsettings.Development.json` 추가 + git rm --cached + 시크릿 회전 | (단일 한 줄 수정 + 즉시 차단) | P3.5 |
+| ~~H-14~~ | **[방치]** appsettings.Development.json 평문값은 개발용 더미. 라이브 배포 시 .env로 전량 교체되므로 git 추적/회전 불필요 | — | — |
+| ~~H-15~~ | **[방치]** 동일 사유 — .gitignore 등재 미수행 확정 | — | — |
 
 ---
 

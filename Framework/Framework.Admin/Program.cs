@@ -5,6 +5,7 @@ using Framework.Admin.Logging;
 using Framework.Admin.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Serilog;
 using System.Security.Claims;
 
@@ -63,8 +64,13 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
     });
 
-// 인가 서비스 등록
-builder.Services.AddAuthorization();
+// 인가 서비스 등록 — FallbackPolicy로 어노테이션 누락 페이지도 기본 인증 필수 적용 (Fail-safe)
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});
 builder.Services.AddCascadingAuthenticationState();
 
 // HTTP 로그 저장소 — Singleton으로 모든 컴포넌트가 동일 인스턴스를 공유
