@@ -3,8 +3,8 @@ using Framework.Domain.Entities;
 // 리프래시 토큰 저장소 인터페이스
 public interface IRefreshTokenRepository
 {
-    // 토큰 문자열로 조회
-    Task<RefreshToken?> GetByTokenAsync(string token);
+    // 토큰 해시(SHA-256 Base64)로 조회
+    Task<RefreshToken?> GetByTokenHashAsync(string tokenHash);
 
     // 토큰 추가
     Task AddAsync(RefreshToken refreshToken);

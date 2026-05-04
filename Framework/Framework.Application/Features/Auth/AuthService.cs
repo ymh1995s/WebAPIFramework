@@ -35,7 +35,7 @@ public class AuthService : IAuthService
     }
 
     // 게스트 로그인 처리
-    public async Task<TokenResponseDto> GuestLoginAsync(string deviceId)
+    public async Task<TokenResponseDto> GuestLoginAsync(string deviceId, string? ipAddress, string? userAgent)
     {
         // DeviceId로 기존 플레이어 조회
         var player = await _playerRepo.GetByDeviceIdAsync(deviceId);
@@ -69,14 +69,21 @@ public class AuthService : IAuthService
             await _playerRepo.SaveChangesAsync();
         }
 
-        return await IssueTokensAsync(player, isNew);
+        // player는 신규 생성(isNew) 분기에서 트랜잭션 내 할당이 보장됨 — null! 억제
+        return await IssueTokensAsync(player!, isNew, ipAddress, userAgent);
     }
 
     // 리프래시 토큰으로 AccessToken 재발급
-    public async Task<TokenResponseDto> RefreshAsync(string refreshToken)
+    public async Task<TokenResponseDto> RefreshAsync(string refreshToken, string? ipAddress, string? userAgent)
     {
-        var stored = await _refreshTokenRepo.GetByTokenAsync(refreshToken)
+        // 입력 평문 토큰을 해시로 변환하여 DB 조회 — 평문이 DB에 없으므로 반드시 해시 비교
+        var tokenHash = _jwtProvider.ComputeRefreshTokenHash(refreshToken);
+        var stored = await _refreshTokenRepo.GetByTokenHashAsync(tokenHash)
             ?? throw new UnauthorizedAccessException("유효하지 않은 리프래시 토큰입니다.");
+
+        // 명시적 폐기 여부 확인 (강제 로그아웃 등)
+        if (stored.RevokedAt is not null)
+            throw new UnauthorizedAccessException("폐기된 리프래시 토큰입니다.");
 
         if (stored.ExpiresAt < DateTime.UtcNow)
         {
@@ -93,13 +100,15 @@ public class AuthService : IAuthService
         // 기존 토큰 삭제 후 새 토큰 발급 (토큰 교체 방식)
         // DeleteAsync는 ChangeTracker에만 등록 — IssueTokensAsync의 SaveChanges에서 Delete + Add 함께 flush
         await _refreshTokenRepo.DeleteAsync(stored);
-        return await IssueTokensAsync(stored.Player, false);
+        return await IssueTokensAsync(stored.Player, false, ipAddress, userAgent);
     }
 
     // 로그아웃 - 리프래시 토큰 삭제
     public async Task LogoutAsync(string refreshToken)
     {
-        var stored = await _refreshTokenRepo.GetByTokenAsync(refreshToken);
+        // 평문 토큰을 해시로 변환하여 DB 조회
+        var tokenHash = _jwtProvider.ComputeRefreshTokenHash(refreshToken);
+        var stored = await _refreshTokenRepo.GetByTokenHashAsync(tokenHash);
         if (stored is not null)
         {
             await _refreshTokenRepo.DeleteAsync(stored);
@@ -109,7 +118,7 @@ public class AuthService : IAuthService
 
     // 구글 로그인 - IdToken 검증 후 GoogleId로 플레이어 조회 또는 신규 생성
     // currentPlayerId: 게스트 상태로 호출한 경우 JWT에서 추출한 플레이어 ID (없으면 null)
-    public async Task<TokenResponseDto> GoogleLoginAsync(string idToken, int? currentPlayerId)
+    public async Task<TokenResponseDto> GoogleLoginAsync(string idToken, int? currentPlayerId, string? ipAddress, string? userAgent)
     {
         // 구글 서버에 IdToken 검증 요청 → GoogleId 획득
         var googleId = await _googleVerifier.VerifyAsync(idToken);
@@ -134,7 +143,7 @@ public class AuthService : IAuthService
                 // 확정된 Id로 프로필 생성 — 동일 트랜잭션 내 원자성 보장
                 await _profileRepo.AddAsync(new PlayerProfile { PlayerId = newPlayer.Id });
             });
-            return await IssueTokensAsync(newPlayer, true);
+            return await IssueTokensAsync(newPlayer, true, ipAddress, userAgent);
         }
 
         // [분기 B] 비인증 요청(currentPlayerId == null) → 기존 계정으로 정상 재로그인
@@ -147,7 +156,7 @@ public class AuthService : IAuthService
             existing.LastLoginAt = DateTime.UtcNow;
             await _playerRepo.UpdateAsync(existing);
             await _playerRepo.SaveChangesAsync();
-            return await IssueTokensAsync(existing, false);
+            return await IssueTokensAsync(existing, false, ipAddress, userAgent);
         }
 
         // [분기 C] 요청자가 이미 이 구글 계정의 소유자 → 자기 재인증
@@ -156,7 +165,7 @@ public class AuthService : IAuthService
             existing.LastLoginAt = DateTime.UtcNow;
             await _playerRepo.UpdateAsync(existing);
             await _playerRepo.SaveChangesAsync();
-            return await IssueTokensAsync(existing, false);
+            return await IssueTokensAsync(existing, false, ipAddress, userAgent);
         }
 
         // [분기 D] 요청자(게스트)와 GoogleId 보유자가 다른 계정 → 충돌 처리
@@ -242,7 +251,7 @@ public class AuthService : IAuthService
     }
 
     // 구글 계정 충돌 해소 — 게스트 계정을 소프트 딜리트하고 구글 연동 계정으로 토큰 발급
-    public async Task<TokenResponseDto> ResolveGoogleConflictAsync(int guestPlayerId, string idToken)
+    public async Task<TokenResponseDto> ResolveGoogleConflictAsync(int guestPlayerId, string idToken, string? ipAddress, string? userAgent)
     {
         // IdToken 재검증으로 충돌 해소 요청의 진위 확인
         var googleId = await _googleVerifier.VerifyAsync(idToken);
@@ -255,7 +264,7 @@ public class AuthService : IAuthService
 
         // 멱등 처리 — 요청자가 이미 구글 연동 계정인 경우 (중복 호출)
         if (playerB.Id == playerA.Id)
-            return await IssueTokensAsync(playerA, false);
+            return await IssueTokensAsync(playerA, false, ipAddress, userAgent);
 
         // 게스트 계정이 이미 다른 구글 계정에 연동된 경우 — 병합 불가
         if (playerB.GoogleId is not null)
@@ -272,26 +281,33 @@ public class AuthService : IAuthService
             await _playerRepo.UpdateAsync(playerA);
         });
 
-        return await IssueTokensAsync(playerA, false);
+        return await IssueTokensAsync(playerA, false, ipAddress, userAgent);
     }
 
     // 토큰 생성 및 저장 공통 처리 — publicId를 JWT 클레임 및 응답에 포함
-    private async Task<TokenResponseDto> IssueTokensAsync(Player player, bool isNew)
+    // ipAddress/userAgent: 발급 토큰에 기록할 보안 메타데이터 (포렌식·어뷰징 감지 용도)
+    private async Task<TokenResponseDto> IssueTokensAsync(Player player, bool isNew, string? ipAddress, string? userAgent)
     {
         // 내부 Id와 공개 PublicId를 함께 전달하여 JWT 생성
         var accessToken = _jwtProvider.GenerateAccessToken(player.Id, player.PublicId);
-        var (refreshTokenValue, expiresAt) = _jwtProvider.GenerateRefreshToken();
+        var (plainToken, expiresAt) = _jwtProvider.GenerateRefreshToken();
 
-        // 리프래시 토큰 DB 저장 후 flush
+        // 평문 토큰을 SHA-256 해시로 변환 — DB에는 해시만 저장, 평문은 응답으로만 반환
+        var tokenHash = _jwtProvider.ComputeRefreshTokenHash(plainToken);
+
+        // 리프래시 토큰 DB 저장 후 flush — TokenHash + 보안 메타데이터 함께 기록
         await _refreshTokenRepo.AddAsync(new RefreshToken
         {
-            PlayerId = player.Id,
-            Token = refreshTokenValue,
-            ExpiresAt = expiresAt
+            PlayerId  = player.Id,
+            TokenHash = tokenHash,
+            ExpiresAt = expiresAt,
+            IpAddress = ipAddress,
+            UserAgent = userAgent
         });
         await _refreshTokenRepo.SaveChangesAsync();
 
+        // 응답에는 평문 토큰 반환 (클라이언트가 다음 Refresh 호출 시 사용)
         // 응답의 PlayerId는 외부 공개용 Guid (내부 정수 Id 미노출)
-        return new TokenResponseDto(accessToken, refreshTokenValue, player.PublicId, isNew);
+        return new TokenResponseDto(accessToken, plainToken, player.PublicId, isNew);
     }
 }

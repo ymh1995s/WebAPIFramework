@@ -51,4 +51,17 @@ public class JwtTokenProvider : IJwtTokenProvider
         var token = Convert.ToBase64String(bytes);
         return (token, DateTime.UtcNow.AddDays(30));
     }
+
+    // 평문 리프래시 토큰을 SHA-256 해시(Base64 인코딩)로 변환 — DB 저장용
+    // 입력: 평문 토큰 / 출력: 44자 고정 Base64 문자열
+    // 인터페이스 구현 메서드 — 정적 메서드를 위임 호출하여 테스트·목킹에서도 사용 가능
+    public string ComputeRefreshTokenHash(string plainToken) => HashRefreshToken(plainToken);
+
+    // 정적 헬퍼 — Api 레이어 내부에서도 직접 호출 가능 (DI 없는 유틸 컨텍스트)
+    public static string HashRefreshToken(string plainToken)
+    {
+        // SHA256.HashData: .NET 5+ 정적 메서드 — 내부적으로 SHA256 인스턴스 생성·해제를 처리
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(plainToken));
+        return Convert.ToBase64String(hash);
+    }
 }

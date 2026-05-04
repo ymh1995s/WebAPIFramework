@@ -14,9 +14,9 @@ public class RefreshTokenRepository : IRefreshTokenRepository
         _db = db;
     }
 
-    // 토큰 문자열로 조회
-    public async Task<RefreshToken?> GetByTokenAsync(string token)
-        => await _db.RefreshTokens.Include(r => r.Player).FirstOrDefaultAsync(r => r.Token == token);
+    // 토큰 해시(SHA-256 Base64)로 조회 — 평문 토큰 대신 해시로 비교
+    public async Task<RefreshToken?> GetByTokenHashAsync(string tokenHash)
+        => await _db.RefreshTokens.Include(r => r.Player).FirstOrDefaultAsync(r => r.TokenHash == tokenHash);
 
     // 토큰 추가 — SaveChanges는 호출자(Service)가 명시적으로 호출
     public async Task AddAsync(RefreshToken refreshToken)

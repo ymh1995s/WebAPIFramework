@@ -30,7 +30,7 @@
 | 2 | ~~C-2~~ | Framework.Api/Extensions/ServiceExtensions.cs | **[해결]** AddPolicy("auth")로 IP/PlayerId 파티션 분기 적용 (미인증 IP 15/min, 인증 PlayerId 30/min) |
 | 3 | ~~H-15~~ | — | **방치 — 개발용 더미값 정책 (운영은 .env 교체)** |
 | 4 | ~~H-11~~ | Framework.Admin/Program.cs:125 | **[보류 — 운영 단계 도입]** /admin-login Rate Limit 부재 + Antiforgery Disable. 단일 운영자·비공개 도메인 단계에서는 발동 시나리오 제한적. 운영자 2인↑ 또는 도메인 공개 시점에 처리 (Top 5 ID 오기 정정: H-9 → H-11) |
-| 5 | H-12 | AuthService.cs:180 + AppDbContext.cs:404 | IAP 이력 보유 플레이어 탈퇴 시 FK 위반으로 GDPR 삭제 실패 |
+| 5 | ~~H-12~~ | AuthService.cs + PlayerRepository.cs + PlayerWithdrawalCleaner.cs(신규) | **[해결]** WithdrawAsync SoftDelete + PII 익명화 + IPlayerWithdrawalCleaner 도입. IapPurchase Restrict FK 유지 |
 
 ---
 
@@ -188,10 +188,10 @@
 | ~~H-3~~ | **[해결]** PlayerItem.xmin 그림자 속성 매핑 + RewardDispatcher/MailService 재시도 루프(3회) + IUnitOfWork.ClearChangeTracker. Mail/PlayerItem 충돌 구분 (DEVNOTES `[설계 결정] 낙관적 동시성 토큰 — PostgreSQL xmin 채택` 박제) | AppDbContext.cs + RewardDispatcher.cs + MailService.cs | P2.3 |
 | H-4 | 테스트 프로젝트 0개 — RewardDispatcher/Auth/IAP 자동화 검증 전무 | 솔루션 전체 | P2.4 |
 | ~~H-5~~ | **[방치]** 부팅 가드. DEVNOTES.md L40에 "32자 이상 랜덤 문자열로 교체" 명시되어 있고 짜바리 운영(혼자) 환경에서 본인 인지 충분. 신규 합류자/CI 누락 등 미래 시나리오 발생 시 1~3줄로 도입 가능. 현 단계 우선순위 낮음 | JwtTokenProvider.cs:24 | P3.1 |
-| H-6 | RefreshToken DB 평문 저장 + 보안 메타데이터(IP/UA/Revoked) 부재 | RefreshToken.cs:13 | P3.1 / P3.4 |
+| ~~H-6~~ | **[해결]** RefreshToken `Token` → `TokenHash`(SHA-256/Base64) 전환 + 보안 메타데이터 추가(IpAddress/UserAgent/RevokedAt). JwtTokenProvider.ComputeRefreshTokenHash 헬퍼. 4개 인증 엔드포인트(Guest/Google/Refresh/ResolveGoogleConflict)에서 IP/UA 추출(Controller→Service 인자 전달). 마이그레이션 `H6_RefreshTokenHashAndSecurityMetadata` (dev 토큰 DELETE FROM 포함). RotatedFromId/RevokedAt 활용 로직은 별도 라운드 | RefreshToken.cs + AuthService.cs + JwtTokenProvider.cs + AuthController.cs | P3.1 / P3.4 |
 | ~~H-7~~ | **[해결]** Npgsql `EnableRetryOnFailure(5회/10초)` 적용 + IUnitOfWork.ExecuteInTransactionAsync 본문을 ExecutionStrategy.ExecuteAsync로 래핑(호출처 11곳 무손상). 외부 retry 루프(RewardDispatcher/MailService DbUpdateConcurrencyException 3회)와 트리거 예외 분리되어 중첩 없음 | Program.cs + UnitOfWork.cs | P3.3 |
 | ~~H-8~~ | **[해결]** `AddHealthChecks().AddDbContextCheck<AppDbContext>()` 등록 + `MapHealthChecks("/health")` JSON 응답(AllowAnonymous, no-store). Serilog GetLevel로 `/health` 200=Verbose / 503=Warning 강등 | Program.cs | P3.3 |
-| H-9 | Polly/Microsoft.Extensions.Http.Resilience 미참조 — 외부 호출 retry/timeout 부재 | Framework.Api.csproj | P3.3 |
+| ~~H-9~~ | **[보류 — 운영 단계 도입]** Polly/Resilience 미참조. 사유: 본 프로젝트는 (1) RTDN(Real-Time Developer Notifications)으로 결제 백필, (2) 클라이언트 재시도, (3) UNIQUE(Store, PurchaseToken) 멱등 — 3중 안전망으로 영구 데이터 손실 거의 없음. 출시 후 verify 실패→RTDN 백필 패턴이 운영 로그에서 빈번 관찰될 시 도입(예상 30~50줄, architect 검토 필요) | Framework.Api.csproj | P3.3 |
 | ~~H-10~~ | **[해결, 부분]** Api/Admin에 OWASP 보안 헤더 6종 미들웨어 적용 (X-Content-Type-Options/X-Frame-Options/Referrer-Policy/Permissions-Policy/X-Permitted-Cross-Domain-Policies/HSTS-Production). OnStarting 콜백으로 short-circuit 응답에도 부착. Admin UseHsts() 일원화. **CSP는 별도 라운드** — Admin Blazor 깨짐 위험 회피, 출시 임박 시 도입 | Api/Admin Extensions/SecurityHeadersExtensions.cs + Program.cs | P3.4 |
 | ~~H-11~~ | **[보류 — 운영 단계 도입]** /admin-login Rate Limit 부재 + Antiforgery Disable. 사유: 단일 운영자·비공개 Admin 도메인 단계에서 공격 발동 시나리오 제한적(C-1 인가 게이트로 다른 경로는 차단됨). 운영자 2인↑ 또는 도메인 공개·검색 노출 시점에 도입 | Framework.Admin/Program.cs:125 | P3.1 / P3.2 / P3.4 |
 | ~~H-12~~ | **[해결]** WithdrawAsync SoftDelete + PII 익명화 전환 (DeviceId/GoogleId NULL, Nickname `"탈퇴유저-{Id}"`, IsDeleted=true). IPlayerWithdrawalCleaner 신설(10개 게임 데이터 테이블 ExecuteDelete). IapPurchase Restrict FK 유지(영구 보존). 멱등 재호출(M2). 검색 NULL 가드. 마이그레이션 `AllowNullableDeviceIdForWithdrawal` (DEVNOTES `[설계 결정]` 박제) | AuthService.cs + PlayerRepository.cs + PlayerWithdrawalCleaner.cs(신규) | P3.4 |
@@ -315,6 +315,9 @@
 | L-38 | `/health` 503 시 컨테이너 오케스트레이터 무한 재기동 가능성 — docker-compose `healthcheck.retries`/`start_period` 설정 의존. 인프라 레벨 설정 권고 |
 | L-39 | `/health` JSON 응답이 의존성 이름(`database` 등) 노출 — 인증 없이 외부 정찰 가능. 운영 환경에서 인프라 레벨 접근 제어(내부 네트워크 화이트리스트) 권고 |
 | L-40 | DB transient 장애 시 최대 50초 누적 응답 지연(EF retry 5회×10초 백오프) — Unity 클라이언트 HTTP 타임아웃 60초 이상 가정. UnityWebRequest.timeout 명시 권고 |
+| L-41 | RefreshToken.TokenHash 컬럼 MaxLength 미명시 — PostgreSQL `text` 타입으로 생성. 기능 영향 없으나 일관성 차원에서 향후 `HasMaxLength(44)` 추가 고려 |
+| L-42 | RefreshToken.RevokedAt 활용 경로 부재 — 검증 시 `IS NULL` 체크는 도입됐으나 채우는 코드는 없음. 강제 로그아웃/회전 보존 정책 라운드에서 활용 예정 |
+| L-43 | LogoutAsync가 RefreshToken 물리 삭제 유지 — 향후 RevokedAt 활용 시 `RevokedAt = UtcNow` + SaveChanges로 전환 권고 |
 
 ---
 

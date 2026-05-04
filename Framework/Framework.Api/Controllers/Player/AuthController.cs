@@ -29,9 +29,14 @@ public class AuthController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.DeviceId))
             return BadRequest("DeviceId가 필요합니다.");
 
+        // 발급 토큰에 기록할 보안 메타데이터 추출 — 포렌식·어뷰징 감지 용도
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var userAgent = HttpContext.Request.Headers.UserAgent.ToString();
+        if (userAgent?.Length > 512) userAgent = userAgent[..512];
+
         try
         {
-            var result = await _authService.GuestLoginAsync(request.DeviceId);
+            var result = await _authService.GuestLoginAsync(request.DeviceId, ipAddress, userAgent);
             return Ok(result);
         }
         catch (UnauthorizedAccessException ex)
@@ -45,9 +50,14 @@ public class AuthController : ControllerBase
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequestDto request)
     {
+        // 새로 발급될 토큰에 기록할 보안 메타데이터 추출
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var userAgent = HttpContext.Request.Headers.UserAgent.ToString();
+        if (userAgent?.Length > 512) userAgent = userAgent[..512];
+
         try
         {
-            var result = await _authService.RefreshAsync(request.RefreshToken);
+            var result = await _authService.RefreshAsync(request.RefreshToken, ipAddress, userAgent);
             return Ok(result);
         }
         catch (UnauthorizedAccessException ex)
@@ -74,9 +84,14 @@ public class AuthController : ControllerBase
         // JWT 클레임에서 playerId 추출 시도 — 토큰이 없거나 클레임이 없으면 null
         var currentPlayerId = User.GetPlayerId();
 
+        // 발급 토큰에 기록할 보안 메타데이터 추출
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var userAgent = HttpContext.Request.Headers.UserAgent.ToString();
+        if (userAgent?.Length > 512) userAgent = userAgent[..512];
+
         try
         {
-            var result = await _authService.GoogleLoginAsync(request.IdToken, currentPlayerId);
+            var result = await _authService.GoogleLoginAsync(request.IdToken, currentPlayerId, ipAddress, userAgent);
             return Ok(result);
         }
         catch (GoogleAccountConflictException ex)
@@ -126,9 +141,14 @@ public class AuthController : ControllerBase
         // JWT에서 현재 로그인한 게스트 플레이어 ID 추출
         var guestPlayerId = User.GetPlayerIdRequired();
 
+        // 새로 발급될 토큰에 기록할 보안 메타데이터 추출
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var userAgent = HttpContext.Request.Headers.UserAgent.ToString();
+        if (userAgent?.Length > 512) userAgent = userAgent[..512];
+
         try
         {
-            var result = await _authService.ResolveGoogleConflictAsync(guestPlayerId, request.IdToken);
+            var result = await _authService.ResolveGoogleConflictAsync(guestPlayerId, request.IdToken, ipAddress, userAgent);
             return Ok(result);
         }
         catch (UnauthorizedAccessException ex)

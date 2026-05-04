@@ -8,4 +8,7 @@ public interface IJwtTokenProvider
 
     // RefreshToken 생성 (장기) - 토큰 문자열과 만료 시간 반환
     (string token, DateTime expiresAt) GenerateRefreshToken();
+
+    // 평문 리프래시 토큰을 SHA-256 해시(Base64)로 변환 — DB 저장 및 조회 시 사용
+    string ComputeRefreshTokenHash(string plainToken);
 }

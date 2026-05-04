@@ -122,10 +122,20 @@ public class AppDbContext : DbContext
             .HasForeignKey(p => p.MergedIntoPlayerId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        // RefreshToken: Token 유니크 인덱스
+        // RefreshToken: TokenHash UNIQUE 인덱스 — 평문 Token 컬럼 제거 후 해시 컬럼으로 전환
         modelBuilder.Entity<RefreshToken>()
-            .HasIndex(r => r.Token)
+            .HasIndex(r => r.TokenHash)
             .IsUnique();
+
+        // RefreshToken: IpAddress 최대 길이 45 (IPv6 포함)
+        modelBuilder.Entity<RefreshToken>()
+            .Property(r => r.IpAddress)
+            .HasMaxLength(45);
+
+        // RefreshToken: UserAgent 최대 길이 512
+        modelBuilder.Entity<RefreshToken>()
+            .Property(r => r.UserAgent)
+            .HasMaxLength(512);
 
         // RefreshToken → Player (N:1)
         modelBuilder.Entity<RefreshToken>()
