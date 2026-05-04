@@ -187,10 +187,10 @@
 | ~~H-2~~ | **[해결]** UseSerilogRequestLogging 적용(Authentication 이후) + EnrichDiagnosticContext(ClientIp/UserAgent/TraceId/PlayerId). M-24와 함께 처리 | Framework.Api/Program.cs | P2.1 |
 | ~~H-3~~ | **[해결]** PlayerItem.xmin 그림자 속성 매핑 + RewardDispatcher/MailService 재시도 루프(3회) + IUnitOfWork.ClearChangeTracker. Mail/PlayerItem 충돌 구분 (DEVNOTES `[설계 결정] 낙관적 동시성 토큰 — PostgreSQL xmin 채택` 박제) | AppDbContext.cs + RewardDispatcher.cs + MailService.cs | P2.3 |
 | H-4 | 테스트 프로젝트 0개 — RewardDispatcher/Auth/IAP 자동화 검증 전무 | 솔루션 전체 | P2.4 |
-| H-5 | JWT SecretKey 길이 가드 부재 — 32자 미만 키 주입 시 사전 차단 없음 | JwtTokenProvider.cs:24 | P3.1 |
+| ~~H-5~~ | **[방치]** 부팅 가드. DEVNOTES.md L40에 "32자 이상 랜덤 문자열로 교체" 명시되어 있고 짜바리 운영(혼자) 환경에서 본인 인지 충분. 신규 합류자/CI 누락 등 미래 시나리오 발생 시 1~3줄로 도입 가능. 현 단계 우선순위 낮음 | JwtTokenProvider.cs:24 | P3.1 |
 | H-6 | RefreshToken DB 평문 저장 + 보안 메타데이터(IP/UA/Revoked) 부재 | RefreshToken.cs:13 | P3.1 / P3.4 |
-| H-7 | DB EnableRetryOnFailure 미설정 — 일시 단절 시 즉시 5xx | Framework.Api/Program.cs:41 | P3.3 |
-| H-8 | HealthChecks 미등록 — /health 엔드포인트 부재, probe 불가 | Framework.Api/Program.cs | P3.3 |
+| ~~H-7~~ | **[해결]** Npgsql `EnableRetryOnFailure(5회/10초)` 적용 + IUnitOfWork.ExecuteInTransactionAsync 본문을 ExecutionStrategy.ExecuteAsync로 래핑(호출처 11곳 무손상). 외부 retry 루프(RewardDispatcher/MailService DbUpdateConcurrencyException 3회)와 트리거 예외 분리되어 중첩 없음 | Program.cs + UnitOfWork.cs | P3.3 |
+| ~~H-8~~ | **[해결]** `AddHealthChecks().AddDbContextCheck<AppDbContext>()` 등록 + `MapHealthChecks("/health")` JSON 응답(AllowAnonymous, no-store). Serilog GetLevel로 `/health` 200=Verbose / 503=Warning 강등 | Program.cs | P3.3 |
 | H-9 | Polly/Microsoft.Extensions.Http.Resilience 미참조 — 외부 호출 retry/timeout 부재 | Framework.Api.csproj | P3.3 |
 | H-10 | API/Admin 보안 응답 헤더 0건(X-Content-Type-Options/X-Frame-Options/Referrer-Policy/CSP) | Program.cs (양쪽) | P3.4 |
 | ~~H-11~~ | **[보류 — 운영 단계 도입]** /admin-login Rate Limit 부재 + Antiforgery Disable. 사유: 단일 운영자·비공개 Admin 도메인 단계에서 공격 발동 시나리오 제한적(C-1 인가 게이트로 다른 경로는 차단됨). 운영자 2인↑ 또는 도메인 공개·검색 노출 시점에 도입 | Framework.Admin/Program.cs:125 | P3.1 / P3.2 / P3.4 |
@@ -311,6 +311,10 @@
 | L-34 | Admin 키 회전 시 프로세스 재시작 필요(Singleton + 시작 시 인코딩) |
 | L-35 | EF Core 경고 9건 — Player GlobalQueryFilter ↔ 9개 자식 엔티티(DailyLoginLog/GameResultParticipant/IapPurchase/Inquiry/Mail/PlayerItem/PlayerProfile/RefreshToken/RewardGrant) required 관계. 정상 쿼리에서 IsDeleted=true 자식 미로딩(의도된 동작), Admin은 IgnoreQueryFilters 패턴 사용 중. 기능 결함 아닌 런타임 경고. 도입: 2026-04-28 GuestGoogle 충돌 해소 커밋 |
 | L-36 | Admin 강제 삭제 경로 `PlayerRepository.DeleteAsync` 잔존 — IAP 이력 보유 계정 강제 삭제 시 여전히 FK 충돌 가능. 주석 [Deprecated] 명시됨. 향후 Admin 화면에서 버튼 비활성화/경고 도입 권고 |
+| L-37 | IapPurchaseService.VerifyAsync 람다 내부 Google Play 외부 API 호출 — EnableRetryOnFailure transient retry 시 람다 전체 재실행으로 외부 API 재호출. Google Play 영수증 검증은 멱등이라 실질 위험 낮으나 코드 주석 명시 권고 |
+| L-38 | `/health` 503 시 컨테이너 오케스트레이터 무한 재기동 가능성 — docker-compose `healthcheck.retries`/`start_period` 설정 의존. 인프라 레벨 설정 권고 |
+| L-39 | `/health` JSON 응답이 의존성 이름(`database` 등) 노출 — 인증 없이 외부 정찰 가능. 운영 환경에서 인프라 레벨 접근 제어(내부 네트워크 화이트리스트) 권고 |
+| L-40 | DB transient 장애 시 최대 50초 누적 응답 지연(EF retry 5회×10초 백오프) — Unity 클라이언트 HTTP 타임아웃 60초 이상 가정. UnityWebRequest.timeout 명시 권고 |
 
 ---
 

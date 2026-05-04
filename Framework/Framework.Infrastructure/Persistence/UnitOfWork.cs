@@ -1,4 +1,5 @@
 using Framework.Domain.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Framework.Infrastructure.Persistence;
@@ -52,35 +53,56 @@ public class UnitOfWork : IUnitOfWork
     // 트랜잭션 스코프 실행 (반환값 있음) — 활성 트랜잭션 없으면 소유자로 시작, 있으면 참여자로 합류
     // 소유자: 성공 시 SaveChangesAsync + CommitAsync, 실패 시 RollbackAsync
     // 참여자: 람다 실행만 (커밋/롤백은 소유자에게 위임)
+    //
+    // [ExecutionStrategy 래핑 이유]
+    // EnableRetryOnFailure 활성 시 EF Core는 user-initiated 트랜잭션을
+    // ExecutionStrategy 없이 열면 InvalidOperationException을 던진다.
+    // strategy.ExecuteAsync로 감싸야 일시 단절(transient) 예외 발생 시 재연결 후 재시도된다.
+    // 외부 도메인 retry 루프(RewardDispatcher/MailService의 DbUpdateConcurrencyException 3회)와는
+    // 트리거 예외 종류가 달라 중첩 재시도가 발생하지 않는다.
     public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> work)
     {
-        // 현재 활성 트랜잭션이 없으면 소유자, 있으면 참여자
-        var isOwner = _transaction is null;
-
-        if (isOwner)
-            _transaction = await _dbContext.Database.BeginTransactionAsync();
-
-        try
+        // transient 예외 자동 재시도를 위해 ExecutionStrategy로 전체 트랜잭션 블록을 래핑
+        var strategy = _dbContext.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
         {
-            var result = await work();
+            // 현재 활성 트랜잭션이 없으면 소유자(트랜잭션 시작/커밋 책임), 있으면 참여자(람다만 실행)
+            var isOwner = _transaction is null;
 
             if (isOwner)
+                _transaction = await _dbContext.Database.BeginTransactionAsync();
+
+            try
             {
-                // 소유자만 최종 flush 후 커밋
-                await _dbContext.SaveChangesAsync();
-                await _transaction!.CommitAsync();
-                await _transaction.DisposeAsync();
-                _transaction = null;
-            }
+                var result = await work();
 
-            return result;
-        }
-        catch
-        {
-            if (isOwner)
-                await RollbackAsync();
-            throw;
-        }
+                if (isOwner)
+                {
+                    // 소유자만 최종 flush 후 커밋
+                    await _dbContext.SaveChangesAsync();
+                    await _transaction!.CommitAsync();
+                }
+
+                return result;
+            }
+            catch
+            {
+                // 소유자만 롤백 — 참여자는 예외를 상위 소유자에게 그대로 전파
+                if (isOwner && _transaction is not null)
+                    await _transaction.RollbackAsync();
+                throw;
+            }
+            finally
+            {
+                // 소유자는 트랜잭션 해제 — 참여자는 건드리지 않음
+                if (isOwner)
+                {
+                    if (_transaction is not null)
+                        await _transaction.DisposeAsync();
+                    _transaction = null;
+                }
+            }
+        });
     }
 
     // 트랜잭션 스코프 실행 (반환값 없음) — 제네릭 버전으로 위임

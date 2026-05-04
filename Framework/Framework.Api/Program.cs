@@ -4,8 +4,11 @@ using Framework.Api.ProblemDetails;
 using Framework.Api.Security;
 using Framework.Application.Features.SystemConfig;
 using Framework.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Serilog;
+using System.Text.Json;
 
 // ─────────────────────────────────────────────────────────────
 // Serilog 설정
@@ -47,7 +50,21 @@ builder.Host.UseSerilog();
 
 // ── DB ────────────────────────────────────────────────────────
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("Default"), npgsql =>
+    {
+        // EF Core 일시 단절 자동 재시도 — connection drop, admin shutdown 등 transient 예외만 대상
+        // 외부 도메인 retry 루프(RewardDispatcher/MailService의 DbUpdateConcurrencyException 3회)와는
+        // 트리거 예외가 달라 중첩 발생 안 함 (xmin 충돌은 비-transient)
+        npgsql.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorCodesToAdd: null);
+    }));
+
+// ── 헬스체크 ──────────────────────────────────────────────────
+// 외부 probe(컨테이너 오케스트레이터, 모니터링)용 — DB 연결 상태 포함
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<AppDbContext>("database");
 
 // ── 저장소 ────────────────────────────────────────────────────
 builder.Services.AddAuthRepositories();      // 인증 (Player, RefreshToken)
@@ -191,6 +208,19 @@ app.UseSerilogRequestLogging(options =>
     options.MessageTemplate =
         "HTTP {RequestMethod} {RequestPath} → {StatusCode} ({Elapsed:0}ms)";
 
+    // /health 200은 Verbose(sink 미출력) — probe 반복 호출 노이즈 제거
+    // /health 503은 Warning — DB 단절 가시화
+    // 그 외 예외는 Error, 나머지 기본 Information
+    options.GetLevel = (ctx, elapsed, ex) =>
+    {
+        if (ex != null) return Serilog.Events.LogEventLevel.Error;
+        if (ctx.Request.Path.StartsWithSegments("/health"))
+            return ctx.Response.StatusCode >= 500
+                ? Serilog.Events.LogEventLevel.Warning
+                : Serilog.Events.LogEventLevel.Verbose;
+        return Serilog.Events.LogEventLevel.Information;
+    };
+
     // 요청별 추가 컨텍스트 속성 삽입
     options.EnrichDiagnosticContext = (diag, ctx) =>
     {
@@ -208,6 +238,36 @@ app.UseSerilogRequestLogging(options =>
 app.UseAuthorization();
 
 app.MapControllers();
+
+// 외부 probe 진입점 — JWT/AdminKey 없이 호출 가능, JSON 본문으로 의존성별 상태 반환
+// RateLimit 정책 및 인증 정책 미부착 (AllowAnonymous 효과)
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    AllowCachingResponses = false,
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        // 프록시/CDN 캐시 방지
+        context.Response.Headers.CacheControl = "no-store";
+
+        // 의존성별 상태를 JSON 형식으로 직렬화
+        // description 필드는 EF DbContextCheck 기본값 그대로 — ConnectionString 등 민감정보 미포함
+        var json = JsonSerializer.Serialize(new
+        {
+            status = report.Status.ToString(),
+            totalDuration = report.TotalDuration.TotalMilliseconds,
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description,
+                duration = e.Value.Duration.TotalMilliseconds
+            })
+        });
+
+        await context.Response.WriteAsync(json);
+    }
+});
 
 // SignalR 허브 엔드포인트 등록
 app.MapHub<MatchMakingHub>("/hubs/matchmaking");

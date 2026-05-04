@@ -21,6 +21,8 @@
     <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <!-- EF Core DbContext 헬스체크 — /health 엔드포인트에서 DB 연결 상태 확인용 -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.6" />
   </ItemGroup>
 
   <ItemGroup>

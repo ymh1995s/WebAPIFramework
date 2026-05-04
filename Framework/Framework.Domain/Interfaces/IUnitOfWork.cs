@@ -4,7 +4,11 @@ namespace Framework.Domain.Interfaces;
 // 여러 Repository의 변경을 하나의 DB 트랜잭션으로 원자적으로 커밋/롤백할 때 사용
 public interface IUnitOfWork : IAsyncDisposable
 {
-    // 트랜잭션 시작
+    /// <summary>
+    /// [경고] EnableRetryOnFailure 활성 환경에서는 본 단독 호출 시 ExecutionStrategy retry 미적용.
+    /// 일반 트랜잭션은 ExecuteInTransactionAsync 사용 권장. 본 메서드는 향후 호환을 위해 유지하지만
+    /// 새 코드에서는 사용 금지.
+    /// </summary>
     Task BeginTransactionAsync();
 
     // 트랜잭션 커밋 — 미저장 변경사항 flush 후 DB에 확정
