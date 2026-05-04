@@ -66,7 +66,7 @@ public class AdPolicyService : IAdPolicyService
         {
             await _policyRepo.SaveChangesAsync();
         }
-        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        catch (DbUpdateException ex) when (ex.IsUniqueViolation())
         {
             // UNIQUE 위반 — 동일 Network + PlacementId 이미 존재 (IsDeleted=false 기준)
             _logger.LogWarning(
@@ -125,10 +125,4 @@ public class AdPolicyService : IAdPolicyService
         p.UpdatedAt
     );
 
-    // PostgreSQL UNIQUE 제약 위반 여부 확인
-    private static bool IsUniqueViolation(DbUpdateException ex)
-        => ex.InnerException?.Message.Contains("23505") == true
-           || (ex.InnerException?.GetType().Name == "PostgresException" &&
-               (ex.InnerException?.Message.Contains("unique") == true ||
-                ex.InnerException?.Message.Contains("duplicate") == true));
 }

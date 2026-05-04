@@ -110,7 +110,7 @@ public class RewardTableService : IRewardTableService
         {
             await _tableRepo.SaveChangesAsync();
         }
-        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        catch (DbUpdateException ex) when (ex.IsUniqueViolation())
         {
             // UNIQUE 위반 — 동일 SourceType + Code 이미 존재
             _logger.LogWarning(
@@ -178,10 +178,4 @@ public class RewardTableService : IRewardTableService
         return true;
     }
 
-    // PostgreSQL UNIQUE 제약 위반 여부 확인
-    private static bool IsUniqueViolation(DbUpdateException ex)
-        => ex.InnerException?.Message.Contains("23505") == true
-           || (ex.InnerException?.GetType().Name == "PostgresException" &&
-               (ex.InnerException?.Message.Contains("unique") == true ||
-                ex.InnerException?.Message.Contains("duplicate") == true));
 }

@@ -1,3 +1,4 @@
+using Framework.Application.Common;
 using Framework.Application.Features.AdminNotification;
 using Framework.Application.Features.Reward;
 using Framework.Domain.Entities;
@@ -109,7 +110,7 @@ public class IapPurchaseService : IIapPurchaseService
             {
                 await _purchaseRepo.SaveChangesAsync();
             }
-            catch (DbUpdateException dbEx) when (IsUniqueViolation(dbEx))
+            catch (DbUpdateException dbEx) when (dbEx.IsUniqueViolation())
             {
                 // 동시 요청 경쟁 — ChangeTracker 정리 후 기존 레코드 상태 확인
                 _unitOfWork.DetachEntry(purchase);
@@ -309,13 +310,6 @@ public class IapPurchaseService : IIapPurchaseService
 
         return new RewardBundle();
     }
-
-    // PostgreSQL UNIQUE 제약 위반 여부 확인
-    private static bool IsUniqueViolation(DbUpdateException ex)
-        => ex.InnerException?.Message.Contains("23505") == true
-           || (ex.InnerException?.GetType().Name == "PostgresException" &&
-               (ex.InnerException?.Message.Contains("unique") == true ||
-                ex.InnerException?.Message.Contains("duplicate") == true));
 
     // 로그에 구매 토큰 전체 노출 방지 — 앞 8자만 표시
     private static string MaskToken(string token)

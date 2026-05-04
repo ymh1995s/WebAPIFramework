@@ -1,3 +1,4 @@
+using Framework.Application.Common;
 using Framework.Domain.Enums;
 using Framework.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -65,7 +66,7 @@ public class IapProductService : IIapProductService
         {
             await _productRepo.SaveChangesAsync();
         }
-        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        catch (DbUpdateException ex) when (ex.IsUniqueViolation())
         {
             // UNIQUE 위반 — 동일 Store + ProductId 상품이 이미 존재함
             _logger.LogWarning(
@@ -144,10 +145,4 @@ public class IapProductService : IIapProductService
         p.UpdatedAt
     );
 
-    // PostgreSQL UNIQUE 제약 위반 여부 확인
-    private static bool IsUniqueViolation(DbUpdateException ex)
-        => ex.InnerException?.Message.Contains("23505") == true
-           || (ex.InnerException?.GetType().Name == "PostgresException" &&
-               (ex.InnerException?.Message.Contains("unique") == true ||
-                ex.InnerException?.Message.Contains("duplicate") == true));
 }

@@ -1,5 +1,6 @@
 using Framework.Application.Features.SystemConfig;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Framework.Api.Controllers.Player;
 
@@ -9,6 +10,7 @@ namespace Framework.Api.Controllers.Player;
 // 인증 불필요 — 로그인 전 앱 실행 직후 호출
 [ApiController]
 [Route("api/version")]
+[EnableRateLimiting("game")]    // game 정책 부착 — M-11
 public class VersionController : ControllerBase
 {
     private readonly ISystemConfigService _systemConfigService;

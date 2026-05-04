@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Framework.Application.Common;
 using Framework.Application.Features.AuditLog;
 using Framework.Application.Features.Exp;
 using Framework.Domain.Entities;
@@ -88,7 +89,7 @@ public class RewardDispatcher : IRewardDispatcher
                     {
                         await _grantRepo.SaveChangesAsync();
                     }
-                    catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+                    catch (DbUpdateException ex) when (ex.IsUniqueViolation())
                     {
                         // UNIQUE 위반 — 이미 지급된 보상
                         // DetachEntry로 실패 엔티티를 ChangeTracker에서 제거 — 미제거 시 람다 종료 후 SaveChangesAsync에서 재시도됨
@@ -148,14 +149,6 @@ public class RewardDispatcher : IRewardDispatcher
         // 최대 재시도 횟수 초과 — 지속적인 동시성 충돌로 지급 실패
         return GrantRewardResult.Fail("동시성 충돌이 지속되어 보상 지급에 실패했습니다.");
     }
-
-    // UNIQUE 제약 위반 여부 확인 — PostgreSQL SqlState 23505
-    // Application 레이어가 Npgsql에 직접 의존하지 않도록 InnerException 메시지로 판별
-    private static bool IsUniqueViolation(DbUpdateException ex)
-        => ex.InnerException?.Message.Contains("23505") == true
-           || ex.InnerException?.GetType().Name == "PostgresException" &&
-              (ex.InnerException?.Message.Contains("unique") == true ||
-               ex.InnerException?.Message.Contains("duplicate") == true);
 
     // 지급 방식 결정 — Auto이면 번들 구성에 따라 자동 판단
     // Items가 있으면 Mail, Items가 없고 Exp만 있으면 Direct

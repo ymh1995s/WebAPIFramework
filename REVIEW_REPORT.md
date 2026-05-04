@@ -208,7 +208,7 @@
 | ID | 항목 | 파일 |
 |---|---|---|
 | M-1 | Application의 Microsoft.EntityFrameworkCore 패키지 직접 참조 | Framework.Application.csproj:10 |
-| M-2 | Application Service 7곳 DbUpdateException catch — UNIQUE/동시성 처리 누수 | AdPolicy/IapProduct/IapPurchase/RewardTable/RewardDispatcher/DailyLogin/Mail |
+| ~~M-2~~ | **[해결, 부분]** 5곳(AdPolicy/IapProduct/IapPurchase/RewardTable/RewardDispatcher) catch 필터를 `ex.IsUniqueViolation()` 단일 헬퍼로 통합. DailyLoginService(필터 없는 catch) / MailService(DbUpdateConcurrencyException) 잔여 — 별도 라운드 | 5개 Service |
 | M-3 | IapRtdnController 페이로드 디코딩/PackageName 검증 인라인 | IapRtdnController.cs:43-110 |
 | M-4 | Player 영역 17건 익명 객체 응답 잔존(IapPurchase 7, IapRtdn 7, AdsCallback 6) | Controllers/Player |
 | ~~M-5~~ | **[해결]** IRateLimitLogRepository 도입 + DI 인터페이스 등록 + OnRejected 콜백 인터페이스 참조 전환 (H-1과 동시 해소) | ServiceExtensions.cs |
@@ -217,7 +217,7 @@
 | M-8 | GooglePlayClientFactory 인터페이스 부재 — Strategy 구현체가 구체 어댑터 결합 | GooglePlayClientFactory.cs |
 | M-9 | Mail.ItemId/Item deprecated 단일 경로 잔존 — 디케이 일정 부재 | Mail.cs:15-16, 35-36 |
 | M-10 | MailService.SendAsync 다중 정책 미적용 — 단일 아이템 경로만 | MailService.cs:57-72 |
-| M-11 | VersionController Rate Limit 미부착 | VersionController.cs:10 |
+| ~~M-11~~ | **[해결]** VersionController에 `[EnableRateLimiting("game")]` 부착 — game 정책의 IP fallback으로 미인증 호출 보호 | VersionController.cs |
 | M-12 | MatchMakingHub 메서드 throttle 부재(SignalR 메시지 단위 무방어) | MatchMakingHub.cs |
 | M-13 | GlobalExceptionHandler ProblemDetails 미사용 + EnumHandler 정책 불일치 | GlobalExceptionHandler.cs |
 | M-14 | 점검 모드 인라인 람다 — 응집도/예외 안전성 부족 | Program.cs:130-154 |
@@ -229,7 +229,7 @@
 | ~~M-15~~ | **[해결]** RewardDispatcher.DispatchDirectAsync에서 IExpService.AddExpAsync 위임으로 전환 — 레벨업 자동 처리. IPlayerProfileRepository 의존성 제거. 순환 호출(RewardDispatcher↔ExpService)은 레벨업 보상이 Items만 포함하여 무한 루프 불가 | RewardDispatcher.cs |
 | M-16 | AuthService ILogger 미주입 — 인증 핵심 경로 보안 감사 추적 불가 | AuthService.cs |
 | ~~M-17~~ | **[해결]** IRewardDispatcher.GrantAsync(Mode=Mail) 경유 + 트랜잭션 분리 (1차 DailyLoginLog 커밋 → 2차 Dispatcher 호출). 2차 실패 시 AdminNotification(Critical, RewardDispatchFailure) 등록 + 운영자 수동 보전. SourceKey 형식 `daily-login:{yyyy-MM-dd}` | DailyLoginService.cs |
-| M-18 | IsUniqueViolation 메서드 5곳 동일 로직 중복 + 1곳 괄호 누락 | RewardDispatcher/IapPurchase/AdPolicy/IapProduct/RewardTable |
+| ~~M-18~~ | **[해결]** `Framework.Application/Common/DbUpdateExceptionExtensions.cs` extension method로 단일화 — 5곳 private 중복 메서드 완전 제거 (괄호 누락 포함 자연 정정) | DbUpdateExceptionExtensions.cs (신규) + 5개 Service |
 | M-19 | BuildBundleAsync 2곳 완전 동일 코드 중복(IAP + AdReward) | IapPurchaseService.cs:263 + AdRewardService.cs:146 |
 | M-20 | AdminNotification dedupKey 접두사 네이밍 불일치(하이픈/언더스코어 혼용) | IapPurchaseService/IapRtdnService |
 | M-21 | SourceKey 패턴 문자열 산재(7가지 패턴) — 상수화 부재 | 5+ Service |
@@ -262,7 +262,7 @@
 | M-43 | Admin Cookie 옵션 HttpOnly/Secure/SameSite 명시 부재 | Framework.Admin/Program.cs:59 |
 | ~~M-44~~ | **[해결]** PiiRetentionCleanupService 신설(매일 KST 03:00, 5000행 청크). AuditLog 365일/RateLimitLog 90일 hard delete, BanLog.ActorIp 365일 NULL 익명화, IapPurchase.ClientIp 상태 종결+90일 NULL. 외부 설정 PiiRetentionOptions(IOptions). 법적 근거: 개인정보보호법 §21 + 안전성 확보조치 기준 §8 + 통비법 §41 + 전자상거래법 §6 (DEVNOTES `[설계 결정]` 박제) | Application/BackgroundServices/* (신규) |
 | M-45 | IapPurchase.ClientIp 보관 정책 부재 | IapPurchase.cs:58 |
-| M-46 | UNIQUE 위반 판별이 메시지 문자열 매칭(Contains "23505") — Npgsql 버전/언어팩 의존 | 5개 Service |
+| ~~M-46~~ | **[해결]** `PostgresException.SqlState == PostgresErrorCodes.UniqueViolation` 상수 비교로 전환. 메시지 fallback(Contains "unique"/"duplicate") 제거 — Npgsql 버전/언어팩 의존성 제거 | DbUpdateExceptionExtensions.cs |
 | M-47 | appsettings.Development.json 평문 시크릿 git 추적 (P3.3에서 식별, P3.5 High로 격상) | (H-14/H-15 참조) |
 | ~~M-48~~ | **[해결]** GooglePlayClientFactory의 BaseClientService HttpClient.Timeout = 30초 명시 (Unity 60초 미만 안전 마진) | GooglePlayClientFactory.cs |
 | ~~M-49~~ | **[해결]** AdminGrantRewardDto에 [Required] + [MaxLength(64)] + [RegularExpression(`^[a-zA-Z0-9._:\-]+$`)] 적용. MailTitle/MailBody도 [MaxLength(100)/(2000)] 추가 | AdminRewardDispatchController.cs |
@@ -318,6 +318,9 @@
 | L-41 | RefreshToken.TokenHash 컬럼 MaxLength 미명시 — PostgreSQL `text` 타입으로 생성. 기능 영향 없으나 일관성 차원에서 향후 `HasMaxLength(44)` 추가 고려 |
 | L-42 | RefreshToken.RevokedAt 활용 경로 부재 — 검증 시 `IS NULL` 체크는 도입됐으나 채우는 코드는 없음. 강제 로그아웃/회전 보존 정책 라운드에서 활용 예정 |
 | L-43 | LogoutAsync가 RefreshToken 물리 삭제 유지 — 향후 RevokedAt 활용 시 `RevokedAt = UtcNow` + SaveChanges로 전환 권고 |
+| L-44 | AdminStagesController 메시지 매칭 잔존 — `ex.Message.Contains("unique") || ex.InnerException?.Message.Contains("23505")` 패턴이 컨트롤러에 직접 사용. M-46 SqlState 전환 일괄 적용 후속 라운드 권고 |
+| L-45 | DailyLoginService catch 필터 없음 — 모든 DbUpdateException을 silently swallow. M-2 D2 결정으로 본 라운드 미포함, 별도 라운드에서 IsUniqueViolation 필터 적용 권고 |
+| L-46 | Application 레이어 Npgsql 직접 의존 (M-1 부채 가중) — DbUpdateExceptionExtensions 도입 시 추가됨. M-1 본격 해결 시 Infrastructure로 이전하는 일괄 리팩토링 권고 |
 
 ---
 
