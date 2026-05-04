@@ -1,0 +1,113 @@
+@using Framework.Admin.Constants
+@using Framework.Admin.Http
+@using System.Net.Http.Json
+@inject ApiHttpClient Http
+@implements IDisposable
+
+@* API 서버 상태 인디케이터 — 헤더 점 클릭 시 의존성별 상세 모달 표시 *@
+<a class="health-dot @StateClass" @onclick="OpenModal" title="API 서버 상태" style="cursor:pointer;"></a>
+
+@* 상세 모달 — 클릭 시 표시 *@
+<HealthDetailsModal IsVisible="@_modalVisible"
+                    Data="@_lastResponse"
+                    LastCheckedAt="@_lastCheckedAt"
+                    IsOffline="@(_state == HealthDotState.Offline)"
+                    OnRefresh="LoadAsync"
+                    OnClose="CloseModal" />
+
+@code {
+    // 30초 폴링 타이머
+    private Timer? _timer;
+    // 폴링 중복 실행 방지 가드
+    private bool _isLoading;
+    // 마지막 헬스체크 응답 — 모달에 전달
+    private HealthResponse? _lastResponse;
+    // 마지막 확인 시각 — 모달 표시용
+    private DateTime? _lastCheckedAt;
+    // 상세 모달 표시 여부
+    private bool _modalVisible;
+    // 현재 헬스 상태 — 점 색상 결정
+    private HealthDotState _state = HealthDotState.Loading;
+
+    // 점 CSS 클래스 — 상태에 따라 색상 클래스 반환
+    private string StateClass => _state switch
+    {
+        HealthDotState.Loading   => "health-loading",
+        HealthDotState.Healthy   => "health-healthy",
+        HealthDotState.Degraded  => "health-degraded",
+        HealthDotState.Unhealthy => "health-unhealthy",
+        HealthDotState.Offline   => "health-offline",
+        _                        => "health-loading"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 초기 진입 시 즉시 1회 조회
+        await LoadAsync();
+
+        // 30초 간격 폴링 타이머 등록 — LoadAsync 내부에서 InvokeAsync(StateHasChanged) 처리하므로 별도 호출 불필요
+        _timer = new Timer(async _ => await LoadAsync(), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    // /health 엔드포인트 호출 후 상태 갱신
+    private async Task LoadAsync()
+    {
+        // 중복 실행 방지
+        if (_isLoading) return;
+        _isLoading = true;
+
+        try
+        {
+            // 200/503 모두 본문 파싱 — GetRawAsync로 원본 응답 수신
+            var response = await Http.GetRawAsync(ApiRoutes.Health.Endpoint);
+            _lastCheckedAt = DateTime.Now;
+
+            // 본문을 HealthResponse로 역직렬화 (200 Healthy, 503 Degraded/Unhealthy 모두 동일 구조)
+            var data = await response.Content.ReadFromJsonAsync<HealthResponse>();
+            _lastResponse = data;
+
+            // JSON status 필드 → 점 색상 상태 매핑
+            _state = data?.Status?.ToLowerInvariant() switch
+            {
+                "healthy"   => HealthDotState.Healthy,
+                "degraded"  => HealthDotState.Degraded,
+                "unhealthy" => HealthDotState.Unhealthy,
+                _           => HealthDotState.Offline
+            };
+        }
+        catch (HttpRequestException)
+        {
+            // 서버 연결 불가 — Offline
+            _lastCheckedAt = DateTime.Now;
+            _state = HealthDotState.Offline;
+        }
+        catch (TaskCanceledException)
+        {
+            // 요청 타임아웃 — Offline
+            _lastCheckedAt = DateTime.Now;
+            _state = HealthDotState.Offline;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            // 응답 파싱 실패 — Offline으로 처리
+            _lastCheckedAt = DateTime.Now;
+            _state = HealthDotState.Offline;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+
+        // Timer 콜백은 ThreadPool 스레드에서 실행되어 Blazor Dispatcher 외부 — InvokeAsync로 마샬링 필수
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // 점 클릭 — 상세 모달 열기
+    private void OpenModal() => _modalVisible = true;
+
+    // 모달 닫기 콜백
+    private void CloseModal() => _modalVisible = false;
+
+    // IDisposable — 타이머 해제
+    public void Dispose() => _timer?.Dispose();
+}

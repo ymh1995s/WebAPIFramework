@@ -83,6 +83,9 @@ builder.Services.AddSingleton<IAdminPasswordVerifier, AdminPasswordVerifier>();
 builder.Services.AddTransient<AdminApiKeyHandler>();
 // HTTP 로그 캡처 핸들러 — AdminApiKeyHandler 다음에 체인으로 삽입
 builder.Services.AddTransient<HttpLogCaptureHandler>();
+// HttpLog 캡처 제외 경로 — 30초 폴링 컴포넌트 노이즈 차단
+builder.Services.Configure<HttpLogCaptureOptions>(o =>
+    o.ExcludedPaths = new[] { Framework.Admin.Constants.ApiRoutes.Health.Endpoint });
 builder.Services.AddHttpClient("ApiClient", client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "https://localhost:7034");

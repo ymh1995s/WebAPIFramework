@@ -490,6 +490,13 @@ public static class ApiRoutes
         }
     }
 
+    // ── 헬스체크 (Framework.Api MapHealthChecks 엔드포인트) ──────────────
+    public static class Health
+    {
+        /// <summary>API 서버 헬스체크 — 200 Healthy / 503 Degraded·Unhealthy</summary>
+        public const string Endpoint = "/health";
+    }
+
     // ── SignalR 허브 경로 ──────────────────────────────────────────────────
     public static class Hubs
     {

@@ -1,0 +1,18 @@
+/* API 서버 상태 점 — 헤더 인디케이터 공통 스타일 */
+.health-dot {
+    display: inline-block;
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+/* 상태별 색상 — Loading(회색)/Healthy(초록)/Degraded(노랑)/Unhealthy(빨강)/Offline(검정) */
+.health-loading   { background: #aaaaaa; }
+.health-healthy   { background: #28a745; }
+.health-degraded  { background: #ffc107; }
+.health-unhealthy { background: #dc3545; }
+.health-offline   { background: #343a40; }
+
+/* 호버 시 반투명 효과 — 클릭 가능함을 시각적으로 표현 */
+.health-dot:hover { opacity: 0.8; }
