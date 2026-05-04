@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Framework.Api.Filters;
 using Framework.Application.Common;
 using Framework.Application.Features.Reward;
@@ -79,6 +80,11 @@ public record AdminGrantRewardDto(
     int PlayerId,
 
     // 멱등성 키 — AdminGrant 내에서 유일해야 함 (예: "2026-04-29-event", "support-ticket-123")
+    // 영숫자와 `.` `_` `:` `-` 만 허용 — SQL 인젝션 및 구분자 충돌 방지
+    [Required]
+    [MaxLength(64)]
+    [RegularExpression(@"^[a-zA-Z0-9._:\-]+$",
+        ErrorMessage = "SourceKey는 영숫자/`.`/`_`/`:`/`-` 만 허용됩니다.")]
     string SourceKey,
 
     // 경험치 지급량 (미입력 시 0)
@@ -90,10 +96,12 @@ public record AdminGrantRewardDto(
     // 지급 방식 (Auto=자동판단, Direct=즉시지급, Mail=우편)
     DispatchMode Mode = DispatchMode.Auto,
 
-    // 우편 지급 시 제목 (Mail 모드)
+    // 우편 지급 시 제목 (Mail 모드) — 최대 100자
+    [MaxLength(100)]
     string? MailTitle = null,
 
-    // 우편 지급 시 본문 (Mail 모드)
+    // 우편 지급 시 본문 (Mail 모드) — 최대 2000자
+    [MaxLength(2000)]
     string? MailBody = null,
 
     // 우편 만료 일수 (Mail 모드, 기본 30일)

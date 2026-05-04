@@ -45,6 +45,10 @@ services:
       Jwt__SecretKey: ${JWT_SECRET_KEY}
       Admin__ApiKey: ${ADMIN_API_KEY}
       Google__ClientId: ${GOOGLE_CLIENT_ID}
+      # Google Play IAP 설정 — 인앱결제 영수증 검증 및 RTDN 수신에 필요
+      Iap__Google__PackageName: ${IAP_GOOGLE_PACKAGE_NAME}
+      Iap__Google__RtdnAudience: ${IAP_GOOGLE_RTDN_AUDIENCE}
+      Iap__Google__ServiceAccountJsonPath: ${IAP_GOOGLE_SERVICE_ACCOUNT_JSON_PATH:-secrets/google-play-service-account.json}
     ports:
       # 호스트 5000 → 컨테이너 8080
       # 초기 테스트용. 최종적으로는 Caddy(443)가 이 포트를 프록시한다

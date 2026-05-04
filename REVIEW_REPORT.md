@@ -226,9 +226,9 @@
 
 | ID | 항목 | 파일 |
 |---|---|---|
-| M-15 | RewardDispatcher Direct 경로 Exp 가산 시 ExpService 미경유 — 레벨업 판정 누락 | RewardDispatcher.cs:186-193 |
+| ~~M-15~~ | **[해결]** RewardDispatcher.DispatchDirectAsync에서 IExpService.AddExpAsync 위임으로 전환 — 레벨업 자동 처리. IPlayerProfileRepository 의존성 제거. 순환 호출(RewardDispatcher↔ExpService)은 레벨업 보상이 Items만 포함하여 무한 루프 불가 | RewardDispatcher.cs |
 | M-16 | AuthService ILogger 미주입 — 인증 핵심 경로 보안 감사 추적 불가 | AuthService.cs |
-| M-17 | DailyLoginService RewardDispatcher 미경유 — RewardGrants 기록 없음(DEVNOTES 명세 불일치) | DailyLoginService.cs:118 |
+| ~~M-17~~ | **[해결]** IRewardDispatcher.GrantAsync(Mode=Mail) 경유 + 트랜잭션 분리 (1차 DailyLoginLog 커밋 → 2차 Dispatcher 호출). 2차 실패 시 AdminNotification(Critical, RewardDispatchFailure) 등록 + 운영자 수동 보전. SourceKey 형식 `daily-login:{yyyy-MM-dd}` | DailyLoginService.cs |
 | M-18 | IsUniqueViolation 메서드 5곳 동일 로직 중복 + 1곳 괄호 누락 | RewardDispatcher/IapPurchase/AdPolicy/IapProduct/RewardTable |
 | M-19 | BuildBundleAsync 2곳 완전 동일 코드 중복(IAP + AdReward) | IapPurchaseService.cs:263 + AdRewardService.cs:146 |
 | M-20 | AdminNotification dedupKey 접두사 네이밍 불일치(하이픈/언더스코어 혼용) | IapPurchaseService/IapRtdnService |
@@ -256,17 +256,17 @@
 | M-37 | Admin 컨트롤러 일부 페이지네이션 클램프 부재 — 거대 pageSize 입력 시 DoS 가능 | AdminShoutsController 외 |
 | M-38 | options.GlobalLimiter 미설정 — 미커버 엔드포인트 무제한(VersionController 등) | ServiceExtensions.cs |
 | M-39 | JWT SecretKey 길이 가드 부재 | JwtTokenProvider.cs:24 |
-| M-40 | Iap PackageName/RtdnAudience docker-compose 매핑 부재 — 운영 배포 시 잘못된 값 위험 | appsettings.json:38,40 |
+| ~~M-40~~ | **[해결]** docker-compose.yml api 서비스에 Iap__Google__PackageName / RtdnAudience / ServiceAccountJsonPath 환경변수 매핑 추가 + .env.example 동기화 | docker-compose.yml + .env.example |
 | M-41 | IapRtdnService PurchaseToken 평문 로깅(MaskToken 미사용) | IapRtdnService.cs:81-83, 140-142 |
 | M-42 | RTDN messageId dedup 캐시 부재 — 비즈니스 멱등성 의존 | IapRtdnController.cs:41 |
 | M-43 | Admin Cookie 옵션 HttpOnly/Secure/SameSite 명시 부재 | Framework.Admin/Program.cs:59 |
-| M-44 | AuditLog/RateLimitLog/BanLog/AdminNotification PII 보관기간 정책 부재 | 다수 엔티티 |
+| ~~M-44~~ | **[해결]** PiiRetentionCleanupService 신설(매일 KST 03:00, 5000행 청크). AuditLog 365일/RateLimitLog 90일 hard delete, BanLog.ActorIp 365일 NULL 익명화, IapPurchase.ClientIp 상태 종결+90일 NULL. 외부 설정 PiiRetentionOptions(IOptions). 법적 근거: 개인정보보호법 §21 + 안전성 확보조치 기준 §8 + 통비법 §41 + 전자상거래법 §6 (DEVNOTES `[설계 결정]` 박제) | Application/BackgroundServices/* (신규) |
 | M-45 | IapPurchase.ClientIp 보관 정책 부재 | IapPurchase.cs:58 |
 | M-46 | UNIQUE 위반 판별이 메시지 문자열 매칭(Contains "23505") — Npgsql 버전/언어팩 의존 | 5개 Service |
 | M-47 | appsettings.Development.json 평문 시크릿 git 추적 (P3.3에서 식별, P3.5 High로 격상) | (H-14/H-15 참조) |
-| M-48 | HttpClient timeout 명시 부재 — Google 라이브러리 기본값 의존 | GooglePlayClientFactory |
-| M-49 | AdminGrantRewardDto.SourceKey 길이/형식 미검증 | AdminRewardDispatchController.cs:81 |
-| M-50 | IapVerifyRequest ProductId/PurchaseToken MaxLength 부재 | IapVerifyRequest.cs |
+| ~~M-48~~ | **[해결]** GooglePlayClientFactory의 BaseClientService HttpClient.Timeout = 30초 명시 (Unity 60초 미만 안전 마진) | GooglePlayClientFactory.cs |
+| ~~M-49~~ | **[해결]** AdminGrantRewardDto에 [Required] + [MaxLength(64)] + [RegularExpression(`^[a-zA-Z0-9._:\-]+$`)] 적용. MailTitle/MailBody도 [MaxLength(100)/(2000)] 추가 | AdminRewardDispatchController.cs |
+| ~~M-50~~ | **[해결]** IapVerifyRequest에 [MaxLength] 적용 — ProductId 128 / PurchaseToken 512 / OrderId 128. AppDbContext IapPurchase 컬럼 매핑과 동기화 (마이그레이션 발생 0) | IapVerifyRequest.cs |
 | M-51 | Admin BCrypt PasswordHash git 노출(workFactor=12로 보호되나 약한 평문 시 사전공격 가능) | appsettings.Development.json:9 |
 
 ---

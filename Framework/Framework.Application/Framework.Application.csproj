@@ -9,6 +9,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.6" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.6" />
+    <!-- BackgroundService(PiiRetentionCleanupService) 기반 클래스 제공 -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.6" />
   </ItemGroup>
 
   <ItemGroup>

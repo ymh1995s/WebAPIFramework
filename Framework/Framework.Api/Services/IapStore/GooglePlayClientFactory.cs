@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Google.Apis.AndroidPublisher.v3;
 using Google.Apis.Auth.OAuth2;
+using Google.Apis.Http;
 using Google.Apis.Services;
 
 namespace Framework.Api.Services.IapStore;
@@ -10,6 +11,10 @@ namespace Framework.Api.Services.IapStore;
 public class GooglePlayClientFactory
 {
     private readonly IConfiguration _config;
+
+    // AndroidPublisherService 타임아웃 — Unity 클라이언트 60초 미만 안전 마진
+    // Google API 서버 응답이 지연될 경우 클라이언트가 무한 대기하지 않도록 제한
+    private static readonly TimeSpan HttpTimeout = TimeSpan.FromSeconds(30);
 
     public GooglePlayClientFactory(IConfiguration config)
     {
@@ -43,11 +48,19 @@ public class GooglePlayClientFactory
             }.FromPrivateKey(privateKey)
         ).ToGoogleCredential();
 
-        return new AndroidPublisherService(new BaseClientService.Initializer
+        // AndroidPublisherService timeout 명시 — Unity 클라이언트 60초 미만 안전 마진
+        // ConfigurableHttpClientInitializer를 통해 내부 HttpClient의 타임아웃을 30초로 설정
+        var service = new AndroidPublisherService(new BaseClientService.Initializer
         {
             HttpClientInitializer = credential,
             ApplicationName = "FrameworkGameServer"
         });
+
+        // Google.Apis 라이브러리 내부 HttpClient에 타임아웃 직접 설정
+        // AndroidPublisherService 생성 후 HttpClient 접근하여 Timeout 지정
+        service.HttpClient.Timeout = HttpTimeout;
+
+        return service;
     }
 
     // appsettings에서 PackageName 반환 — Verifier/Consumer 공통 사용

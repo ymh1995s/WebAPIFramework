@@ -2,6 +2,7 @@ using Framework.Api.Extensions;
 using Framework.Api.Hubs;
 using Framework.Api.ProblemDetails;
 using Framework.Api.Security;
+using Framework.Application.BackgroundServices;
 using Framework.Application.Features.SystemConfig;
 using Framework.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -95,6 +96,12 @@ builder.Services.AddMemoryCache();          // 점검 모드 등 설정 캐시
 
 // Admin Key 검증기 — Singleton: 시작 시점 1회 인코딩, 타이밍 공격 방어
 builder.Services.AddSingleton<IAdminKeyValidator, AdminKeyValidator>();
+
+// PII 보관기간 정책 옵션 바인딩 — appsettings.json PiiRetention 섹션
+builder.Services.Configure<PiiRetentionOptions>(builder.Configuration.GetSection("PiiRetention"));
+
+// PII 자동 정리 BackgroundService — KST DailyRunHourKst 시각 매일 1회 실행
+builder.Services.AddHostedService<PiiRetentionCleanupService>();
 
 // JSON 직렬화 옵션 설정
 // - EnumMemberJsonConverterFactory: 잘못된 enum 값 수신 시 EnumDeserializationException을 발생시켜 400 반환

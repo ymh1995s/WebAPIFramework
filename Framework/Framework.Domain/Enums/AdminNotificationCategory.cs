@@ -8,4 +8,7 @@ public enum AdminNotificationCategory
 
     // 소모성 상품 consume API 최대 재시도 초과 — 수동 처리 필요
     IapConsumeFailure = 2,
+
+    // 보상 지급 실패 — 일일 로그인 등 자동 보상 파이프라인에서 예외 발생 시 수동 처리 필요
+    RewardDispatchFailure = 3,
 }

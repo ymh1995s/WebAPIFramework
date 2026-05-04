@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Framework.Application.Features.AuditLog;
+using Framework.Application.Features.Exp;
 using Framework.Domain.Entities;
 using Framework.Domain.Enums;
 using Framework.Domain.Interfaces;
@@ -13,11 +14,12 @@ namespace Framework.Application.Features.Reward;
 // [파이프라인] 트랜잭션 시작 → RewardGrant 선기록(원자적 중복 차단) → Direct/Mail 분기 → MailId 업데이트 → 커밋
 // [원자성] IUnitOfWork를 통해 전체 흐름을 단일 DB 트랜잭션으로 묶어 부분 성공 상태를 방지
 // [멱등성] UNIQUE(PlayerId, SourceType, SourceKey) 제약 위반 catch로 레이스 컨디션 완전 차단
+// [순환 의존] RewardDispatcher → ExpService → RewardDispatcher 구조이나 레벨업 보상은 Exp=0 이므로 무한 루프 불발
 public class RewardDispatcher : IRewardDispatcher
 {
     private readonly IRewardGrantRepository _grantRepo;
     private readonly IPlayerRepository _playerRepository;
-    private readonly IPlayerProfileRepository _profileRepo;
+    private readonly IExpService _expService;
     private readonly IPlayerItemRepository _itemRepo;
     private readonly IMailRepository _mailRepo;
     private readonly IAuditLogService _auditLogService;
@@ -27,7 +29,7 @@ public class RewardDispatcher : IRewardDispatcher
     public RewardDispatcher(
         IRewardGrantRepository grantRepo,
         IPlayerRepository playerRepository,
-        IPlayerProfileRepository profileRepo,
+        IExpService expService,
         IPlayerItemRepository itemRepo,
         IMailRepository mailRepo,
         IAuditLogService auditLogService,
@@ -36,7 +38,7 @@ public class RewardDispatcher : IRewardDispatcher
     {
         _grantRepo = grantRepo;
         _playerRepository = playerRepository;
-        _profileRepo = profileRepo;
+        _expService = expService;
         _itemRepo = itemRepo;
         _mailRepo = mailRepo;
         _auditLogService = auditLogService;
@@ -214,15 +216,17 @@ public class RewardDispatcher : IRewardDispatcher
                 request.ActorId);
         }
 
-        // Exp는 PlayerProfile에 직접 증가 (레벨업 처리는 ExpService에서 담당)
-        // 보상 파이프라인에서 Exp는 별도 GrantAsync 완료 후 처리하므로 여기서는 Profile만 업데이트
+        // ExpService 경유 — 임계값 초과 시 자동 레벨업 + 레벨업 보상 지급
+        // [순환 호출 안전] 레벨업 보상(GrantLevelUpRewardAsync)은 Items만 포함(Exp=0)이므로
+        //   ExpService.AddExpAsync 재진입 없이 반드시 종료됨
+        // [트랜잭션 위치] DispatchDirectAsync는 ExecuteInTransactionAsync 내부에서 호출되므로
+        //   아이템 지급과 Exp 처리가 동일 트랜잭션 스코프에 묶임
         if (bundle.Exp > 0)
         {
-            var profile = await _profileRepo.GetByPlayerIdAsync(request.PlayerId)
-                ?? throw new InvalidOperationException($"PlayerProfile을 찾을 수 없습니다. PlayerId: {request.PlayerId}");
-            profile.Exp += bundle.Exp;
-            profile.UpdatedAt = DateTime.UtcNow;
-            await _profileRepo.UpdateAsync(profile);
+            await _expService.AddExpAsync(
+                request.PlayerId,
+                bundle.Exp,
+                sourceKey: $"{request.SourceType}:{request.SourceKey}");
         }
 
         return GrantRewardResult.DirectSuccess();
