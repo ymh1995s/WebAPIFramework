@@ -144,6 +144,9 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+// OWASP 권장 보안 응답 헤더 6종 부착 — OnStarting 콜백으로 모든 응답에 보장
+app.UseSecurityHeaders(app.Environment);
+
 // ─────────────────────────────────────────────────────────────
 // 전역 예외 핸들러 활성화 — 파이프라인 최상단에 위치해야
 // 이후 모든 미들웨어(인증, 점검, 컨트롤러 등)의 예외를 포착할 수 있다.

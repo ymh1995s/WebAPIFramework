@@ -1,4 +1,5 @@
 using Framework.Admin.Components;
+using Framework.Admin.Extensions;
 using Framework.Admin.Handlers;
 using Framework.Admin.Http;
 using Framework.Admin.Logging;
@@ -101,11 +102,14 @@ var app = builder.Build();
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    app.UseHsts();
+    // UseHsts() 제거 — HSTS는 UseSecurityHeaders 미들웨어에서 일원화하여 관리
 }
 
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
+
+// OWASP 권장 보안 응답 헤더 6종 부착 — OnStarting 콜백으로 모든 응답에 보장
+app.UseSecurityHeaders(app.Environment);
 
 app.UseAuthentication();
 
