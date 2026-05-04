@@ -58,6 +58,8 @@ public static class ServiceExtensions
         services.AddScoped<IPlayerRepository, PlayerRepository>();
         services.AddScoped<IPlayerProfileRepository, PlayerProfileRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        // 탈퇴 시 게임 진행 데이터 정리 서비스 (H-12 SoftDelete + PII 익명화 정책)
+        services.AddScoped<IPlayerWithdrawalCleaner, PlayerWithdrawalCleaner>();
         return services;
     }
 

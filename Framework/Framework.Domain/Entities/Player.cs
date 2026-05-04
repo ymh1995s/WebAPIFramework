@@ -9,8 +9,8 @@ public class Player
     // 외부 공개용 플레이어 식별자 (UUID) — API 응답·JWT 클레임에 사용하여 내부 Id 은닉
     public Guid PublicId { get; set; } = Guid.NewGuid();
 
-    // 게스트 로그인용 기기 식별자 (UUID)
-    public string DeviceId { get; set; } = string.Empty;
+    // 게스트 로그인용 기기 식별자 (UUID) — 탈퇴 시 PII 익명화로 null 처리됨 (H-12 SoftDelete 정책)
+    public string? DeviceId { get; set; }
 
     // 구글 로그인 연동용 (나중에 사용)
     public string? GoogleId { get; set; }

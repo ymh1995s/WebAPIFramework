@@ -66,7 +66,7 @@ public class PlayerRepository : IPlayerRepository
         player.BannedUntil = null;
     }
 
-    // 플레이어 삭제 - CASCADE로 연관 데이터 전부 삭제됨. SaveChanges는 호출자가 담당
+    // 플레이어 하드 삭제 - CASCADE로 연관 데이터 전부 삭제됨. SaveChanges는 호출자가 담당
     // [260423 기준] Players 행 삭제 시 아래 테이블이 자동 삭제됨:
     //   - RefreshTokens         : 로그인 토큰
     //   - PlayerProfiles        : 레벨, 경험치, 재화
@@ -75,9 +75,27 @@ public class PlayerRepository : IPlayerRepository
     //   - Mails                 : 받은 우편
     //   - DailyLoginLogs        : 일일 로그인 기록
     //   - RewardGrants          : 보상 지급 이력
+    // [Deprecated] 일반 계정 탈퇴 흐름은 WithdrawAnonymizeAsync 사용 (IapPurchase Restrict FK 충돌 방지)
+    // Admin 강제 삭제(AdminPlayerService.DeleteAsync)용으로만 유지
     public Task DeleteAsync(Player player)
     {
         _db.Players.Remove(player);
+        return Task.CompletedTask;
+    }
+
+    // 탈퇴 시 PII 익명화 처리 — Player 행은 IapPurchase Restrict FK 유지를 위해 보존
+    // IsDeleted를 먼저 true로 설정해 Partial Unique Index 대상에서 제외 후 식별자 NULL 처리
+    // (동시 재가입 요청과의 race 조건 방지)
+    // SaveChanges는 호출자(WithdrawAsync) 트랜잭션이 담당
+    public Task WithdrawAnonymizeAsync(Player player)
+    {
+        player.IsDeleted = true;
+        player.DeletedAt = DateTime.UtcNow;
+        player.DeviceId = null;
+        player.GoogleId = null;
+        player.Nickname = $"탈퇴유저-{player.Id}";
+        player.MergedIntoPlayerId = null; // 자발 탈퇴는 병합이 아니므로 초기화
+        _db.Players.Update(player);
         return Task.CompletedTask;
     }
 
@@ -108,11 +126,14 @@ public class PlayerRepository : IPlayerRepository
 
     // 소프트 딜리트 포함 키워드 검색 DB 레벨 페이지네이션 조회 (Admin 전용)
     // Nickname 또는 DeviceId 대소문자 무시 부분 일치 — DB에서 필터링/정렬/페이지 처리
+    // DeviceId/GoogleId는 탈퇴 시 NULL이 될 수 있으므로 NULL 가드 적용 (NRE 방지)
     public async Task<(List<Player> Items, int TotalCount)> SearchByKeywordPagedIncludingDeletedAsync(string keyword, int page, int pageSize)
     {
         var lower = keyword.ToLower();
         var query = _db.Players.IgnoreQueryFilters().AsNoTracking()
-            .Where(p => p.Nickname.ToLower().Contains(lower) || p.DeviceId.ToLower().Contains(lower));
+            .Where(p => p.Nickname.ToLower().Contains(lower)
+                     || (p.DeviceId != null && p.DeviceId.ToLower().Contains(lower))
+                     || (p.GoogleId != null && p.GoogleId.ToLower().Contains(lower)));
         var total = await query.CountAsync();
         var items = await query
             .OrderByDescending(p => p.CreatedAt)

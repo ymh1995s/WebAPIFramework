@@ -13,6 +13,8 @@ public class AuthService : IAuthService
     private readonly IGoogleTokenVerifier _googleVerifier;
     // 신규 계정 생성 시 Player + Profile을 단일 트랜잭션으로 묶기 위한 UoW
     private readonly IUnitOfWork _unitOfWork;
+    // 탈퇴 시 게임 진행 데이터 정리 서비스 (H-12 SoftDelete + PII 익명화 정책)
+    private readonly IPlayerWithdrawalCleaner _playerWithdrawalCleaner;
 
     public AuthService(
         IPlayerRepository playerRepo,
@@ -20,7 +22,8 @@ public class AuthService : IAuthService
         IRefreshTokenRepository refreshTokenRepo,
         IJwtTokenProvider jwtProvider,
         IGoogleTokenVerifier googleVerifier,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IPlayerWithdrawalCleaner playerWithdrawalCleaner)
     {
         _playerRepo = playerRepo;
         _profileRepo = profileRepo;
@@ -28,6 +31,7 @@ public class AuthService : IAuthService
         _jwtProvider = jwtProvider;
         _googleVerifier = googleVerifier;
         _unitOfWork = unitOfWork;
+        _playerWithdrawalCleaner = playerWithdrawalCleaner;
     }
 
     // 게스트 로그인 처리
@@ -176,14 +180,29 @@ public class AuthService : IAuthService
         );
     }
 
-    // 계정 탈퇴 - 플레이어 삭제 시 CASCADE로 모든 연관 데이터 삭제됨
+    // 계정 탈퇴 — SoftDelete + PII 익명화 방식 (H-12 IapPurchase Restrict FK 충돌 해소)
+    // Player 행은 IapPurchase 결제 이력 보존을 위해 hard delete하지 않음
     public async Task WithdrawAsync(int playerId)
     {
-        var player = await _playerRepo.GetByIdAsync(playerId)
-            ?? throw new InvalidOperationException("플레이어를 찾을 수 없습니다.");
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            // 멱등성(M2): GlobalQueryFilter 우회 조회 → 이미 탈퇴된 계정은 즉시 정상 반환
+            // 네트워크 재시도나 중복 호출에도 안전하게 204 응답
+            var player = await _playerRepo.GetByIdIncludingDeletedAsync(playerId);
+            if (player is null) throw new InvalidOperationException("플레이어를 찾을 수 없습니다.");
+            if (player.IsDeleted) return; // 이미 탈퇴 처리된 계정 — 멱등 처리
 
-        await _playerRepo.DeleteAsync(player);
-        await _playerRepo.SaveChangesAsync();
+            // 1. PII 익명화 + IsDeleted=true
+            //    (Player 행 자체는 보존 — IapPurchase FK 무결성 유지)
+            await _playerRepo.WithdrawAnonymizeAsync(player);
+
+            // 2. 모든 RefreshToken 즉시 무효화 — 탈퇴 후 세션 재사용 차단
+            await _refreshTokenRepo.DeleteAllByPlayerIdAsync(playerId);
+
+            // 3. 게임 진행 데이터 정리 — 재가입 시 데이터 복구 차단
+            await _playerWithdrawalCleaner.PurgeGameDataAsync(playerId);
+            // SaveChangesAsync + CommitAsync는 ExecuteInTransactionAsync 소유자가 자동 처리
+        });
     }
 
     // 게스트 계정에 구글 연동 - 기존 데이터 유지하면서 GoogleId 추가

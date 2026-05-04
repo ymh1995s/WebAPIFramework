@@ -28,7 +28,12 @@ public interface IPlayerRepository
     Task UnbanAsync(int playerId);
 
     // 플레이어 삭제 (계정 탈퇴 - 연관 데이터 CASCADE 삭제)
+    // [참고] 신규 탈퇴 흐름은 WithdrawAnonymizeAsync 사용 (H-12 SoftDelete + PII 익명화 정책)
     Task DeleteAsync(Player player);
+
+    // 탈퇴 시 PII 익명화 — DeviceId/GoogleId NULL, Nickname 표준화, IsDeleted=true
+    // IapPurchase Restrict FK 유지를 위해 Player 행 자체는 보존
+    Task WithdrawAnonymizeAsync(Player player);
 
     // 플레이어 소프트 딜리트 — 계정 병합 시 게스트 계정을 논리 삭제하고 병합 대상 ID 기록
     Task SoftDeleteAsync(Player player, int mergedIntoPlayerId);

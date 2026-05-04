@@ -194,7 +194,7 @@
 | H-9 | Polly/Microsoft.Extensions.Http.Resilience 미참조 — 외부 호출 retry/timeout 부재 | Framework.Api.csproj | P3.3 |
 | H-10 | API/Admin 보안 응답 헤더 0건(X-Content-Type-Options/X-Frame-Options/Referrer-Policy/CSP) | Program.cs (양쪽) | P3.4 |
 | ~~H-11~~ | **[보류 — 운영 단계 도입]** /admin-login Rate Limit 부재 + Antiforgery Disable. 사유: 단일 운영자·비공개 Admin 도메인 단계에서 공격 발동 시나리오 제한적(C-1 인가 게이트로 다른 경로는 차단됨). 운영자 2인↑ 또는 도메인 공개·검색 노출 시점에 도입 | Framework.Admin/Program.cs:125 | P3.1 / P3.2 / P3.4 |
-| H-12 | IapPurchase.PlayerId Restrict ↔ Withdraw hard delete FK 충돌 — IAP 이력 보유자 탈퇴 실패 | AuthService.cs:180 + AppDbContext.cs:404 | P3.4 |
+| ~~H-12~~ | **[해결]** WithdrawAsync SoftDelete + PII 익명화 전환 (DeviceId/GoogleId NULL, Nickname `"탈퇴유저-{Id}"`, IsDeleted=true). IPlayerWithdrawalCleaner 신설(10개 게임 데이터 테이블 ExecuteDelete). IapPurchase Restrict FK 유지(영구 보존). 멱등 재호출(M2). 검색 NULL 가드. 마이그레이션 `AllowNullableDeviceIdForWithdrawal` (DEVNOTES `[설계 결정]` 박제) | AuthService.cs + PlayerRepository.cs + PlayerWithdrawalCleaner.cs(신규) | P3.4 |
 | H-13 | (중복 — H-6과 동일 항목 — RefreshToken 평문) | RefreshToken.cs:13 | P3.4 |
 | ~~H-14~~ | **[방치]** appsettings.Development.json 평문값은 개발용 더미. 라이브 배포 시 .env로 전량 교체되므로 git 추적/회전 불필요 | — | — |
 | ~~H-15~~ | **[방치]** 동일 사유 — .gitignore 등재 미수행 확정 | — | — |
@@ -309,6 +309,8 @@
 | L-32 | AuthController ex.Message 응답 직접 노출(현재 사용자 메시지뿐, 향후 위험) |
 | L-33 | Serilog PII 마스킹 enricher 미적용 |
 | L-34 | Admin 키 회전 시 프로세스 재시작 필요(Singleton + 시작 시 인코딩) |
+| L-35 | EF Core 경고 9건 — Player GlobalQueryFilter ↔ 9개 자식 엔티티(DailyLoginLog/GameResultParticipant/IapPurchase/Inquiry/Mail/PlayerItem/PlayerProfile/RefreshToken/RewardGrant) required 관계. 정상 쿼리에서 IsDeleted=true 자식 미로딩(의도된 동작), Admin은 IgnoreQueryFilters 패턴 사용 중. 기능 결함 아닌 런타임 경고. 도입: 2026-04-28 GuestGoogle 충돌 해소 커밋 |
+| L-36 | Admin 강제 삭제 경로 `PlayerRepository.DeleteAsync` 잔존 — IAP 이력 보유 계정 강제 삭제 시 여전히 FK 충돌 가능. 주석 [Deprecated] 명시됨. 향후 Admin 화면에서 버튼 비활성화/경고 도입 권고 |
 
 ---
 
