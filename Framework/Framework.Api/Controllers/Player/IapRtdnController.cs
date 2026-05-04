@@ -111,10 +111,13 @@ public class IapRtdnController : ControllerBase
         }
         catch (Exception ex)
         {
-            // [중요] 예외 발생 시에도 반드시 200 반환 — Pub/Sub 재시도 루프 방지
+            // [D4 의도] Google Pub/Sub 재시도 루프 차단
+            // 비-200 응답 시 Pub/Sub은 최대 7일간 재시도 폭주를 유발한다.
+            // 도메인 예외·예기치 않은 오류 모두 200으로 응답하여 Pub/Sub은 정상 종료시키고,
+            // 운영자는 LogError로 남겨진 로그 또는 AdminNotification으로 오류를 인지한다.
             _logger.LogError(
                 ex,
-                "RTDN 처리 중 예기치 않은 오류 — MessageId: {MsgId}",
+                "RTDN 처리 실패 — 200으로 응답하여 Pub/Sub 재시도 차단. MessageId: {MsgId}",
                 request?.Message?.MessageId ?? "unknown");
             return Ok(new { ok = false, reason = "internal_error" });
         }

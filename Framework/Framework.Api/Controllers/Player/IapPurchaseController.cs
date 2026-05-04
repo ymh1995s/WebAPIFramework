@@ -1,5 +1,6 @@
 using Framework.Api.Extensions;
 using Framework.Api.Filters;
+using Framework.Api.ProblemDetails;
 using Framework.Application.Features.Iap;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -58,7 +59,12 @@ public class IapPurchaseController : ControllerBase
             _logger.LogWarning(
                 "IAP 상품 없음 — PlayerId: {PlayerId}, ProductId: {ProductId}",
                 playerId, request.ProductId);
-            return NotFound(new { message = ex.Message });
+            return Problem(
+                title: "IAP 상품 미존재",
+                detail: ex.Message,
+                statusCode: StatusCodes.Status404NotFound,
+                type: "https://framework.api/errors/iap-product-not-found",
+                extensions: new Dictionary<string, object?> { ["errorCode"] = ErrorCodes.IapProductNotFound });
         }
         catch (IapReceiptInvalidException ex)
         {
@@ -66,7 +72,12 @@ public class IapPurchaseController : ControllerBase
             _logger.LogWarning(
                 "IAP 영수증 검증 실패 — PlayerId: {PlayerId}, 사유: {Reason}",
                 playerId, ex.Message);
-            return Conflict(new { message = ex.Message });
+            return Problem(
+                title: "IAP 영수증 검증 실패",
+                detail: ex.Message,
+                statusCode: StatusCodes.Status409Conflict,
+                type: "https://framework.api/errors/iap-receipt-invalid",
+                extensions: new Dictionary<string, object?> { ["errorCode"] = ErrorCodes.IapReceiptInvalid });
         }
         catch (IapTokenOwnershipMismatchException ex)
         {
@@ -74,25 +85,28 @@ public class IapPurchaseController : ControllerBase
             _logger.LogWarning(
                 "IAP 토큰 소유자 불일치 — PlayerId: {PlayerId}",
                 playerId);
-            return UnprocessableEntity(new { message = ex.Message });
+            return Problem(
+                title: "IAP 토큰 소유자 불일치",
+                detail: ex.Message,
+                statusCode: StatusCodes.Status422UnprocessableEntity,
+                type: "https://framework.api/errors/iap-token-ownership-mismatch",
+                extensions: new Dictionary<string, object?> { ["errorCode"] = ErrorCodes.IapTokenOwnershipMismatch });
         }
         catch (IapVerifierException ex)
         {
-            // 외부 스토어 API 오류 — 서버 측 문제이므로 500 반환
+            // 외부 Google Play API 오류 — 의존 서비스 장애이므로 502 BadGateway 반환 (M-22)
+            // Unity 클라이언트 미작성 시점이므로 호환성 부담 없음
             _logger.LogError(
                 ex,
                 "IAP 스토어 API 오류 — PlayerId: {PlayerId}, ProductId: {ProductId}",
                 playerId, request.ProductId);
-            return StatusCode(500, new { message = "스토어 검증 서버와 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요." });
+            return Problem(
+                title: "외부 스토어 검증 서비스 오류",
+                detail: "스토어 검증 서버와 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+                statusCode: StatusCodes.Status502BadGateway,
+                type: "https://framework.api/errors/iap-verifier-error",
+                extensions: new Dictionary<string, object?> { ["errorCode"] = ErrorCodes.IapVerifierError });
         }
-        catch (Exception ex)
-        {
-            // 예기치 않은 오류 — 500 반환
-            _logger.LogError(
-                ex,
-                "IAP 처리 중 예기치 않은 오류 — PlayerId: {PlayerId}",
-                playerId);
-            return StatusCode(500, new { message = "서버 내부 오류가 발생했습니다." });
-        }
+        // catch-all 제거 — 일반 Exception은 GlobalExceptionHandler에 위임 (M-22)
     }
 }

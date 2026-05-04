@@ -43,6 +43,9 @@ public static class EnumProblemDetailsFactory
             Instance = instance,
         };
 
+        // errorCode — Unity 클라이언트가 enum 분기로 처리할 수 있는 고정 식별자 (M-13)
+        problem.Extensions["errorCode"] = ErrorCodes.InvalidEnumValue;
+
         // extensions["errors"] 배열로 오류 목록 전달
         problem.Extensions["errors"] = new[] { errorEntry };
 

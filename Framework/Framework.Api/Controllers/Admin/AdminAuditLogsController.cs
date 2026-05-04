@@ -22,6 +22,10 @@ public class AdminAuditLogsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> Search([FromQuery] AuditLogFilterDto filter)
     {
+        // pageSize 범위 제한 — 대용량 로그 조회는 최대 500건 허용 (M-37, D7)
+        // record with expression으로 불변 record를 수정 없이 새 값 적용
+        filter = filter with { PageSize = Math.Clamp(filter.PageSize, 1, 500) };
+
         var result = await _auditLogService.SearchAsync(filter);
         return Ok(result);
     }

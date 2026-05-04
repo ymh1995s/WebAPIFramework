@@ -372,8 +372,24 @@ public static class ServiceExtensions
         // IAP 결제 검증 전용 Rate Limit — 정상 결제는 분당 수회, 봇 결제 시도 차단
         var iapVerifyPermitLimit = config.GetValue<int>("RateLimiting:IapVerifyPermitLimit", 20);
 
+        // 미커버 엔드포인트 안전망 — 신규 컨트롤러에 정책 부착 누락 시 무제한 호출 차단 (M-38)
+        // 명시 정책과 중첩 적용되므로 충분히 높은 한도(기본 600/분)
+        var globalPermitLimit = config.GetValue<int>("RateLimiting:GlobalPermitLimit", 600);
+
         services.AddRateLimiter(options =>
         {
+            // IP 파티션 기반 글로벌 한도 — 명시 정책 미적용 엔드포인트에도 안전망 적용
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit       = globalPermitLimit,
+                        Window            = TimeSpan.FromMinutes(1),
+                        QueueLimit        = 0,
+                        AutoReplenishment = true
+                    }));
+
             // 인증 엔드포인트 파티션 정책 — 인증 여부에 따라 파티션 키·한도를 분기
             // 인증 성공(JWT 유효): PlayerId 기준 파티셔닝 → 분당 authPlayerPermitLimit회
             // 미인증/토큰 없음:   IP 기준 파티셔닝     → 분당 authPermitLimit회

@@ -17,7 +17,18 @@ public static class ApiProblemDetailsExtensions
     public static IServiceCollection AddApiErrorHandling(this IServiceCollection services)
     {
         // RFC 7807 ProblemDetails 서비스 등록
-        services.AddProblemDetails();
+        // CustomizeProblemDetails: traceId·instance를 모든 ProblemDetails 응답에 자동 부착 (M-13)
+        services.AddProblemDetails(options =>
+        {
+            options.CustomizeProblemDetails = ctx =>
+            {
+                // traceId — 로그와의 연계 식별자. 이미 있으면 덮어쓰지 않음
+                ctx.ProblemDetails.Extensions["traceId"] ??= ctx.HttpContext.TraceIdentifier;
+
+                // instance — 오류가 발생한 요청 경로. 이미 있으면 덮어쓰지 않음
+                ctx.ProblemDetails.Instance ??= ctx.HttpContext.Request.Path;
+            };
+        });
 
         // enum 역직렬화 예외 전용 핸들러 등록 (400 반환)
         services.AddExceptionHandler<EnumDeserializationExceptionHandler>();

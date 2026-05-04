@@ -1,3 +1,4 @@
+using Framework.Api.ProblemDetails;
 using Framework.Application.Features.AdReward;
 using Framework.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -81,23 +82,26 @@ public class AdsCallbackController : ControllerBase
         catch (InvalidAdSignatureException ex)
         {
             _logger.LogWarning(ex, "광고 서명 검증 실패 — Network: {Network}, IP: {Ip}", network, remoteIp);
-            // 401 반환 — 광고 네트워크가 서명 오류 확인 가능
-            return Unauthorized(new { message = "서명 검증 실패" });
+            // 401 반환 — 광고 네트워크가 서명 오류를 인지할 수 있도록 비-200 허용 (D2 정책 예외)
+            return Unauthorized(new { ok = false, errorCode = ErrorCodes.AdSignatureInvalid, message = "서명 검증 실패" });
         }
         catch (AdPolicyNotFoundException ex)
         {
             _logger.LogWarning(ex, "광고 정책 없음 — Network: {Network}", network);
-            return Ok(new { ok = false, message = "등록된 광고 정책이 없습니다." });
+            // [D2] 광고 네트워크 재시도 회피 — 200으로 응답, errorCode로 클라이언트 분기 가능
+            return Ok(new { ok = false, errorCode = ErrorCodes.AdPolicyNotFound, message = "등록된 광고 정책이 없습니다." });
         }
         catch (AdDailyLimitExceededException ex)
         {
             _logger.LogInformation(ex, "일일 한도 초과 — Network: {Network}", network);
-            return Ok(new { ok = false, message = "오늘의 광고 보상 한도에 도달했습니다." });
+            // [D2] 광고 네트워크 재시도 회피 — 200으로 응답, errorCode로 클라이언트 분기 가능
+            return Ok(new { ok = false, errorCode = ErrorCodes.AdDailyLimitExceeded, message = "오늘의 광고 보상 한도에 도달했습니다." });
         }
         catch (Exception ex)
         {
+            // [D2] catch-all 유지 — 광고 네트워크 재시도 회피 목적, 200으로 응답
             _logger.LogError(ex, "광고 콜백 처리 중 오류 — Network: {Network}, IP: {Ip}", network, remoteIp);
-            return StatusCode(500, new { message = "서버 내부 오류" });
+            return Ok(new { ok = false, errorCode = ErrorCodes.InternalError, message = "서버 내부 오류" });
         }
     }
 }

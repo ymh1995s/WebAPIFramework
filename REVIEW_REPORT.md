@@ -219,7 +219,7 @@
 | M-10 | MailService.SendAsync 다중 정책 미적용 — 단일 아이템 경로만 | MailService.cs:57-72 |
 | ~~M-11~~ | **[해결]** VersionController에 `[EnableRateLimiting("game")]` 부착 — game 정책의 IP fallback으로 미인증 호출 보호 | VersionController.cs |
 | M-12 | MatchMakingHub 메서드 throttle 부재(SignalR 메시지 단위 무방어) | MatchMakingHub.cs |
-| M-13 | GlobalExceptionHandler ProblemDetails 미사용 + EnumHandler 정책 불일치 | GlobalExceptionHandler.cs |
+| ~~M-13~~ | **[해결]** RFC 7807 ProblemDetails + `errorCode` enum 확장(P2). GlobalExceptionHandler를 IProblemDetailsService.WriteAsync로 전환, EnumDeserializationExceptionHandler와 응답 형식 일원화. CustomizeProblemDetails로 traceId/instance 자동 부착. ErrorCodes 카탈로그 신설(9종) | GlobalExceptionHandler.cs + EnumDeserializationExceptionHandler.cs + ApiProblemDetailsExtensions.cs + ErrorCodes.cs(신규) |
 | M-14 | 점검 모드 인라인 람다 — 응집도/예외 안전성 부족 | Program.cs:130-154 |
 
 ### Phase 2 — 구현 품질
@@ -233,7 +233,7 @@
 | M-19 | BuildBundleAsync 2곳 완전 동일 코드 중복(IAP + AdReward) | IapPurchaseService.cs:263 + AdRewardService.cs:146 |
 | M-20 | AdminNotification dedupKey 접두사 네이밍 불일치(하이픈/언더스코어 혼용) | IapPurchaseService/IapRtdnService |
 | M-21 | SourceKey 패턴 문자열 산재(7가지 패턴) — 상수화 부재 | 5+ Service |
-| M-22 | AdsCallback/IapPurchase catch-all로 GlobalExceptionHandler 우회 | AdsCallbackController/IapPurchaseController |
+| ~~M-22~~ | **[해결, 부분]** IapPurchaseController catch-all 제거 + GlobalExceptionHandler 위임. IapVerifierException → 502 BadGateway 전환(외부 의존 실패 의미 명확). AdsCallback/IapRtdn catch-all은 광고 네트워크/Pub/Sub 재시도 회피 의도로 **유지**, 응답 형식만 ProblemDetails 통일 | IapPurchaseController.cs + AdsCallbackController.cs + IapRtdnController.cs |
 | M-23 | Rate Limit 정책명 5종 문자열 리터럴 산재 — 오타 silent fail | ServiceExtensions + 8개 Controller |
 | ~~M-24~~ | **[해결]** Enricher 4종 적용 — FromLogContext / WithMachineName / WithEnvironmentName / WithProperty("Application","Framework.Api"). `Serilog.Enrichers.Environment 3.0.1` 패키지 추가. H-2와 함께 처리 | Framework.Api/Program.cs |
 | M-25 | RewardDispatch.razor.cs CS8604 — UsedMode null 가능 | RewardDispatch.razor.cs:175 |
@@ -253,8 +253,8 @@
 | M-34 | 빌드 모드 가드 부재 — Debug 바이너리 운영 배포 시 디버그 우회 활성화 | Program.cs (양쪽) |
 | M-35 | JoinMatchRequestDto Tier/HumanType enum 검증 부재 | MatchDto.cs:6 |
 | M-36 | Mail/Shout/Notice/Item/AdminGrantReward DTO 길이·범위 검증 부재 | 다수 DTO |
-| M-37 | Admin 컨트롤러 일부 페이지네이션 클램프 부재 — 거대 pageSize 입력 시 DoS 가능 | AdminShoutsController 외 |
-| M-38 | options.GlobalLimiter 미설정 — 미커버 엔드포인트 무제한(VersionController 등) | ServiceExtensions.cs |
+| ~~M-37~~ | **[해결]** 5개 Admin 컨트롤러에 Math.Clamp 적용 — IapProducts(2)/Notifications/Shouts/AuditLogs(record with)/Stages. 한도: 일반 100 / 알림 200 / 대용량 로그 500 | 5개 Admin Controller |
+| ~~M-38~~ | **[해결]** RateLimiter.GlobalLimiter — IP 파티션 600/분(`RateLimiting:GlobalPermitLimit`) 등록. 명시 정책과 중첩 적용으로 미커버 엔드포인트 안전망. /health는 DisableRateLimiting으로 외부 probe 면제 | ServiceExtensions.cs + Program.cs + appsettings.json |
 | M-39 | JWT SecretKey 길이 가드 부재 | JwtTokenProvider.cs:24 |
 | ~~M-40~~ | **[해결]** docker-compose.yml api 서비스에 Iap__Google__PackageName / RtdnAudience / ServiceAccountJsonPath 환경변수 매핑 추가 + .env.example 동기화 | docker-compose.yml + .env.example |
 | M-41 | IapRtdnService PurchaseToken 평문 로깅(MaskToken 미사용) | IapRtdnService.cs:81-83, 140-142 |
@@ -321,6 +321,10 @@
 | L-44 | AdminStagesController 메시지 매칭 잔존 — `ex.Message.Contains("unique") || ex.InnerException?.Message.Contains("23505")` 패턴이 컨트롤러에 직접 사용. M-46 SqlState 전환 일괄 적용 후속 라운드 권고 |
 | L-45 | DailyLoginService catch 필터 없음 — 모든 DbUpdateException을 silently swallow. M-2 D2 결정으로 본 라운드 미포함, 별도 라운드에서 IsUniqueViolation 필터 적용 권고 |
 | L-46 | Application 레이어 Npgsql 직접 의존 (M-1 부채 가중) — DbUpdateExceptionExtensions 도입 시 추가됨. M-1 본격 해결 시 Infrastructure로 이전하는 일괄 리팩토링 권고 |
+| L-47 | ValidationProblemDetails(ModelState 400)에 errorCode 미부착 — ErrorCodes.ValidationFailed 상수 정의됨, 향후 추가 가능 |
+| L-48 | AdsCallback/IapPurchase Unauthorized 응답이 익명 객체 — ProblemDetails 형식과 일관성 부족(JWT 미들웨어 우선이라 도달 빈도 낮음) |
+| L-49 | GlobalLimiter 600 + iap-rtdn 600 동일 한도 — 중첩 적용 시 사실상 같은 한도로 작동(운영 데이터 기반 튜닝 사항) |
+| L-50 | ForwardedHeaders 미적용 — 리버스 프록시 환경에서 IP 파티션이 프록시 IP로 통합될 위험. Caddy 도입 시점에 별도 라운드 |
 
 ---
 

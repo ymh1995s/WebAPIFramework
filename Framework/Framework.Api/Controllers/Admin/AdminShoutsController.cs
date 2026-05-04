@@ -26,6 +26,9 @@ public class AdminShoutsController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
+        // pageSize 범위 제한 — 비정상적으로 큰 값 요청 시 DB 부하 방지 (M-37)
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
         var result = await _shoutService.GetAllAsync(page, pageSize, playerId, activeOnly);
         return Ok(result);
     }

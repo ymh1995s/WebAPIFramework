@@ -250,7 +250,7 @@ app.UseAuthorization();
 app.MapControllers();
 
 // 외부 probe 진입점 — JWT/AdminKey 없이 호출 가능, JSON 본문으로 의존성별 상태 반환
-// RateLimit 정책 및 인증 정책 미부착 (AllowAnonymous 효과)
+// GlobalLimiter 포함 모든 Rate Limit 정책 제외 — 컨테이너 오케스트레이터 probe가 차단되지 않도록 (D9)
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
     AllowCachingResponses = false,
@@ -277,7 +277,7 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 
         await context.Response.WriteAsync(json);
     }
-});
+}).DisableRateLimiting(); // GlobalLimiter 및 모든 Rate Limit 정책 제외 (M-38/D9)
 
 // SignalR 허브 엔드포인트 등록
 app.MapHub<MatchMakingHub>("/hubs/matchmaking");

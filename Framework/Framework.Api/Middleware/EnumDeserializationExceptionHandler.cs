@@ -28,6 +28,7 @@ public class EnumDeserializationExceptionHandler : IExceptionHandler
     /// <summary>
     /// 예외가 EnumDeserializationException이거나 그 InnerException인 경우 처리한다.
     /// 다른 예외 타입은 false를 반환하여 파이프라인의 다음 핸들러로 넘긴다.
+    /// traceId·instance 자동 부착은 ApiProblemDetailsExtensions의 CustomizeProblemDetails가 담당한다.
     /// </summary>
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
@@ -38,7 +39,7 @@ public class EnumDeserializationExceptionHandler : IExceptionHandler
         EnumDeserializationException? enumEx = exception as EnumDeserializationException
             ?? exception.InnerException as EnumDeserializationException;
 
-        // 해당 예외가 아니면 처리하지 않음
+        // 해당 예외가 아니면 다음 핸들러(GlobalExceptionHandler)로 위임
         if (enumEx is null)
             return false;
 
@@ -56,19 +57,17 @@ public class EnumDeserializationExceptionHandler : IExceptionHandler
             enumEx.ExpectedType
         );
 
-        // 요청 경로를 instance로 사용
-        var requestPath = httpContext.Request.Path.ToString();
-
+        // 팩토리에서 ProblemDetails 생성 — errorCode·errors 배열 포함
+        // instance는 팩토리에서 직접 설정하므로 CustomizeProblemDetails의 ??= 와 중복 없음
         var problemDetails = EnumProblemDetailsFactory.Build(
             enumEx,
-            instance: requestPath,
+            instance: httpContext.Request.Path.ToString(),
             isDevelopment: _env.IsDevelopment()
         );
 
-        // 응답 상태 코드 400 설정
+        // 응답 상태 코드 400 설정 후 ProblemDetails 직렬화 전송
         httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
 
-        // ProblemDetails 응답 직렬화 및 전송
         await _problemDetailsService.WriteAsync(new ProblemDetailsContext
         {
             HttpContext    = httpContext,
