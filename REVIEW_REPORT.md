@@ -29,7 +29,7 @@
 | 1 | ~~C-1~~ | Framework.Admin/Program.cs:67 + Razor 페이지 4건 | **[해결]** FallbackPolicy(RequireAuthenticatedUser) 적용 + AdminNotifications [Authorize] / Errors [AllowAnonymous] 부착 |
 | 2 | ~~C-2~~ | Framework.Api/Extensions/ServiceExtensions.cs | **[해결]** AddPolicy("auth")로 IP/PlayerId 파티션 분기 적용 (미인증 IP 15/min, 인증 PlayerId 30/min) |
 | 3 | ~~H-15~~ | — | **방치 — 개발용 더미값 정책 (운영은 .env 교체)** |
-| 4 | H-9 | Framework.Admin/Program.cs:125 | /admin-login Rate Limit 부재 → 분산 비밀번호 추측 공격 |
+| 4 | ~~H-11~~ | Framework.Admin/Program.cs:125 | **[보류 — 운영 단계 도입]** /admin-login Rate Limit 부재 + Antiforgery Disable. 단일 운영자·비공개 도메인 단계에서는 발동 시나리오 제한적. 운영자 2인↑ 또는 도메인 공개 시점에 처리 (Top 5 ID 오기 정정: H-9 → H-11) |
 | 5 | H-12 | AuthService.cs:180 + AppDbContext.cs:404 | IAP 이력 보유 플레이어 탈퇴 시 FK 위반으로 GDPR 삭제 실패 |
 
 ---
@@ -185,7 +185,7 @@
 |---|---|---|---|
 | H-1 | Admin 컨트롤러 2곳 AppDbContext 직접 주입 + EF 쿼리 인라인 | AdminRateLimitLogsController.cs:14, AdminSecurityController.cs:14 | P1.1 |
 | H-2 | UseSerilogRequestLogging 미호출 — HTTP 요청 자동 구조화 로그 미활성 | Framework.Api/Program.cs | P2.1 |
-| H-3 | PlayerItem.Quantity 동시성 토큰 미적용 — Currency-as-Item Lost Update | PlayerItem.cs:14 + AppDbContext.cs:218 | P2.3 |
+| ~~H-3~~ | **[해결]** PlayerItem.xmin 그림자 속성 매핑 + RewardDispatcher/MailService 재시도 루프(3회) + IUnitOfWork.ClearChangeTracker. Mail/PlayerItem 충돌 구분 (DEVNOTES `[설계 결정] 낙관적 동시성 토큰 — PostgreSQL xmin 채택` 박제) | AppDbContext.cs + RewardDispatcher.cs + MailService.cs | P2.3 |
 | H-4 | 테스트 프로젝트 0개 — RewardDispatcher/Auth/IAP 자동화 검증 전무 | 솔루션 전체 | P2.4 |
 | H-5 | JWT SecretKey 길이 가드 부재 — 32자 미만 키 주입 시 사전 차단 없음 | JwtTokenProvider.cs:24 | P3.1 |
 | H-6 | RefreshToken DB 평문 저장 + 보안 메타데이터(IP/UA/Revoked) 부재 | RefreshToken.cs:13 | P3.1 / P3.4 |
@@ -193,7 +193,7 @@
 | H-8 | HealthChecks 미등록 — /health 엔드포인트 부재, probe 불가 | Framework.Api/Program.cs | P3.3 |
 | H-9 | Polly/Microsoft.Extensions.Http.Resilience 미참조 — 외부 호출 retry/timeout 부재 | Framework.Api.csproj | P3.3 |
 | H-10 | API/Admin 보안 응답 헤더 0건(X-Content-Type-Options/X-Frame-Options/Referrer-Policy/CSP) | Program.cs (양쪽) | P3.4 |
-| H-11 | /admin-login Rate Limit 부재 + Antiforgery Disable — 분산 비밀번호 추측 차단 불가 | Framework.Admin/Program.cs:125 | P3.1 / P3.2 / P3.4 |
+| ~~H-11~~ | **[보류 — 운영 단계 도입]** /admin-login Rate Limit 부재 + Antiforgery Disable. 사유: 단일 운영자·비공개 Admin 도메인 단계에서 공격 발동 시나리오 제한적(C-1 인가 게이트로 다른 경로는 차단됨). 운영자 2인↑ 또는 도메인 공개·검색 노출 시점에 도입 | Framework.Admin/Program.cs:125 | P3.1 / P3.2 / P3.4 |
 | H-12 | IapPurchase.PlayerId Restrict ↔ Withdraw hard delete FK 충돌 — IAP 이력 보유자 탈퇴 실패 | AuthService.cs:180 + AppDbContext.cs:404 | P3.4 |
 | H-13 | (중복 — H-6과 동일 항목 — RefreshToken 평문) | RefreshToken.cs:13 | P3.4 |
 | ~~H-14~~ | **[방치]** appsettings.Development.json 평문값은 개발용 더미. 라이브 배포 시 .env로 전량 교체되므로 git 추적/회전 불필요 | — | — |

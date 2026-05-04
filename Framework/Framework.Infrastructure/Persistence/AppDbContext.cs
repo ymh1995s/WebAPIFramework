@@ -227,6 +227,26 @@ public class AppDbContext : DbContext
             .HasIndex(pi => new { pi.PlayerId, pi.ItemId })
             .IsUnique();
 
+        // PlayerItem.Quantity 갱신을 낙관적 동시성으로 보호 (Currency-as-Item Lost Update 차단)
+        //
+        // [목적] 동일 PlayerItem 행에 대한 동시 read-modify-write 시 Lost Update를 차단
+        //        — Currency-as-Item 도입으로 Gold/Gems가 PlayerItem(ItemId=1/2)으로 통합되어
+        //          모든 재화·아이템 갱신이 같은 행을 두고 경쟁함
+        //        — 보상 멱등성(RewardGrants UNIQUE)은 같은 SourceKey만 차단하므로
+        //          서로 다른 SourceKey의 동시 갱신(우편 A+B 동시 수령 등)은 보호 못함
+        //
+        // [원리] PostgreSQL 시스템 컬럼 xmin을 그림자 속성으로 매핑하여 동시성 토큰으로 사용
+        //        EF Core가 UPDATE 시 WHERE xmin=oldVal을 자동 추가
+        //        → 사이에 다른 트랜잭션이 갱신했다면 0 row 영향 → DbUpdateConcurrencyException
+        //
+        // [패턴 정합] Mail.IsClaimed의 IsConcurrencyToken() 적용과 동일 사상
+        modelBuilder.Entity<PlayerItem>()
+            .Property<uint>("xmin")
+            .HasColumnName("xmin")
+            .HasColumnType("xid")
+            .ValueGeneratedOnAddOrUpdate()
+            .IsConcurrencyToken();
+
         // Mail → Player (N:1)
         modelBuilder.Entity<Mail>()
             .HasOne(m => m.Player)

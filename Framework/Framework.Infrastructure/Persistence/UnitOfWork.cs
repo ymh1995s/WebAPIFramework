@@ -98,6 +98,10 @@ public class UnitOfWork : IUnitOfWork
         _dbContext.Entry(entity).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
     }
 
+    // ChangeTracker 전체 초기화 — 동시성 충돌(DbUpdateConcurrencyException) 재시도 전 호출
+    // 충돌 후 stale 상태로 남은 모든 엔티티를 추적 해제하여 다음 시도에서 DB 최신값으로 재조회
+    public void ClearChangeTracker() => _dbContext.ChangeTracker.Clear();
+
     // 미완료 트랜잭션 자동 정리 — DI 스코프 종료 시 안전망
     public async ValueTask DisposeAsync()
     {

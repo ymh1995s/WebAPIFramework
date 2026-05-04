@@ -20,4 +20,8 @@ public interface IUnitOfWork : IAsyncDisposable
 
     // UNIQUE 위반 catch 후 ChangeTracker 상태 정리 — 미제거 시 람다 종료 후 SaveChangesAsync에서 재시도됨
     void DetachEntry<T>(T entity) where T : class;
+
+    // ChangeTracker 전체 정리 — 동시성 충돌 재시도 시 stale 엔티티 제거 용도
+    // DbUpdateConcurrencyException catch 후 재시도 전에 호출하여 오염된 엔티티 상태를 초기화
+    void ClearChangeTracker();
 }

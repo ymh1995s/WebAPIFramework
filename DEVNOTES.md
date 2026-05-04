@@ -163,6 +163,31 @@ cycleDay는 이번 달 로그인 횟수 기반 (1번째 로그인 = Day 1, 28번
 - **운영**: 이번 달 보상 편집 중에도 다음 달 보상을 미리 등록 가능. 월말에 Slot 전환만 수행.
 - **근거**: 월 경계 운영 부담 분산. 달력 계산 단순화 — 날짜 범위 대신 로그인 횟수(cycleDay)로 보상 결정.
 
+### 낙관적 동시성 토큰 — PostgreSQL `xmin` 채택
+
+PlayerItem.Quantity / Mail.IsClaimed 등 동시 갱신이 발생할 수 있는 엔티티에 PostgreSQL 시스템 컬럼 `xmin`을 그림자 속성으로 매핑하여 낙관적 동시성 토큰으로 사용.
+
+- **선택 근거**: 명시적 RowVersion 컬럼(B안) 대비 마이그레이션 부담 0(시스템 컬럼이라 DDL 불필요), 기존 `Mail.IsClaimed` 패턴과 일관, Domain 엔티티에 RowVersion 필드를 추가하지 않아 도메인 오염 없음.
+- **트레이드오프**: PostgreSQL 의존성 발생 — 향후 다른 RDB로 전환 시 명시적 RowVersion 컬럼 + 백필로 마이그 필요. 현 단계에서는 PostgreSQL 영구 채택 방침으로 수용.
+
+#### `xmin` 마이그레이션 표준 절차 (반드시 준수)
+
+1. DbContext 매핑에 `Property<uint>("xmin").HasColumnName("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken()` 추가
+2. `dotnet ef migrations add <이름>` 실행
+3. **생성된 마이그레이션 파일의 `Up()`/`Down()` 본문을 수동으로 비울 것** (한국어 주석으로 사유 기록)
+   - EF Core가 그림자 속성을 보고 `AddColumn<uint>("xmin", ...)`을 자동 생성하지만, PostgreSQL은 `xmin`이 시스템 컬럼이라 `column name "xmin" conflicts with a system column name` 오류로 거부함
+   - 모델 스냅샷(Designer.cs / AppDbContextModelSnapshot.cs)은 그대로 둬야 다음 `migrations add`가 다시 AddColumn을 생성하지 않음
+4. `dotnet ef database update` — 빈 본문이라 마이그레이션 적용 기록만 남고 실제 DDL 없음
+
+> 일반 마이그레이션 파일 수동 수정은 안티패턴이지만 `xmin`은 EF Core/Npgsql 공식 가이드의 알려진 예외임. 다른 엔티티에 동시성 토큰 추가 시에도 위 절차를 그대로 따른다.
+
+#### 재시도 정책
+
+- 호출자(Service) 직접 책임 — `RewardDispatcher.GrantAsync`, `MailService.ClaimAsync` 등이 `ExecuteInTransactionAsync` 외부에 retry loop 배치
+- `DbUpdateConcurrencyException` catch 시 `IUnitOfWork.ClearChangeTracker()` 호출 후 재시도
+- 최대 3회, 백오프 없음 (단일 행 contention은 ms 단위로 수렴)
+- MailService는 `ex.Entries[0].Entity` 타입 검사로 `Mail.IsClaimed` 충돌(즉시 false 반환, 재시도 무의미) vs `PlayerItem.xmin` 충돌(재시도) 구분
+
 ## [기술 부채] 검토 항목
 - **일괄 우편 발송 성능** — `MailService.BulkSendAsync`가 전체 플레이어를 메모리 로드 후 단일 트랜잭션으로 N건 INSERT. 유저 수 증가 시 메모리 압박 + DB 락 시간 문제 발생. 배치 분할(500건씩 끊어서 INSERT + SaveChanges) 도입 필요
 

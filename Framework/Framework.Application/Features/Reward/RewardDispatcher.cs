@@ -45,73 +45,106 @@ public class RewardDispatcher : IRewardDispatcher
     }
 
     // 보상 지급 — 공통 파이프라인 진입점
-    // [순서] 번들 검증 → PlayerId 확인 → 트랜잭션 스코프 → 선기록 → 지급 → MailId 업데이트
+    // [순서] 번들 검증 → PlayerId 확인 → 재시도 루프 → 트랜잭션 스코프 → 선기록 → 지급 → MailId 업데이트
     // [원자성] ExecuteInTransactionAsync로 전체 흐름을 단일 트랜잭션 스코프로 묶음
     // [중첩 트랜잭션 지원] 외부 트랜잭션 활성 시 자동으로 참여자가 되어 커밋/롤백을 호출자에게 위임
+    // [동시성 보호] PlayerItem.xmin 낙관적 동시성 토큰 — 충돌 시 최대 3회 재시도
     public async Task<GrantRewardResult> GrantAsync(GrantRewardRequest request)
     {
-        // 빈 번들이면 지급할 내용 없음
+        // 빈 번들이면 지급할 내용 없음 (재시도 루프 진입 전 사전 검증)
         if (request.Bundle.IsEmpty)
             return GrantRewardResult.Fail("지급할 보상이 없습니다.");
 
-        // PlayerId 존재 여부 확인 — FK 위반 방지 (트랜잭션 시작 전 검증)
+        // PlayerId 존재 여부 확인 — FK 위반 방지 (트랜잭션 시작 전 검증, 재시도 루프 밖)
         var player = await _playerRepository.GetByIdAsync(request.PlayerId);
         if (player is null)
             return GrantRewardResult.NotFound();
 
-        // 전체 보상 지급 흐름을 단일 트랜잭션 스코프로 묶음
-        // 외부 트랜잭션이 활성 상태이면 자동으로 참여자가 되어 커밋/롤백을 호출자에게 위임
-        return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        // PlayerItem.xmin 동시성 충돌 시 재시도 루프 — 최대 3회
+        // DbUpdateConcurrencyException은 ExecuteInTransactionAsync 내부에서 롤백 후 여기로 전파됨
+        const int maxAttempts = 3;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            // 1단계: RewardGrant 선기록 — UNIQUE 제약으로 동시 요청 중복 지급 원자적 차단
-            var grant = new Domain.Entities.RewardGrant
-            {
-                PlayerId = request.PlayerId,
-                SourceType = request.SourceType,
-                SourceKey = request.SourceKey,
-                GrantedAt = DateTime.UtcNow,
-                BundleSnapshot = JsonSerializer.Serialize(request.Bundle)
-            };
-            await _grantRepo.AddAsync(grant);
-
             try
             {
-                await _grantRepo.SaveChangesAsync();
+                // 전체 보상 지급 흐름을 단일 트랜잭션 스코프로 묶음
+                // 외부 트랜잭션이 활성 상태이면 자동으로 참여자가 되어 커밋/롤백을 호출자에게 위임
+                return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+                {
+                    // 1단계: RewardGrant 선기록 — UNIQUE 제약으로 동시 요청 중복 지급 원자적 차단
+                    var grant = new Domain.Entities.RewardGrant
+                    {
+                        PlayerId = request.PlayerId,
+                        SourceType = request.SourceType,
+                        SourceKey = request.SourceKey,
+                        GrantedAt = DateTime.UtcNow,
+                        BundleSnapshot = JsonSerializer.Serialize(request.Bundle)
+                    };
+                    await _grantRepo.AddAsync(grant);
+
+                    try
+                    {
+                        await _grantRepo.SaveChangesAsync();
+                    }
+                    catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+                    {
+                        // UNIQUE 위반 — 이미 지급된 보상
+                        // DetachEntry로 실패 엔티티를 ChangeTracker에서 제거 — 미제거 시 람다 종료 후 SaveChangesAsync에서 재시도됨
+                        _unitOfWork.DetachEntry(grant);
+                        _logger.LogInformation(
+                            "이미 지급된 보상 (선기록 중복) — PlayerId: {PlayerId}, SourceType: {SourceType}, SourceKey: {SourceKey}",
+                            request.PlayerId, request.SourceType, request.SourceKey);
+                        return GrantRewardResult.Duplicate();
+                    }
+
+                    // 2단계: 지급 방식 결정
+                    var mode = DetermineMode(request.Mode, request.Bundle);
+
+                    // 3단계: 실제 보상 지급 — 예외 발생 시 람다 밖으로 전파, 소유자가 롤백
+                    GrantRewardResult result;
+                    if (mode == DispatchMode.Direct)
+                        result = await DispatchDirectAsync(request);
+                    else
+                        result = await DispatchMailAsync(request);
+
+                    // 4단계: MailId 업데이트
+                    if (result.MailId.HasValue)
+                    {
+                        grant.MailId = result.MailId;
+                        await _grantRepo.SaveChangesAsync();
+                    }
+
+                    _logger.LogInformation(
+                        "보상 지급 완료 — PlayerId: {PlayerId}, SourceType: {SourceType}, Mode: {Mode}",
+                        request.PlayerId, request.SourceType, mode);
+
+                    return result;
+                });
             }
-            catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+            catch (DbUpdateConcurrencyException)
             {
-                // UNIQUE 위반 — 이미 지급된 보상
-                // DetachEntry로 실패 엔티티를 ChangeTracker에서 제거 — 미제거 시 람다 종료 후 SaveChangesAsync에서 재시도됨
-                _unitOfWork.DetachEntry(grant);
-                _logger.LogInformation(
-                    "이미 지급된 보상 (선기록 중복) — PlayerId: {PlayerId}, SourceType: {SourceType}, SourceKey: {SourceKey}",
-                    request.PlayerId, request.SourceType, request.SourceKey);
-                return GrantRewardResult.Duplicate();
+                // when 필터 금지 — 마지막 시도(attempt=maxAttempts)도 반드시 catch에 진입해야 Fail 반환 가능
+                // when (attempt < maxAttempts) 필터를 사용하면 마지막 시도 예외가 호출자로 전파되어 500 에러 발생
+                if (attempt >= maxAttempts)
+                {
+                    _logger.LogWarning(
+                        "PlayerItem 동시성 충돌 한도 초과 — 재시도 {Max}회 모두 실패 (PlayerId={PlayerId}, SourceKey={SourceKey})",
+                        maxAttempts, request.PlayerId, request.SourceKey);
+                    // retry loop를 빠져나가 아래 Fail 반환부로 이동
+                    break;
+                }
+
+                // PlayerItem.xmin 충돌 — 다른 트랜잭션이 동일 PlayerItem 행을 먼저 갱신
+                // ClearChangeTracker로 stale 엔티티 제거 후 다음 시도에서 DB 최신값으로 재조회
+                _logger.LogWarning(
+                    "PlayerItem 동시성 충돌 — 재시도 {Attempt}/{Max} (PlayerId={PlayerId}, SourceKey={SourceKey})",
+                    attempt, maxAttempts, request.PlayerId, request.SourceKey);
+                _unitOfWork.ClearChangeTracker();
             }
+        }
 
-            // 2단계: 지급 방식 결정
-            var mode = DetermineMode(request.Mode, request.Bundle);
-
-            // 3단계: 실제 보상 지급 — 예외 발생 시 람다 밖으로 전파, 소유자가 롤백
-            GrantRewardResult result;
-            if (mode == DispatchMode.Direct)
-                result = await DispatchDirectAsync(request);
-            else
-                result = await DispatchMailAsync(request);
-
-            // 4단계: MailId 업데이트
-            if (result.MailId.HasValue)
-            {
-                grant.MailId = result.MailId;
-                await _grantRepo.SaveChangesAsync();
-            }
-
-            _logger.LogInformation(
-                "보상 지급 완료 — PlayerId: {PlayerId}, SourceType: {SourceType}, Mode: {Mode}",
-                request.PlayerId, request.SourceType, mode);
-
-            return result;
-        });
+        // 최대 재시도 횟수 초과 — 지속적인 동시성 충돌로 지급 실패
+        return GrantRewardResult.Fail("동시성 충돌이 지속되어 보상 지급에 실패했습니다.");
     }
 
     // UNIQUE 제약 위반 여부 확인 — PostgreSQL SqlState 23505
