@@ -144,7 +144,7 @@
 {
     <div class="alert alert-info py-2 mb-4" role="alert">
         <strong>로그 기록 조건 (429 발생 시 자동 기록):</strong><br/>
-        <span>· <strong>auth 정책</strong>: 동일 IP가 인증 엔드포인트(<code>/auth/*</code>) 전체에 <strong>1분 내 @(authPermitLimit > 0 ? authPermitLimit : "?")회 초과</strong></span>
+        <span>· <strong>auth 정책</strong>: 인증 엔드포인트(<code>/auth/*</code>) — 미인증 IP <strong>분당 @(authPermitLimit > 0 ? authPermitLimit : "?")회</strong> / 인증 PlayerId <strong>분당 @(authPlayerPermitLimit > 0 ? authPlayerPermitLimit : "?")회</strong> 초과 시</span>
     </div>
 
     <div class="d-flex gap-2 align-items-center mb-3">
@@ -195,8 +195,8 @@
     <section class="mb-4 mt-4">
         <h4>침투 시도 테스트</h4>
         <p class="text-muted small">
-            auth 엔드포인트에 <strong>@(authPermitLimit > 0 ? authPermitLimit + 5 : 65)회</strong> 연속 요청을 보내
-            Rate Limit(<strong>@(authPermitLimit > 0 ? authPermitLimit : "?")회/분</strong>)을 고의로 초과시킵니다.
+            auth 엔드포인트에 <strong>@(authPermitLimit > 0 ? authPermitLimit + 5 : 20)회</strong> 연속 요청을 보내
+            미인증 IP Rate Limit(<strong>@(authPermitLimit > 0 ? authPermitLimit : "?")회/분</strong>)을 고의로 초과시킵니다.
         </p>
         <button class="btn btn-danger" @onclick="RunAttackTest" disabled="@isAttacking">
             @(isAttacking ? "시도 중..." : "침투 시도")

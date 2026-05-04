@@ -346,8 +346,11 @@ public static class ServiceExtensions
         // RateLimitLogRepository는 OnRejected 콜백에서 직접 생성하므로 Scoped 등록
         services.AddScoped<RateLimitLogRepository>();
 
-        // appsettings.json의 RateLimiting:AuthPermitLimit 값 사용 — 미설정 시 60 기본값
-        var authPermitLimit = config.GetValue<int>("RateLimiting:AuthPermitLimit", 60);
+        // 인증 엔드포인트 Rate Limit 한도
+        // AuthPermitLimit: 미인증(IP) 기준 분당 허용 횟수 — 미설정 시 15 기본값
+        // AuthPlayerPermitLimit: 인증(PlayerId) 기준 분당 허용 횟수 — 미설정 시 30 기본값
+        var authPermitLimit = config.GetValue<int>("RateLimiting:AuthPermitLimit", 15);
+        var authPlayerPermitLimit = config.GetValue<int>("RateLimiting:AuthPlayerPermitLimit", 30);
 
         // 광고 콜백 Rate Limit — 광고 네트워크 서버 IP 기준 분당 요청 수 제한
         // 미설정 시 300 기본값 (광고 네트워크 서버는 합법적으로 많은 요청 발송)
@@ -365,15 +368,29 @@ public static class ServiceExtensions
 
         services.AddRateLimiter(options =>
         {
-            // AddFixedWindowLimiter: 이름("auth")을 붙여 등록하는 방식
-            // [EnableRateLimiting("auth")]로 특정 컨트롤러/액션에만 선택 적용 가능
-            // 로그인 API처럼 별도 제한이 필요한 엔드포인트에 사용
-            options.AddFixedWindowLimiter("auth", limiter =>
+            // 인증 엔드포인트 파티션 정책 — 인증 여부에 따라 파티션 키·한도를 분기
+            // 인증 성공(JWT 유효): PlayerId 기준 파티셔닝 → 분당 authPlayerPermitLimit회
+            // 미인증/토큰 없음:   IP 기준 파티셔닝     → 분당 authPermitLimit회
+            // [EnableRateLimiting("auth")]로 AuthController 전체에 적용
+            options.AddPolicy("auth", httpContext =>
             {
-                limiter.PermitLimit = authPermitLimit;
-                limiter.Window = TimeSpan.FromMinutes(1);
-                limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-                limiter.QueueLimit = 0;
+                var playerId = httpContext.User.GetPlayerId();
+
+                // 인증 여부에 따라 파티션 키 결정
+                // 인증 시: player:{id}, 미인증 시: ip:{RemoteIpAddress}
+                var key = playerId.HasValue
+                    ? $"player:{playerId.Value}"
+                    : $"ip:{httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+
+                return RateLimitPartition.GetFixedWindowLimiter(key, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        // 인증 플레이어는 관대하게, 미인증 IP는 엄격하게 제한
+                        PermitLimit = playerId.HasValue ? authPlayerPermitLimit : authPermitLimit,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+                    });
             });
 
             // 광고 SSV 콜백 Rate Limit — 광고 네트워크 서버가 직접 호출하는 엔드포인트
@@ -433,7 +450,7 @@ public static class ServiceExtensions
             });
 
             // HTTP 429 Too Many Requests — Rate Limit 초과 시 서버가 반환하는 상태 코드
-            // 현재 적용 정책: auth 엔드포인트(/auth/*) IP 기준 authPermitLimit회/분
+            // auth 정책: 미인증 IP 분당 authPermitLimit회 / 인증 PlayerId 분당 authPlayerPermitLimit회
             // 발생 즉시 RateLimitLog DB에 기록하여 보안 감시 페이지에서 확인 가능
             options.OnRejected = async (context, cancellationToken) =>
             {

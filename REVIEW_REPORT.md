@@ -27,7 +27,7 @@
 | # | ID | 위치 | 영향 |
 |---|---|---|---|
 | 1 | ~~C-1~~ | Framework.Admin/Program.cs:67 + Razor 페이지 4건 | **[해결]** FallbackPolicy(RequireAuthenticatedUser) 적용 + AdminNotifications [Authorize] / Errors [AllowAnonymous] 부착 |
-| 2 | C-2 | Framework.Api/Extensions/ServiceExtensions.cs:371 | 단일 공격자로 전체 인증 API 차단(전체 가용성 결함) |
+| 2 | ~~C-2~~ | Framework.Api/Extensions/ServiceExtensions.cs | **[해결]** AddPolicy("auth")로 IP/PlayerId 파티션 분기 적용 (미인증 IP 15/min, 인증 PlayerId 30/min) |
 | 3 | ~~H-15~~ | — | **방치 — 개발용 더미값 정책 (운영은 .env 교체)** |
 | 4 | H-9 | Framework.Admin/Program.cs:125 | /admin-login Rate Limit 부재 → 분산 비밀번호 추측 공격 |
 | 5 | H-12 | AuthService.cs:180 + AppDbContext.cs:404 | IAP 이력 보유 플레이어 탈퇴 시 FK 위반으로 GDPR 삭제 실패 |
@@ -166,10 +166,16 @@
   - `Pages/Errors/NotFound.razor` / `Pages/Errors/Error.razor` `[AllowAnonymous]` 부착 (FallbackPolicy 도입에 따른 명시 처리)
 - **검증**: qa-reviewer 승인 — 빌드 성공, 미들웨어 순서 정합, 27개 페이지 어노테이션 누락 0건
 
-### C-2. `auth` Rate Limit 파티션 키 부재 — 인증 API 전체 가용성 결함
-- **파일**: `Framework.Api/Extensions/ServiceExtensions.cs:371-377`
+### ~~C-2~~. `auth` Rate Limit 파티션 키 부재 — 인증 API 전체 가용성 결함 — **[해결] (round_20260503)**
+- **파일**: `Framework.Api/Extensions/ServiceExtensions.cs` + `appsettings.json` + `AdminSecurityController.cs` + Admin RateLimitLogs 페이지 등 6파일
 - **현상**: `AddFixedWindowLimiter("auth", ...)` 오버로드는 단일 limiter 인스턴스 생성(파티션 함수 없음). AuthController 전체에 `[EnableRateLimiting("auth")]` 적용되어 모든 IP·유저 합산 분당 60회. 단일 공격자가 정상 사용자 인증을 차단 가능
-- **해결**: `AddPolicy("auth", httpContext => RateLimitPartition.GetFixedWindowLimiter(ipKey, ...))`로 IP 파티션 적용. PermitLimit IP당 분당 10~20
+- **해결 적용**:
+  - `AddPolicy("auth", httpContext => ...)`로 전환 — 인증 시 `player:{id}` / 미인증 시 `ip:{remote}` 파티션 분기 (`game`/`iap-verify` 정책과 동일 패턴)
+  - 한도: `AuthPermitLimit` 60→15 (미인증 IP 분당), `AuthPlayerPermitLimit` 30 신규 (인증 PlayerId 분당)
+  - AdminSecurityController.GetRateLimitConfig 응답 → `RateLimitConfigDto` typed record 전환 (직전 da4e42f 누락분 보강)
+  - Admin RateLimitLogs 페이지 IP/PlayerId 한도 분리 표시
+- **검증**: qa-reviewer 2회 승인 — 빌드 성공, 파티션 분기 정합, OnRejected DB 로깅 흐름 유지
+- **[추적] 잔여**: ForwardedHeaders / docker bridge IP 보존 (별도 이슈 — Caddy 도입 시점 처리)
 
 ---
 

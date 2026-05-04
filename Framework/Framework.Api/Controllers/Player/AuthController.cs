@@ -10,7 +10,7 @@ namespace Framework.Api.Controllers.Player;
 [ApiController]
 [Route("auth")]
 // [EnableRateLimiting]: 지정한 정책 이름의 Rate Limit을 이 컨트롤러 전체에 적용한다
-// "auth" 정책 = 동일 IP 기준 1분에 10회 초과 시 429 반환 (ServiceExtensions에서 정의)
+// "auth" 정책 = 미인증 IP당 분당 15회 / 인증 PlayerId당 분당 30회 (ServiceExtensions.cs auth 정책 정의)
 [EnableRateLimiting("auth")]
 public class AuthController : ControllerBase
 {

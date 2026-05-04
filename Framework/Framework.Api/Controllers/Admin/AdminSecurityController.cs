@@ -21,14 +21,16 @@ public class AdminSecurityController : ControllerBase
     }
 
     // Rate Limit 정책 현재 설정값 반환 — Admin 페이지 동적 표시용
+    // auth 정책은 인증 여부에 따라 한도가 분기되므로 두 값을 모두 반환
     [HttpGet("rate-limit-config")]
     public IActionResult GetRateLimitConfig()
     {
-        return Ok(new
-        {
-            // appsettings.json RateLimiting:AuthPermitLimit 값 그대로 반환
-            AuthPermitLimit = _config.GetValue<int>("RateLimiting:AuthPermitLimit", 60)
-        });
+        return Ok(new RateLimitConfigDto(
+            // 미인증(IP) 기준 분당 허용 횟수 — appsettings.json 의 RateLimiting:AuthPermitLimit 키
+            AuthPermitLimit: _config.GetValue<int>("RateLimiting:AuthPermitLimit", 15),
+            // 인증(PlayerId) 기준 분당 허용 횟수 — appsettings.json 의 RateLimiting:AuthPlayerPermitLimit 키
+            AuthPlayerPermitLimit: _config.GetValue<int>("RateLimiting:AuthPlayerPermitLimit", 30)
+        ));
     }
 
     // 보안 이벤트 통합 타임라인 조회
@@ -129,6 +131,14 @@ public class AdminSecurityController : ControllerBase
         return Ok(timeline);
     }
 }
+
+// Rate Limit 정책 설정 응답 DTO — appsettings.json 의 RateLimiting 섹션에서 동적으로 읽어 반환
+public record RateLimitConfigDto(
+    // 미인증(IP) 기준 분당 허용 횟수 — appsettings.json 의 RateLimiting:AuthPermitLimit 키
+    int AuthPermitLimit,
+    // 인증(PlayerId) 기준 분당 허용 횟수 — appsettings.json 의 RateLimiting:AuthPlayerPermitLimit 키
+    int AuthPlayerPermitLimit
+);
 
 // 보안 이벤트 통합 DTO — 타입별 이벤트를 단일 형태로 표현
 public record SecurityTimelineItemDto(

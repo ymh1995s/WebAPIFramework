@@ -16,8 +16,12 @@ public partial class RateLimitLogs : SafeComponentBase
     [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
-    // Rate Limit 설정값 — API에서 동적으로 읽어옴
+    // Rate Limit 설정값 — API(GET /api/admin/security/rate-limit-config)에서 동적으로 읽어옴
+    // 원천: 서버 appsettings.json 의 RateLimiting 섹션 (auth 정책은 인증 여부에 따라 분기)
+    // 미인증(IP) 기준 한도 — 서버 appsettings.json: RateLimiting:AuthPermitLimit
     private int authPermitLimit = 0;
+    // 인증(PlayerId) 기준 한도 — 서버 appsettings.json: RateLimiting:AuthPlayerPermitLimit
+    private int authPlayerPermitLimit = 0;
 
     // 현재 활성 탭 — "timeline" 또는 "ip"
     private string activeTab = "timeline";
@@ -57,7 +61,12 @@ public partial class RateLimitLogs : SafeComponentBase
         if (response.IsSuccessStatusCode)
         {
             var data = await response.Content.ReadFromJsonAsync<RateLimitConfigDto>();
-            if (data is not null) authPermitLimit = data.AuthPermitLimit;
+            if (data is not null)
+            {
+                // auth 정책의 IP 한도·PlayerId 한도를 각각 바인딩
+                authPermitLimit = data.AuthPermitLimit;
+                authPlayerPermitLimit = data.AuthPlayerPermitLimit;
+            }
         }
     }
 
@@ -150,8 +159,15 @@ public partial class RateLimitLogs : SafeComponentBase
             timelineError = $"밴 처리 실패: {response.StatusCode}";
     }
 
-    // Rate Limit 설정 응답 DTO
-    private record RateLimitConfigDto(int AuthPermitLimit);
+    // Rate Limit 설정 응답 DTO — auth 정책의 IP/PlayerId 한도를 각각 포함
+    // API 엔드포인트 GET /api/admin/security/rate-limit-config 의 응답 매핑용
+    // 두 값 모두 서버 appsettings.json 의 RateLimiting 섹션에서 동적으로 읽혀 옴
+    private record RateLimitConfigDto(
+        // 미인증(IP) 기준 분당 허용 횟수 — 서버 appsettings.json 의 RateLimiting:AuthPermitLimit 에서 읽힘
+        int AuthPermitLimit,
+        // 인증(PlayerId) 기준 분당 허용 횟수 — 서버 appsettings.json 의 RateLimiting:AuthPlayerPermitLimit 에서 읽힘
+        int AuthPlayerPermitLimit
+    );
 
     // API 응답 매핑용 로컬 DTO
     private record RateLimitLogDto(string IpAddress, int Count, DateTime LastOccurredAt);
