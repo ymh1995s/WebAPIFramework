@@ -1,6 +1,7 @@
 # WebAPIFramework 종합 리뷰 보고서 (round_20260503)
 
 > 라운드: 2026-05-03 | 청크 분할 13개(검토 12 + 합본 1) 모두 완료
+> **종결: 2026-05-05** — Critical/High 처리 완료, 잔여 Med/Low 백로그화
 > 직전 라운드(2026-04-30) 보고서: `review/round_20260503/REVIEW_REPORT.previous.md`
 > 청크 산출물 인덱스: 부록 A 참고
 
@@ -13,14 +14,15 @@
 - 검토 청크: P1.1~P1.3 / P2.1~P2.4 / P3.1~P3.5 (12)
 - 에이전트: architect 3 + qa-reviewer 4 + security-master 5
 - 총 식별 이슈: **101건** (Critical 2 / High 14 / Med 51 / Low 34)
+- **종결 시점 처리율**: Critical 2/2, High 12/14(+2 의도적 보류), Med 약 22/51, Low 약 7/34
 
-### 심각도별 합계
-| 심각도 | 건수 | 즉시 조치 |
-|---|---|---|
-| Critical | 2 | 2 |
-| High | 14 | 12 (H-14/H-15 방치) |
-| Med | 51 | 0 |
-| Low | 34 | 0 |
+### 심각도별 합계 (라운드 종결 기준)
+| 심각도 | 건수 | 해결 | 보류·방치 | 잔여 |
+|---|---|---|---|---|
+| Critical | 2 | 2 | 0 | 0 |
+| High | 14 | 12 | 5 (H-5/H-9/H-11/H-14/H-15) | 0 |
+| Med | 51 | ~22 | 0 | ~29 |
+| Low | 34 | ~7 | 0 | ~27 |
 
 ### Top 5 즉시 조치 (Critical → 비용 대비 영향 순)
 
@@ -328,28 +330,32 @@
 
 ---
 
-## 8장. DEVNOTES.md 갱신 권고
+## 8장. DEVNOTES.md 갱신 권고 — 후처리 결과 (2026-05-05 종결)
 
 ### 신규 [Caution] 섹션 추가
-- Framework.Admin 인가 정책: FallbackPolicy 또는 `_Imports.razor` `@attribute [Authorize]` 일괄 적용 확정 시 절차 박제
-- `appsettings.Development.json` 정책: `**/appsettings.Development.json` .gitignore 등재 + dev 시크릿 User Secrets 또는 .env로 이전 절차 명문화
+- ~~Framework.Admin 인가 정책 박제~~ → **[반영]** C-1 해결 시 코드에 FallbackPolicy 적용 + DEVNOTES Feature Status `Admin 인증` 항목에 명시
+- ~~appsettings.Development.json .gitignore 정책~~ → **[보류]** H-14/H-15 의도적 방치(개발용 더미값, 1인 운영) — 별도 박제 불필요
 
 ### 기존 명세와 코드 불일치 정정
-- "DailyLoginLog + RewardGrants 이중보호 유지" → 실제 코드에 RewardGrants 미기록. 문구 수정 또는 RewardDispatcher 경유 전환
+- ~~"DailyLoginLog + RewardGrants 이중보호 유지" 정정~~ → **[반영]** M-17 RewardDispatcher Mail 경로 전환 결과를 DEVNOTES 보상 프레임워크 #4 항목에 갱신
 
 ### [기술 부채] 섹션 보강
-- PlayerItem.Quantity 동시성 토큰 미적용 — Currency-as-Item Lost Update 위험. ExecuteUpdate 패턴 또는 IsConcurrencyToken 도입
-- IapPurchase 탈퇴 FK Restrict ↔ Withdraw hard delete 충돌 — Withdraw를 SoftDelete + PII 익명화로 전환 권고
-- RefreshToken DB 평문 저장 — SHA-256 해시 저장 마이그레이션 계획
-- AuditLog/RateLimitLog/IapPurchase.ClientIp 보관기간 정책 — 90/180일 BackgroundService 정리 작업 신설
-- 테스트 프로젝트 0개 — Framework.Tests xUnit 신설 P0 권고(RewardDispatcher + ClaimAsync 통합 테스트)
-- DB EnableRetryOnFailure / HealthChecks / Polly Resilience — 운영 배포 전 필수 도입
-- 보안 응답 헤더 미들웨어 — API/Admin 양쪽 일괄 도입
+- ~~PlayerItem.Quantity 동시성 토큰~~ → **[반영]** H-3 해결 + DEVNOTES `[설계 결정] 낙관적 동시성 토큰 — PostgreSQL xmin 채택` 박제
+- ~~IapPurchase 탈퇴 FK Restrict ↔ Withdraw 충돌~~ → **[반영]** H-12 해결 + DEVNOTES `[설계 결정] 계정 탈퇴 정책 — SoftDelete + PII 익명화` 박제
+- ~~RefreshToken DB 평문 저장~~ → **[반영]** H-6 해결 + DEVNOTES `[설계 결정] RefreshToken — DB 평문 저장 금지, SHA-256 해시` 박제
+- ~~보관기간 정책~~ → **[반영]** M-44 해결 + DEVNOTES `[설계 결정] PII 자동 보관기간 정책` 박제
+- ~~테스트 프로젝트 0개~~ → **[부분 반영]** H-4 인프라 셋업 + DEVNOTES `[Test] 프로젝트 가이드` 박제. 풀 비즈니스 테스트는 별도 라운드
+- ~~DB EnableRetryOnFailure / HealthChecks~~ → **[반영]** H-7/H-8 해결. Polly Resilience(H-9)는 보류
+- ~~보안 응답 헤더 미들웨어~~ → **[부분 반영]** H-10 6종 적용. CSP는 별도 라운드(Admin Blazor 깨짐 위험 회피)
 
 ### [설계 결정] 명문화 후보
-- Mail.ItemId/Item deprecated 단일 경로 디케이 일정(예: 모든 미수령 우편 소진 후 컬럼 Drop)
-- `auth` Rate Limit IP 파티션 구조 + 한도 정책
-- Item 마스터 Singleton 캐시 도입 시 Update/Delete 시 Invalidate 흐름
+- **Mail.ItemId/Item deprecated 디케이 일정 (M-9)** → **[보류]** Med 백로그
+- **`auth` Rate Limit IP/PlayerId 파티션 구조** → **[반영]** DEVNOTES `[설계 결정] auth Rate Limit — IP/PlayerId 이중 파티션` 박제
+- **Item 마스터 Singleton 캐시 Invalidate (M-7)** → **[보류]** Med 백로그 — 캐시 도입 시점에 함께 박제
+
+### 본 라운드 추가 박제
+- **DEVNOTES `[Admin 경로 추가 시 의무]`** — IapPurchase Status 변경 경로 추가 시 동일 xmin 토큰 적용 + 운영자 충돌은 재시도 X 명시 (M-29 라운드)
+- **DEVNOTES `[미구현] ExecuteConsumeAsync 동시성 처리`** — M-29 분리 결정사항 박제
 
 ---
 
