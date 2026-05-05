@@ -230,7 +230,7 @@
 | M-16 | AuthService ILogger 미주입 — 인증 핵심 경로 보안 감사 추적 불가 | AuthService.cs |
 | ~~M-17~~ | **[해결]** IRewardDispatcher.GrantAsync(Mode=Mail) 경유 + 트랜잭션 분리 (1차 DailyLoginLog 커밋 → 2차 Dispatcher 호출). 2차 실패 시 AdminNotification(Critical, RewardDispatchFailure) 등록 + 운영자 수동 보전. SourceKey 형식 `daily-login:{yyyy-MM-dd}` | DailyLoginService.cs |
 | ~~M-18~~ | **[해결]** `Framework.Application/Common/DbUpdateExceptionExtensions.cs` extension method로 단일화 — 5곳 private 중복 메서드 완전 제거 (괄호 누락 포함 자연 정정) | DbUpdateExceptionExtensions.cs (신규) + 5개 Service |
-| M-19 | BuildBundleAsync 2곳 완전 동일 코드 중복(IAP + AdReward) | IapPurchaseService.cs:263 + AdRewardService.cs:146 |
+| ~~M-19~~ | **[해결]** `Framework.Application/Common/RewardBundleBuilder.cs` static 빌더 추출 — AdRewardService + IapPurchaseService 2곳 private BuildBundleAsync 완전 제거, `RewardBundleBuilder.BuildAsync` 단일 호출로 통합 | RewardBundleBuilder.cs(신규) + AdRewardService.cs + IapPurchaseService.cs |
 | ~~M-20~~ | **[해결]** `Framework.Application/Common/AdminNotificationDedupKeys.cs` 빌더 4종(IapConsumeFail/IapRefund/IapCancel/DailyLoginFail) + kebab-case 통일. IapRtdnService underscore→hyphen 의도적 변경(출시 전 DB 0건) | AdminNotificationDedupKeys.cs(신규) + 4개 Service |
 | ~~M-21~~ | **[해결]** `Framework.Application/Common/SourceKeys.cs` 빌더 도입(8종 — LevelUp/Mail/DailyLogin/AdReward/IapPurchase/StageFirstClear/StageReplay/StageExp). 6개 Service에서 매직 문자열 → 빌더 호출. 출력값 byte-identical(RewardGrants 회귀 0). Admin 자유 형식은 빌더화 미적용(Q8) | SourceKeys.cs(신규) + 6개 Service |
 | ~~M-22~~ | **[해결, 부분]** IapPurchaseController catch-all 제거 + GlobalExceptionHandler 위임. IapVerifierException → 502 BadGateway 전환(외부 의존 실패 의미 명확). AdsCallback/IapRtdn catch-all은 광고 네트워크/Pub/Sub 재시도 회피 의도로 **유지**, 응답 형식만 ProblemDetails 통일 | IapPurchaseController.cs + AdsCallbackController.cs + IapRtdnController.cs |
@@ -276,8 +276,8 @@
 | ID | 항목 |
 |---|---|
 | L-1 | Application의 Microsoft.Extensions.Caching.Memory 직접 참조 |
-| L-2 | AdminRewardDispatchController DTO 3개 Controller 파일 내 인라인 정의 |
-| L-3 | DTO를 Controller 파일 내 인라인 정의(SecurityTimelineItemDto) |
+| ~~L-2~~ | **[해결]** `Framework.Application/Features/AdminRewardDispatch/AdminRewardDispatchDto.cs` 분리 — AdminGrantRewardDto/AdminGrantItemDto Controller 외부 이동. Attribute/필드 완전 보존 | AdminRewardDispatchDto.cs(신규) + AdminRewardDispatchController.cs |
+| ~~L-3~~ | **[해결]** `RateLimitLogs.razor.cs` 내부 private record SecurityTimelineItemDto 제거 — `Framework.Application.Features.Security.SecurityTimelineItemDto` import로 전환 | RateLimitLogs.razor.cs |
 | L-4 | DailyLoginController/MatchMakingController/StagesController 익명 객체 응답 잔존 |
 | L-5 | IUnitOfWork.BeginTransactionAsync 재진입 가드 없이 인터페이스 노출 |
 | L-6 | AdminPlayerService Ban/Unban 명시 UoW 미사용(원자성 OK·일관성 미흡) |
@@ -289,10 +289,10 @@
 | L-12 | IapConsumerResolver Dictionary 매핑 미적용(다른 Resolver와 패턴 불일치) |
 | L-13 | RequireLinkedAccount 응답 익명 객체 |
 | L-14 | RewardDispatcher 괄호 누락 1건(동작 동일하나 비일관) |
-| L-15 | KstOffset 상수 2곳 중복 |
+| ~~L-15~~ | **[해결]** `Framework.Domain/Constants/TimeConstants.cs` KstOffset 단일 정의 — PiiRetentionCleanupService + DailyRewardSlotService 2곳 private 선언 제거, `TimeConstants.KstOffset` 참조. (잔여) DailyLoginService.GetGameDay `AddHours(9)` 하드코딩 — 별도 라운드 |
 | L-16 | 광고 일일 한도 UTC/KST 기준 불일치 |
-| L-17 | RefundReason "Voided"/"Canceled" 문자열 리터럴 |
-| L-18 | MailService Reason "MailClaim" 하드코딩 |
+| ~~L-17~~ | **[해결]** `Framework.Domain/Constants/RefundReasons.cs` Voided/Canceled 상수 정의 — IapRtdnService 4곳 리터럴 완전 제거, `RefundReasons.Voided`/`RefundReasons.Canceled` 참조 | RefundReasons.cs(신규) + IapRtdnService.cs |
+| ~~L-18~~ | **[해결]** `Framework.Domain/Constants/AuditLogReasons.cs` MailClaim 상수 정의 — MailService 2곳 + AuditLogs.razor.cs 1곳 리터럴 제거, `AuditLogReasons.MailClaim` 참조 | AuditLogReasons.cs(신규) + MailService.cs + AuditLogs.razor.cs |
 | L-19 | PlayerRepository.BanAsync/UnbanAsync 도메인 행위를 Repository에서 수행 |
 | L-20 | CurrencyIds 시드 보호 가드 부재(ItemId=1/2 수정/삭제 차단 없음) |
 | L-21 | CancellationToken 전체 미전파 |
@@ -318,7 +318,7 @@
 | L-41 | RefreshToken.TokenHash 컬럼 MaxLength 미명시 — PostgreSQL `text` 타입으로 생성. 기능 영향 없으나 일관성 차원에서 향후 `HasMaxLength(44)` 추가 고려 |
 | L-42 | RefreshToken.RevokedAt 활용 경로 부재 — 검증 시 `IS NULL` 체크는 도입됐으나 채우는 코드는 없음. 강제 로그아웃/회전 보존 정책 라운드에서 활용 예정 |
 | L-43 | LogoutAsync가 RefreshToken 물리 삭제 유지 — 향후 RevokedAt 활용 시 `RevokedAt = UtcNow` + SaveChanges로 전환 권고 |
-| L-44 | AdminStagesController 메시지 매칭 잔존 — `ex.Message.Contains("unique") || ex.InnerException?.Message.Contains("23505")` 패턴이 컨트롤러에 직접 사용. M-46 SqlState 전환 일괄 적용 후속 라운드 권고 |
+| ~~L-44~~ | **[해결]** AdminStagesController catch 패턴 전환 — `DbUpdateException ex when (ex.IsUniqueViolation())` 적용. 동작 변경: catch 좁힘(UNIQUE 위반만 409, 그 외 예외 GlobalExceptionHandler 위임) + `IsUniqueViolation` SqlState 기반 정확 판별 | AdminStagesController.cs |
 | L-45 | DailyLoginService catch 필터 없음 — 모든 DbUpdateException을 silently swallow. M-2 D2 결정으로 본 라운드 미포함, 별도 라운드에서 IsUniqueViolation 필터 적용 권고 |
 | L-46 | Application 레이어 Npgsql 직접 의존 (M-1 부채 가중) — DbUpdateExceptionExtensions 도입 시 추가됨. M-1 본격 해결 시 Infrastructure로 이전하는 일괄 리팩토링 권고 |
 | L-47 | ValidationProblemDetails(ModelState 400)에 errorCode 미부착 — ErrorCodes.ValidationFailed 상수 정의됨, 향후 추가 가능 |

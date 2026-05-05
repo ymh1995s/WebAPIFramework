@@ -1,5 +1,6 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Application.Features.Security;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using System.Net.Http.Json;
@@ -172,12 +173,4 @@ public partial class RateLimitLogs : SafeComponentBase
     // API 응답 매핑용 로컬 DTO
     private record RateLimitLogDto(string IpAddress, int Count, DateTime LastOccurredAt);
     private record AttackResult(int Index, int Status, string Label);
-    private record SecurityTimelineItemDto(
-        DateTime OccurredAt,
-        string Type,
-        int? PlayerId,
-        string? IpAddress,
-        string Description,
-        string Severity,
-        bool IsBanned);
 }

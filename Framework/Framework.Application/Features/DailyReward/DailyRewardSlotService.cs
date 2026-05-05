@@ -11,9 +11,6 @@ public class DailyRewardSlotService : IDailyRewardSlotService
     private readonly IDailyRewardSlotRepository _slotRepository;
     private readonly ISystemConfigRepository _systemConfigRepository;
 
-    // KST 오프셋 (UTC+9)
-    private static readonly TimeSpan KstOffset = TimeSpan.FromHours(9);
-
     public DailyRewardSlotService(
         IDailyRewardSlotRepository slotRepository,
         ISystemConfigRepository systemConfigRepository)
@@ -68,7 +65,7 @@ public class DailyRewardSlotService : IDailyRewardSlotService
     public async Task EnsureMonthTransitionAsync()
     {
         // 현재 KST 연월 (YYYYMM)
-        var kstNow = DateTime.UtcNow + KstOffset;
+        var kstNow = DateTime.UtcNow + TimeConstants.KstOffset;
         var currentMonth = $"{kstNow.Year}{kstNow.Month:D2}";
 
         // DB에서 활성 연월 조회

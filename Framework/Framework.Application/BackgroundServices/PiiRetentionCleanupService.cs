@@ -1,3 +1,4 @@
+using Framework.Domain.Constants;
 using Framework.Domain.Entities;
 using Framework.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -17,9 +18,6 @@ namespace Framework.Application.BackgroundServices;
 // [단일 인스턴스 가정] advisory lock 미적용 — 복수 인스턴스 환경에서는 advisory lock 도입 필요
 public class PiiRetentionCleanupService : BackgroundService
 {
-    // KST 오프셋 (UTC+9) — 다음 실행 시각 계산에 사용
-    private static readonly TimeSpan KstOffset = TimeSpan.FromHours(9);
-
     // BackgroundService는 Singleton 수명 — Scoped 서비스(DB 등) 사용 시 IServiceScopeFactory 필수
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptions<PiiRetentionOptions> _options;
@@ -72,7 +70,7 @@ public class PiiRetentionCleanupService : BackgroundService
     private static TimeSpan CalculateNextRunDelay(int targetHourKst)
     {
         // 현재 UTC → KST 변환
-        var nowKst = DateTime.UtcNow.Add(KstOffset);
+        var nowKst = DateTime.UtcNow.Add(TimeConstants.KstOffset);
         var targetToday = nowKst.Date.AddHours(targetHourKst);
 
         // 목표 시각이 이미 지났으면 내일 같은 시각을 목표로 설정

@@ -3,6 +3,7 @@ using Framework.Application.Features.AdminNotification;
 using Framework.Application.Features.DailyReward;
 using Framework.Application.Features.Reward;
 using Framework.Application.Features.SystemConfig;
+using Framework.Domain.Constants;
 using Framework.Domain.Entities;
 using Framework.Domain.Enums;
 using Framework.Domain.Interfaces;
@@ -27,9 +28,6 @@ public class DailyLoginService : IDailyLoginService
     private readonly IAdminNotificationService _notificationService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<DailyLoginService> _logger;
-
-    // KST 오프셋 상수 (UTC+9)
-    private static readonly TimeSpan KstOffset = TimeSpan.FromHours(9);
 
     public DailyLoginService(
         IDailyLoginLogRepository loginLogRepository,

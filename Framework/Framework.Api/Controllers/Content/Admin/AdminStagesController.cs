@@ -9,6 +9,7 @@ using Framework.Api.Filters;
 using Framework.Application.Common;
 using Framework.Application.Content.Stage;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Framework.Api.Controllers.Content.Admin;
 
@@ -61,10 +62,9 @@ public class AdminStagesController : ControllerBase
             var result = await _service.CreateStageAsync(dto);
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
-        catch (Exception ex) when (ex.Message.Contains("unique") ||
-                                    ex.InnerException?.Message.Contains("23505") == true)
+        catch (DbUpdateException ex) when (ex.IsUniqueViolation())
         {
-            // Code UNIQUE 위반
+            // Code UNIQUE 위반 — PostgreSQL SqlState 23505
             return Conflict(new MessageResponse("동일한 코드의 스테이지가 이미 존재합니다."));
         }
     }

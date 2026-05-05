@@ -1,5 +1,6 @@
 using Framework.Application.Common;
 using Framework.Application.Features.AdminNotification;
+using Framework.Domain.Constants;
 using Framework.Domain.Enums;
 using Framework.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -97,7 +98,7 @@ public class IapRtdnService : IIapRtdnService
         purchase.Status = IapPurchaseStatus.Refunded;
         purchase.RefundedAt = DateTime.UtcNow;
         purchase.UpdatedAt = DateTime.UtcNow;
-        purchase.RefundReason = "Voided";
+        purchase.RefundReason = RefundReasons.Voided;
 
         await _purchaseRepository.SaveChangesAsync();
 
@@ -118,7 +119,7 @@ public class IapRtdnService : IIapRtdnService
                 metadataJson: System.Text.Json.JsonSerializer.Serialize(new
                 {
                     purchase.PlayerId, purchase.ProductId,
-                    notification.OrderId, RefundReason = "Voided"
+                    notification.OrderId, RefundReason = RefundReasons.Voided
                 }),
                 dedupKey: AdminNotificationDedupKeys.IapRefund("google", notification.PurchaseToken));
         }
@@ -156,7 +157,7 @@ public class IapRtdnService : IIapRtdnService
         purchase.Status = IapPurchaseStatus.Refunded;
         purchase.RefundedAt = DateTime.UtcNow;
         purchase.UpdatedAt = DateTime.UtcNow;
-        purchase.RefundReason = "Canceled";
+        purchase.RefundReason = RefundReasons.Canceled;
 
         await _purchaseRepository.SaveChangesAsync();
 
@@ -177,7 +178,7 @@ public class IapRtdnService : IIapRtdnService
                 metadataJson: System.Text.Json.JsonSerializer.Serialize(new
                 {
                     purchase.PlayerId, purchase.ProductId,
-                    notification.Sku, RefundReason = "Canceled"
+                    notification.Sku, RefundReason = RefundReasons.Canceled
                 }),
                 dedupKey: AdminNotificationDedupKeys.IapCancel("google", notification.PurchaseToken));
         }

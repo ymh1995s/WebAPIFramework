@@ -148,7 +148,7 @@ public class IapPurchaseService : IIapPurchaseService
             purchase.UpdatedAt = DateTime.UtcNow;
 
             // (g) 보상 번들 구성
-            var bundle = await BuildBundleAsync(product.RewardTableId);
+            var bundle = await RewardBundleBuilder.BuildAsync(_rewardTableRepo, product.RewardTableId);
 
             // (h) 보상 지급 — RewardDispatcher가 자동으로 참여자가 되어 중첩 트랜잭션 없음
             var grantResult = await _rewardDispatcher.GrantAsync(new GrantRewardRequest(
@@ -257,58 +257,6 @@ public class IapPurchaseService : IIapPurchaseService
 
             await _purchaseRepo.SaveChangesAsync();
         }
-    }
-
-    // RewardTable의 항목으로 RewardBundle 구성
-    // Weight가 있는 항목은 가중치 확률 추첨, 없으면 전체 고정 지급 (AdRewardService 동일 패턴)
-    private async Task<RewardBundle> BuildBundleAsync(int? rewardTableId)
-    {
-        if (rewardTableId is null)
-            return new RewardBundle();
-
-        // ID로 RewardTable + Entries 조회
-        var table = await _rewardTableRepo.GetByIdWithEntriesAsync(rewardTableId.Value);
-        if (table is null || table.IsDeleted)
-            return new RewardBundle();
-
-        var entries = table.Entries.ToList();
-        if (entries.Count == 0)
-            return new RewardBundle();
-
-        // Weight가 있는 항목이 있으면 확률 추첨, 없으면 전체 고정 지급
-        bool hasWeight = entries.Any(e => e.Weight.HasValue);
-
-        if (hasWeight)
-        {
-            // 가중치 기반 확률 추첨 — 하나의 항목만 선택
-            var totalWeight = entries.Sum(e => e.Weight ?? 0);
-            if (totalWeight <= 0)
-                return new RewardBundle();
-
-            var roll = Random.Shared.Next(totalWeight);
-            var cumulative = 0;
-            foreach (var entry in entries)
-            {
-                cumulative += entry.Weight ?? 0;
-                if (roll < cumulative)
-                {
-                    return new RewardBundle(Items: new[]
-                    {
-                        new RewardItem(entry.ItemId, entry.Count)
-                    });
-                }
-            }
-        }
-        else
-        {
-            // 전체 고정 지급 — Weight 없는 모든 항목 지급
-            var items = entries
-                .Select(e => new RewardItem(e.ItemId, e.Count))
-                .ToArray();
-            return new RewardBundle(Items: items);
-        }
-
-        return new RewardBundle();
     }
 
     // 로그에 구매 토큰 전체 노출 방지 — 앞 8자만 표시

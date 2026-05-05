@@ -95,7 +95,7 @@ public class AdRewardService : IAdRewardService
         }
 
         // 5단계: 보상 번들 구성 (RewardTable이 연결된 경우)
-        var bundle = await BuildBundleAsync(policy.RewardTableId);
+        var bundle = await RewardBundleBuilder.BuildAsync(_tableRepo, policy.RewardTableId);
 
         // 보상 테이블이 없으면 지급 없이 성공 처리 (광고 시청 추적만)
         if (bundle.IsEmpty)
@@ -140,57 +140,5 @@ public class AdRewardService : IAdRewardService
         }
 
         return AdRewardResult.Ok(verified.PlayerId);
-    }
-
-    // RewardTable의 항목으로 RewardBundle 구성
-    // Weight가 있는 항목은 가중치 확률 추첨, 없으면 전체 고정 지급
-    private async Task<RewardBundle> BuildBundleAsync(int? rewardTableId)
-    {
-        if (rewardTableId is null)
-            return new RewardBundle();
-
-        // ID로 RewardTable + Entries 조회
-        var table = await _tableRepo.GetByIdWithEntriesAsync(rewardTableId.Value);
-        if (table is null || table.IsDeleted)
-            return new RewardBundle();
-
-        var entries = table.Entries.ToList();
-        if (entries.Count == 0)
-            return new RewardBundle();
-
-        // Weight가 있는 항목이 있으면 확률 추첨, 없으면 전체 고정 지급
-        bool hasWeight = entries.Any(e => e.Weight.HasValue);
-
-        if (hasWeight)
-        {
-            // 가중치 기반 확률 추첨 — 하나의 항목만 선택
-            var totalWeight = entries.Sum(e => e.Weight ?? 0);
-            if (totalWeight <= 0)
-                return new RewardBundle();
-
-            var roll = Random.Shared.Next(totalWeight);
-            var cumulative = 0;
-            foreach (var entry in entries)
-            {
-                cumulative += entry.Weight ?? 0;
-                if (roll < cumulative)
-                {
-                    return new RewardBundle(Items: new[]
-                    {
-                        new RewardItem(entry.ItemId, entry.Count)
-                    });
-                }
-            }
-        }
-        else
-        {
-            // 전체 고정 지급 — Weight 없는 모든 항목 지급
-            var items = entries
-                .Select(e => new RewardItem(e.ItemId, e.Count))
-                .ToArray();
-            return new RewardBundle(Items: items);
-        }
-
-        return new RewardBundle();
     }
 }

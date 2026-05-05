@@ -1,5 +1,6 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Domain.Constants;
 using Microsoft.AspNetCore.Components;
 
 namespace Framework.Admin.Components.Pages.Items;
@@ -112,7 +113,7 @@ public partial class AuditLogs : SafeComponentBase
     private static string ReasonBadgeClass(string reason) => reason switch
     {
         // 현재 구현된 사유 값
-        "MailClaim"    => "bg-primary",
+        AuditLogReasons.MailClaim => "bg-primary",
         // 도메인 주석 기준 예정 값 (미구현)
         "AdminGrant"   => "bg-warning text-dark",
         "ShopPurchase" => "bg-success",

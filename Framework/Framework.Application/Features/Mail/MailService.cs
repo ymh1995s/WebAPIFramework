@@ -1,6 +1,7 @@
 using Framework.Application.Common;
 using Framework.Application.Features.AuditLog;
 using Framework.Application.Features.Exp;
+using Framework.Domain.Constants;
 using Framework.Domain.Entities;
 using Framework.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -204,7 +205,7 @@ public class MailService : IMailService
                             var beforeQty = currentQty - mailItem.Quantity;
 
                             await _auditLogService.RecordAsync(
-                                mail.PlayerId, mailItem.ItemId, "MailClaim",
+                                mail.PlayerId, mailItem.ItemId, AuditLogReasons.MailClaim,
                                 mailItem.Quantity, beforeQty, currentQty);
                         }
                     }
@@ -212,7 +213,7 @@ public class MailService : IMailService
                     else if (mail.ItemId.HasValue)
                     {
                         await _auditLogService.RecordAsync(
-                            mail.PlayerId, mail.ItemId.Value, "MailClaim",
+                            mail.PlayerId, mail.ItemId.Value, AuditLogReasons.MailClaim,
                             mail.ItemCount, balanceBefore, balanceBefore + mail.ItemCount);
                     }
 
