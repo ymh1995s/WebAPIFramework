@@ -1,3 +1,4 @@
+using Framework.Application.Common;
 using Framework.Application.Features.AdminNotification;
 using Framework.Application.Features.Iap;
 using Framework.Domain.Entities;
@@ -132,7 +133,7 @@ public class IapConsumeRetryService : BackgroundService
                                  $"PlayerId={purchase.PlayerId}, ProductId={purchase.ProductId}. 수동 처리 필요.",
                         relatedEntityType: "IapPurchase",
                         relatedEntityId: purchase.Id,
-                        dedupKey: $"iap-consume-fail:{purchase.Id}");
+                        dedupKey: AdminNotificationDedupKeys.IapConsumeFail(purchase.Id));
                 }
                 catch (Exception notifEx)
                 {

@@ -1,3 +1,4 @@
+using Framework.Api.Constants;
 using Framework.Api.Filters;
 using Framework.Application.Common;
 using Framework.Application.Features.AdminNotification;
@@ -33,7 +34,7 @@ public class AdminNotificationsController : ControllerBase
         [FromQuery] int pageSize = 50)
     {
         // pageSize 범위 제한 — 알림은 최대 200건 허용 (M-37, D7)
-        pageSize = Math.Clamp(pageSize, 1, 200);
+        pageSize = Math.Clamp(pageSize, 1, PaginationLimits.AdminNotifications);
 
         var (items, total) = await _service.SearchAsync(category, isRead, page, pageSize);
         return Ok(new AdminNotificationListResponse(items, total));

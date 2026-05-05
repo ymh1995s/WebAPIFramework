@@ -1,3 +1,4 @@
+using Framework.Api.Constants;
 using Framework.Api.Filters;
 using Framework.Api.Requests;
 using Framework.Application.Common;
@@ -25,7 +26,7 @@ public class AdminPlayersController : ControllerBase
     public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
         page = Math.Max(page, 1);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        pageSize = Math.Clamp(pageSize, 1, PaginationLimits.AdminDefault);
         var result = await _adminPlayerService.GetAllAsync(page, pageSize);
         return Ok(result);
     }
@@ -38,7 +39,7 @@ public class AdminPlayersController : ControllerBase
             return BadRequest("검색어를 입력하세요.");
 
         page = Math.Max(page, 1);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        pageSize = Math.Clamp(pageSize, 1, PaginationLimits.AdminDefault);
         var result = await _adminPlayerService.SearchAsync(keyword, page, pageSize);
         return Ok(result);
     }

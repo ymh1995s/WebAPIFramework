@@ -1,3 +1,4 @@
+using Framework.Api.Constants;
 using Framework.Api.Extensions;
 using Framework.Application.Features.Ranking;
 using Microsoft.AspNetCore.Authorization;
@@ -7,7 +8,7 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Framework.Api.Controllers.Player;
 
 // 랭킹 API 컨트롤러 - 게임 클라이언트 전용 (공개/Authorize 액션만 보유)
-[EnableRateLimiting("game")]
+[EnableRateLimiting(RateLimitPolicies.Game)]
 [ApiController]
 [Route("api/[controller]")]
 public class RankingController : ControllerBase

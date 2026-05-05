@@ -1,3 +1,4 @@
+using Framework.Api.Constants;
 using Framework.Api.Extensions;
 using Framework.Api.Filters;
 using Framework.Api.ProblemDetails;
@@ -13,7 +14,7 @@ namespace Framework.Api.Controllers.Player;
 // [RequireLinkedAccount]: Google 계정 연동 필수 — 게스트 계정 결제 차단
 [Authorize]
 [RequireLinkedAccount]
-[EnableRateLimiting("iap-verify")]
+[EnableRateLimiting(RateLimitPolicies.IapVerify)]
 [ApiController]
 [Route("api/iap")]
 public class IapPurchaseController : ControllerBase

@@ -1,3 +1,4 @@
+using Framework.Application.Common;
 using Framework.Application.Features.Reward;
 using Framework.Domain.Enums;
 using Framework.Domain.Interfaces;
@@ -89,8 +90,8 @@ public class ExpService : IExpService
     // SourceType=LevelUp, SourceKey="levelup:{level}"
     private async Task GrantLevelUpRewardAsync(int playerId, int level)
     {
-        // 레벨업 보상 테이블 조회 (Code = "levelup:{level}")
-        var tableCode = $"levelup:{level}";
+        // 레벨업 보상 테이블 조회 (Code = SourceKeys.LevelUp)
+        var tableCode = SourceKeys.LevelUp(level);
         var table = await _rewardTableRepo.FindAsync(RewardSourceType.LevelUp, tableCode);
 
         if (table is null)
@@ -115,7 +116,7 @@ public class ExpService : IExpService
         var request = new GrantRewardRequest(
             PlayerId: playerId,
             SourceType: RewardSourceType.LevelUp,
-            SourceKey: $"levelup:{level}",
+            SourceKey: SourceKeys.LevelUp(level),
             Bundle: bundle,
             MailTitle: $"레벨 {level} 달성 보상",
             MailBody: $"레벨 {level}에 도달하셨습니다. 보상을 수령하세요."

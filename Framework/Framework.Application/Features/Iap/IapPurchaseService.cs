@@ -154,7 +154,7 @@ public class IapPurchaseService : IIapPurchaseService
             var grantResult = await _rewardDispatcher.GrantAsync(new GrantRewardRequest(
                 PlayerId: playerId,
                 SourceType: RewardSourceType.Purchase,
-                SourceKey: $"google:{request.PurchaseToken}",
+                SourceKey: SourceKeys.IapPurchase("google", request.PurchaseToken),
                 Bundle: bundle,
                 MailTitle: "인앱결제 보상",
                 MailBody: $"'{product.Description}' 상품 구매에 감사드립니다. 보상을 수령해 주세요.",
@@ -240,7 +240,7 @@ public class IapPurchaseService : IIapPurchaseService
                                  $"PlayerId={purchase.PlayerId}, ProductId={productId}. 수동 처리 필요.",
                         relatedEntityType: "IapPurchase",
                         relatedEntityId: purchase.Id,
-                        dedupKey: $"iap-consume-fail:{purchase.Id}");
+                        dedupKey: AdminNotificationDedupKeys.IapConsumeFail(purchase.Id));
                 }
                 catch (Exception notifEx)
                 {

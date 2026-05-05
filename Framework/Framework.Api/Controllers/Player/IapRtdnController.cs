@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Framework.Api.Constants;
 using Framework.Application.Features.Iap;
 using Framework.Api.Services.IapStore;
 using Microsoft.AspNetCore.Authorization;
@@ -14,7 +15,7 @@ namespace Framework.Api.Controllers.Player;
 [AllowAnonymous]
 [ApiController]
 [Route("api/iap/google")]
-[EnableRateLimiting("iap-rtdn")]
+[EnableRateLimiting(RateLimitPolicies.IapRtdn)]
 public class IapRtdnController : ControllerBase
 {
     private readonly IIapRtdnService _rtdnService;

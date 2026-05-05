@@ -1,3 +1,4 @@
+using Framework.Api.Constants;
 using Framework.Api.Filters;
 using Framework.Application.Common;
 using Framework.Application.Features.IapProduct;
@@ -38,7 +39,7 @@ public class AdminIapProductsController : ControllerBase
         [FromQuery] int pageSize = 20)
     {
         // pageSize 범위 제한 — 비정상적으로 큰 값 요청 시 DB 부하 방지 (M-37)
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        pageSize = Math.Clamp(pageSize, 1, PaginationLimits.AdminDefault);
 
         var (items, totalCount) = await _productService.GetListAsync(store, productType, isEnabled, page, pageSize);
         return Ok(new PagedResultDto<IapProductDto>(items, totalCount, page, pageSize));
@@ -114,7 +115,7 @@ public class AdminIapProductsController : ControllerBase
         [FromQuery] int pageSize = 20)
     {
         // pageSize 범위 제한 — 비정상적으로 큰 값 요청 시 DB 부하 방지 (M-37)
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        pageSize = Math.Clamp(pageSize, 1, PaginationLimits.AdminDefault);
 
         var (items, total) = await _purchaseService.SearchAsync(
             playerId, store, productId, status, from, to, page, pageSize);

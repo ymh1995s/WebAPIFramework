@@ -1,3 +1,4 @@
+using Framework.Application.Common;
 using Framework.Application.Features.AdminNotification;
 using Framework.Domain.Enums;
 using Framework.Domain.Interfaces;
@@ -119,7 +120,7 @@ public class IapRtdnService : IIapRtdnService
                     purchase.PlayerId, purchase.ProductId,
                     notification.OrderId, RefundReason = "Voided"
                 }),
-                dedupKey: $"iap_refund:google:{notification.PurchaseToken}");
+                dedupKey: AdminNotificationDedupKeys.IapRefund("google", notification.PurchaseToken));
         }
         catch (Exception ex)
         {
@@ -178,7 +179,7 @@ public class IapRtdnService : IIapRtdnService
                     purchase.PlayerId, purchase.ProductId,
                     notification.Sku, RefundReason = "Canceled"
                 }),
-                dedupKey: $"iap_cancel:google:{notification.PurchaseToken}");
+                dedupKey: AdminNotificationDedupKeys.IapCancel("google", notification.PurchaseToken));
         }
         catch (Exception ex)
         {

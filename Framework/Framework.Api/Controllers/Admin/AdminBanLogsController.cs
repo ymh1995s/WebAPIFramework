@@ -1,3 +1,4 @@
+using Framework.Api.Constants;
 using Framework.Api.Filters;
 using Framework.Application.Features.BanLog;
 using Framework.Domain.Enums;
@@ -32,7 +33,7 @@ public class AdminBanLogsController : ControllerBase
     {
         // 페이지 번호 최솟값 보정 및 pageSize 범위 제한
         page     = Math.Max(page, 1);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        pageSize = Math.Clamp(pageSize, 1, PaginationLimits.AdminDefault);
 
         var result = await _banLogService.SearchAsync(playerId, action, from, to, page, pageSize);
         return Ok(result);

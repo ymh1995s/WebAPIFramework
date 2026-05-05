@@ -1,3 +1,4 @@
+using Framework.Application.Common;
 using Framework.Application.Features.AuditLog;
 using Framework.Application.Features.Exp;
 using Framework.Domain.Entities;
@@ -218,7 +219,7 @@ public class MailService : IMailService
                     // Exp는 레벨업 처리가 포함되어 있으므로 별도로 처리
                     // TODO: 감사 로그 구조 개선 시 Currency(Gold/Gems) 로그도 기록 필요
                     if (mail.Exp > 0)
-                        await _expService.AddExpAsync(mail.PlayerId, mail.Exp, $"mail:{mail.Id}");
+                        await _expService.AddExpAsync(mail.PlayerId, mail.Exp, SourceKeys.Mail(mail.Id));
 
                     return true;
                 });

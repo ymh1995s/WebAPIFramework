@@ -4,6 +4,7 @@
 // 의존 방향: Content → Framework (역방향 금지)
 // ============================================================
 
+using Framework.Api.Constants;
 using Framework.Api.Filters;
 using Framework.Application.Common;
 using Framework.Application.Content.Stage;
@@ -36,7 +37,7 @@ public class AdminStagesController : ControllerBase
         [FromQuery] int pageSize = 20)
     {
         // pageSize 범위 제한 — 비정상적으로 큰 값 요청 시 DB 부하 방지 (M-37)
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        pageSize = Math.Clamp(pageSize, 1, PaginationLimits.AdminDefault);
 
         var (items, total) = await _service.SearchAsync(keyword, page, pageSize);
         return Ok(new PagedResultDto<StageDto>(items, total, page, pageSize));

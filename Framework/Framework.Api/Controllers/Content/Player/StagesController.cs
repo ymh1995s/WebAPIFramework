@@ -4,6 +4,7 @@
 // 의존 방향: Content → Framework (역방향 금지)
 // ============================================================
 
+using Framework.Api.Constants;
 using Framework.Api.Extensions;
 using Framework.Application.Content.Stage;
 using Microsoft.AspNetCore.Authorization;
@@ -17,7 +18,7 @@ namespace Framework.Api.Controllers.Content.Player;
 // - GET  /api/stages/progress     : 내 진행 현황
 // - POST /api/stages/{stageId}/complete : 스테이지 클리어 완료
 [Authorize]
-[EnableRateLimiting("game")]
+[EnableRateLimiting(RateLimitPolicies.Game)]
 [ApiController]
 [Route("api/stages")]
 public class StagesController : ControllerBase

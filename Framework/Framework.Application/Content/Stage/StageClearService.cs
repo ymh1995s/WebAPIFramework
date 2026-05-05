@@ -4,6 +4,7 @@
 // 의존 방향: Content → Framework (역방향 금지)
 // ============================================================
 
+using Framework.Application.Common;
 using Framework.Application.Features.Exp;
 using Framework.Application.Features.Reward;
 using Framework.Domain.Content.Entities;
@@ -125,28 +126,28 @@ public class StageClearService : IStageClearService
 
             if (isFirstClear && !string.IsNullOrEmpty(stage.RewardTableCode))
             {
-                // 최초 클리어 보상 — SourceKey: "stage:{stageId}:first"
+                // 최초 클리어 보상 — SourceKey: SourceKeys.StageFirstClear
                 firstRewardMessage = await GrantStageRewardAsync(
                     playerId,
                     stage.RewardTableCode,
-                    $"stage:{stageId}:first",
+                    SourceKeys.StageFirstClear(stageId),
                     $"스테이지 {stage.Name} 최초 클리어 보상",
                     "첫 번째 클리어를 축하합니다! 보상을 수령하세요.");
             }
             else if (!isFirstClear && !string.IsNullOrEmpty(stage.RePlayRewardTableCode))
             {
-                // 재클리어 보상 — 감소율 적용 후 지급 (SourceKey: "stage:{stageId}:replay:{clearCount}")
+                // 재클리어 보상 — 감소율 적용 후 지급 (SourceKey: SourceKeys.StageReplay)
                 replayRewardMessage = await GrantReplayRewardAsync(
                     playerId,
                     stage,
                     clearCount,
-                    $"stage:{stageId}:replay:{clearCount}");
+                    SourceKeys.StageReplay(stageId, clearCount));
             }
 
-            // 5단계: 경험치 지급 (ExpService 위임)
+            // 5단계: 경험치 지급 (ExpService 위임) — SourceKey: SourceKeys.StageExp
             if (stage.ExpReward > 0)
             {
-                await _expService.AddExpAsync(playerId, stage.ExpReward, $"stage:{stageId}");
+                await _expService.AddExpAsync(playerId, stage.ExpReward, SourceKeys.StageExp(stageId));
             }
 
             _logger.LogInformation(

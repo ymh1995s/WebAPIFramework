@@ -231,10 +231,10 @@
 | ~~M-17~~ | **[해결]** IRewardDispatcher.GrantAsync(Mode=Mail) 경유 + 트랜잭션 분리 (1차 DailyLoginLog 커밋 → 2차 Dispatcher 호출). 2차 실패 시 AdminNotification(Critical, RewardDispatchFailure) 등록 + 운영자 수동 보전. SourceKey 형식 `daily-login:{yyyy-MM-dd}` | DailyLoginService.cs |
 | ~~M-18~~ | **[해결]** `Framework.Application/Common/DbUpdateExceptionExtensions.cs` extension method로 단일화 — 5곳 private 중복 메서드 완전 제거 (괄호 누락 포함 자연 정정) | DbUpdateExceptionExtensions.cs (신규) + 5개 Service |
 | M-19 | BuildBundleAsync 2곳 완전 동일 코드 중복(IAP + AdReward) | IapPurchaseService.cs:263 + AdRewardService.cs:146 |
-| M-20 | AdminNotification dedupKey 접두사 네이밍 불일치(하이픈/언더스코어 혼용) | IapPurchaseService/IapRtdnService |
-| M-21 | SourceKey 패턴 문자열 산재(7가지 패턴) — 상수화 부재 | 5+ Service |
+| ~~M-20~~ | **[해결]** `Framework.Application/Common/AdminNotificationDedupKeys.cs` 빌더 4종(IapConsumeFail/IapRefund/IapCancel/DailyLoginFail) + kebab-case 통일. IapRtdnService underscore→hyphen 의도적 변경(출시 전 DB 0건) | AdminNotificationDedupKeys.cs(신규) + 4개 Service |
+| ~~M-21~~ | **[해결]** `Framework.Application/Common/SourceKeys.cs` 빌더 도입(8종 — LevelUp/Mail/DailyLogin/AdReward/IapPurchase/StageFirstClear/StageReplay/StageExp). 6개 Service에서 매직 문자열 → 빌더 호출. 출력값 byte-identical(RewardGrants 회귀 0). Admin 자유 형식은 빌더화 미적용(Q8) | SourceKeys.cs(신규) + 6개 Service |
 | ~~M-22~~ | **[해결, 부분]** IapPurchaseController catch-all 제거 + GlobalExceptionHandler 위임. IapVerifierException → 502 BadGateway 전환(외부 의존 실패 의미 명확). AdsCallback/IapRtdn catch-all은 광고 네트워크/Pub/Sub 재시도 회피 의도로 **유지**, 응답 형식만 ProblemDetails 통일 | IapPurchaseController.cs + AdsCallbackController.cs + IapRtdnController.cs |
-| M-23 | Rate Limit 정책명 5종 문자열 리터럴 산재 — 오타 silent fail | ServiceExtensions + 8개 Controller |
+| ~~M-23~~ | **[해결]** `Framework.Api/Constants/RateLimitPolicies.cs` 5종 상수(Auth/Game/IapVerify/IapRtdn/AdsCallback). ServiceExtensions 5건 등록 + 13개 Controller `[EnableRateLimiting]` 부착 모두 상수 참조. 페이지네이션 한도 `PaginationLimits.cs` 3종 상수(AdminDefault/AdminNotifications/AdminLargeLog) — Controllers 전체 매직 숫자 0건 | RateLimitPolicies.cs + PaginationLimits.cs(신규) + ServiceExtensions + 13 Controller + 8 Admin Controller |
 | ~~M-24~~ | **[해결]** Enricher 4종 적용 — FromLogContext / WithMachineName / WithEnvironmentName / WithProperty("Application","Framework.Api"). `Serilog.Enrichers.Environment 3.0.1` 패키지 추가. H-2와 함께 처리 | Framework.Api/Program.cs |
 | M-25 | RewardDispatch.razor.cs CS8604 — UsedMode null 가능 | RewardDispatch.razor.cs:175 |
 | M-26 | Razor 미적용 3페이지 SafeComponentBase 미상속 | InquiryTest/MatchMaking/AdminNotifications |

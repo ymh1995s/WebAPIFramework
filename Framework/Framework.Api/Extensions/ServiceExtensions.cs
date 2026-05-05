@@ -1,5 +1,6 @@
 using System.Text;
 using System.Threading.RateLimiting;
+using Framework.Api.Constants;
 using Framework.Application.Common;
 using Framework.Application.Features.AdPolicy;
 using Framework.Application.Features.AdReward;
@@ -394,7 +395,7 @@ public static class ServiceExtensions
             // 인증 성공(JWT 유효): PlayerId 기준 파티셔닝 → 분당 authPlayerPermitLimit회
             // 미인증/토큰 없음:   IP 기준 파티셔닝     → 분당 authPermitLimit회
             // [EnableRateLimiting("auth")]로 AuthController 전체에 적용
-            options.AddPolicy("auth", httpContext =>
+            options.AddPolicy(RateLimitPolicies.Auth, httpContext =>
             {
                 var playerId = httpContext.User.GetPlayerId();
 
@@ -417,7 +418,7 @@ public static class ServiceExtensions
 
             // 광고 SSV 콜백 Rate Limit — 광고 네트워크 서버가 직접 호출하는 엔드포인트
             // DDoS/어뷰징 방지용, 정상적인 광고 네트워크 트래픽보다 충분히 높게 설정
-            options.AddFixedWindowLimiter("ads-callback", limiter =>
+            options.AddFixedWindowLimiter(RateLimitPolicies.AdsCallback, limiter =>
             {
                 limiter.PermitLimit = adsCallbackPermitLimit;
                 limiter.Window = TimeSpan.FromMinutes(1);
@@ -427,7 +428,7 @@ public static class ServiceExtensions
 
             // Google Pub/Sub RTDN 수신 Rate Limit — Google 서버가 직접 호출
             // 재시도 감안하여 충분히 높게 설정, 과도한 트래픽 차단 목적
-            options.AddFixedWindowLimiter("iap-rtdn", limiter =>
+            options.AddFixedWindowLimiter(RateLimitPolicies.IapRtdn, limiter =>
             {
                 limiter.PermitLimit = iapRtdnPermitLimit;
                 limiter.Window = TimeSpan.FromMinutes(1);
@@ -436,7 +437,7 @@ public static class ServiceExtensions
             });
 
             // 인게임 API 공통 정책 — PlayerId 기준 파티셔닝, 미인증 시 IP fallback
-            options.AddPolicy("game", httpContext =>
+            options.AddPolicy(RateLimitPolicies.Game, httpContext =>
             {
                 var playerId = httpContext.User.GetPlayerId();
                 var key = playerId.HasValue
@@ -454,7 +455,7 @@ public static class ServiceExtensions
             });
 
             // IAP 결제 검증 전용 정책 — 봇 결제 시도 차단, 정상 유저는 분당 20회 이내
-            options.AddPolicy("iap-verify", httpContext =>
+            options.AddPolicy(RateLimitPolicies.IapVerify, httpContext =>
             {
                 var playerId = httpContext.User.GetPlayerId();
                 var key = playerId.HasValue

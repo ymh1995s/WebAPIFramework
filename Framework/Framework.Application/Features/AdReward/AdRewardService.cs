@@ -1,3 +1,4 @@
+using Framework.Application.Common;
 using Framework.Application.Features.Reward;
 using Framework.Domain.Enums;
 using Framework.Domain.Interfaces;
@@ -105,8 +106,8 @@ public class AdRewardService : IAdRewardService
         }
 
         // 6단계: RewardDispatcher를 통해 보상 지급
-        // SourceKey = "{network}:{placementId}:{transactionId}" — PlacementId별 멱등성 + 한도 카운트
-        var sourceKey = $"{network}:{verified.PlacementId}:{verified.TransactionId}";
+        // SourceKey = SourceKeys.AdReward — PlacementId별 멱등성 + 한도 카운트
+        var sourceKey = SourceKeys.AdReward(network.ToString(), verified.PlacementId, verified.TransactionId);
         var grantRequest = new GrantRewardRequest(
             PlayerId: verified.PlayerId,
             SourceType: RewardSourceType.AdReward,

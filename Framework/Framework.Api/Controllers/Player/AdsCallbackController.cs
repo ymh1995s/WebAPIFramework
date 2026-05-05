@@ -1,3 +1,4 @@
+using Framework.Api.Constants;
 using Framework.Api.ProblemDetails;
 using Framework.Application.Features.AdReward;
 using Framework.Domain.Enums;
@@ -13,7 +14,7 @@ namespace Framework.Api.Controllers.Player;
 [AllowAnonymous]
 [ApiController]
 [Route("api/ads/callback")]
-[EnableRateLimiting("ads-callback")]
+[EnableRateLimiting(RateLimitPolicies.AdsCallback)]
 public class AdsCallbackController : ControllerBase
 {
     private readonly IAdRewardService _adRewardService;

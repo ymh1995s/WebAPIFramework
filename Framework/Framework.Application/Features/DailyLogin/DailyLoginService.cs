@@ -1,3 +1,4 @@
+using Framework.Application.Common;
 using Framework.Application.Features.AdminNotification;
 using Framework.Application.Features.DailyReward;
 using Framework.Application.Features.Reward;
@@ -139,8 +140,8 @@ public class DailyLoginService : IDailyLoginService
         if (!rewardItemId.HasValue || rewardItemCount <= 0)
             return true;
 
-        // SourceKey: "daily-login:{날짜}" — 게임 날짜 기반 멱등성 키
-        var sourceKey = $"daily-login:{today:yyyy-MM-dd}";
+        // SourceKey: SourceKeys.DailyLogin — 게임 날짜 기반 멱등성 키
+        var sourceKey = SourceKeys.DailyLogin(today);
         var bundle = new RewardBundle(Items: new[] { new RewardItem(rewardItemId.Value, rewardItemCount) });
 
         // [중요] DailyLogin은 Obsolete 처리된 enum 값이나, 일일 로그인 경로 식별을 위해 유지
@@ -175,7 +176,7 @@ public class DailyLoginService : IDailyLoginService
                     message: $"DailyLogin 보상 누락 — PlayerId={playerId}, Date={today:yyyy-MM-dd}",
                     relatedEntityType: "DailyLoginLog",
                     relatedEntityId: playerId,
-                    dedupKey: $"daily-login-fail:{playerId}:{today:yyyy-MM-dd}");
+                    dedupKey: AdminNotificationDedupKeys.DailyLoginFail(playerId, today));
 
                 return false;
             }
@@ -195,7 +196,7 @@ public class DailyLoginService : IDailyLoginService
                 message: $"DailyLogin 보상 누락 — PlayerId={playerId}, Date={today:yyyy-MM-dd}",
                 relatedEntityType: "DailyLoginLog",
                 relatedEntityId: playerId,
-                dedupKey: $"daily-login-fail:{playerId}:{today:yyyy-MM-dd}");
+                dedupKey: AdminNotificationDedupKeys.DailyLoginFail(playerId, today));
 
             return false;
         }
