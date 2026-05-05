@@ -11,4 +11,7 @@ public enum AdminNotificationCategory
 
     // 보상 지급 실패 — 일일 로그인 등 자동 보상 파이프라인에서 예외 발생 시 수동 처리 필요
     RewardDispatchFailure = 3,
+
+    // IAP verify 동시성 충돌 한도(3회) 초과 — 재무 영향 가능, 즉시 확인 필요
+    IapVerifyConcurrencyExhausted = 4,
 }

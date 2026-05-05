@@ -55,3 +55,18 @@ public class IapVerifierException : Exception
         Store = store;
     }
 }
+
+// verify 경로 동시성 충돌 재시도 한도(3회) 초과 — 503 응답 매핑 대상
+// AdminNotification(Critical)이 발송된 뒤 이 예외를 throw하여 컨트롤러가 503을 반환하도록 함
+public class IapVerifyConcurrencyException : Exception
+{
+    public IapStore Store { get; }
+    public string MaskedToken { get; }
+
+    public IapVerifyConcurrencyException(IapStore store, string maskedToken)
+        : base($"IAP verify 동시성 충돌 재시도 한도 초과. Store={store}, Token={maskedToken}")
+    {
+        Store = store;
+        MaskedToken = maskedToken;
+    }
+}

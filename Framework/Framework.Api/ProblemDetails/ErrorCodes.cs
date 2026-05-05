@@ -22,4 +22,7 @@ public static class ErrorCodes
     public const string IapReceiptInvalid = "IAP_RECEIPT_INVALID";
     public const string IapTokenOwnershipMismatch = "IAP_TOKEN_OWNERSHIP_MISMATCH";
     public const string IapVerifierError = "IAP_VERIFIER_ERROR";
+
+    // IAP verify 동시성 충돌 한도 초과 — 503 응답, 클라이언트 재시도 권고
+    public const string IapVerifyConcurrencyExhausted = "IAP_VERIFY_CONCURRENCY_EXHAUSTED";
 }

@@ -257,6 +257,24 @@ public class AppDbContext : DbContext
             .ValueGeneratedOnAddOrUpdate()
             .IsConcurrencyToken();
 
+        // IapPurchase.Status 갱신을 낙관적 동시성으로 보호 (verify ↔ RTDN Lost Update 차단)
+        //
+        // [목적] verify(Pending→Verified→Granted)와 RTDN Voided/Canceled(→Refunded)가 동시에
+        //        SaveChanges를 수행할 때 어느 한쪽이 다른 쪽의 갱신을 덮어쓰는 Lost Update를 차단
+        //        — 보상 지급 후 환불 미반영(재무 손실) 또는 환불 처리 후 보상 지급(이중 손실) 위험 제거
+        //
+        // [원리] PostgreSQL 시스템 컬럼 xmin을 그림자 속성으로 매핑하여 동시성 토큰으로 사용
+        //        EF Core가 UPDATE 시 WHERE xmin=oldVal을 자동 추가
+        //        → 사이에 다른 트랜잭션이 갱신했다면 0 row 영향 → DbUpdateConcurrencyException
+        //
+        // [패턴 정합] PlayerItem.xmin 적용과 동일 사상 (H-3 라운드 선례 답습)
+        modelBuilder.Entity<IapPurchase>()
+            .Property<uint>("xmin")
+            .HasColumnName("xmin")
+            .HasColumnType("xid")
+            .ValueGeneratedOnAddOrUpdate()
+            .IsConcurrencyToken();
+
         // Mail → Player (N:1)
         modelBuilder.Entity<Mail>()
             .HasOne(m => m.Player)

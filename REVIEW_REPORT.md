@@ -240,7 +240,7 @@
 | M-26 | Razor 미적용 3페이지 SafeComponentBase 미상속 | InquiryTest/MatchMaking/AdminNotifications |
 | M-27 | Admin 전용 GetAllAsync 3곳 페이지네이션 미적용 | NoticeRepository/InquiryRepository/RewardTableRepository |
 | M-28 | MailRepository.GetByPlayerIdAsync 페이지네이션 부재 — 장기 플레이어 수천 건 가능 | MailRepository.cs:20 |
-| M-29 | IapPurchase.Status 동시성 토큰 미적용 — verify 중 RTDN 충돌 가능 | IapPurchase.cs:31 |
+| ~~M-29~~ | **[해결]** IapPurchase.Status xmin 동시성 토큰 적용(H-3 PlayerItem 패턴 답습) + verify/RTDN 3회 재시도 루프. verify 충돌 시 재로드 → Status 분기(Refunded→보상 중단·200 / Granted→AlreadyGranted / Verified·Pending→재진행), 한도 초과→`IapVerifyConcurrencyException`(503) + AdminNotification(Critical, dedupKey=`iap:concurrency:verify:{token}`). RTDN 충돌 시 idempotent return(`Refunded` 가드 활용), 한도 초과→503 throw(IapRtdnController catch-all 정책상 200+LogError로 흡수, M-22 결정 답습). 빈 마이그레이션 + DEVNOTES `[설계 결정]` 박제 | AppDbContext.cs + IapPurchaseService.cs + IapRtdnService.cs + AdminNotificationCategory.cs + IapVerifyConcurrencyException 신규 |
 | M-30 | Currency-as-Item 데이터 이전 SQL 수동 재실행 시 수량 누적 위험 | 20260501100332_AddCurrencyAsItem.cs |
 
 ### Phase 3 — 보안

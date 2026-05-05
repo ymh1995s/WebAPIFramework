@@ -108,6 +108,18 @@ public class IapPurchaseController : ControllerBase
                 type: "https://framework.api/errors/iap-verifier-error",
                 extensions: new Dictionary<string, object?> { ["errorCode"] = ErrorCodes.IapVerifierError });
         }
+        catch (IapVerifyConcurrencyException)
+        {
+            // verify 동시성 충돌 한도(3회) 초과 — 503 서비스 불가 반환
+            // AdminNotification(Critical)은 서비스 계층에서 이미 발송됨
+            // 클라이언트는 잠시 후 재시도 권고 (재시도 시 이미 처리된 경우 AlreadyGranted 응답)
+            return Problem(
+                title: "IAP verify 처리 지연",
+                detail: "현재 동시 처리로 인해 verify를 완료할 수 없습니다. 잠시 후 다시 시도해주세요.",
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                type: "https://framework.api/errors/iap-verify-concurrency-exhausted",
+                extensions: new Dictionary<string, object?> { ["errorCode"] = ErrorCodes.IapVerifyConcurrencyExhausted });
+        }
         // catch-all 제거 — 일반 Exception은 GlobalExceptionHandler에 위임 (M-22)
     }
 }

@@ -19,4 +19,8 @@ public static class AdminNotificationDedupKeys
     // 일일 로그인 자동 보상 파이프라인 실패
     public static string DailyLoginFail(int playerId, DateOnly gameDate)
         => $"daily-login-fail:{playerId}:{gameDate:yyyy-MM-dd}";
+
+    // IAP verify 동시성 충돌 한도 초과 — 마스킹된 토큰 기준 중복 알림 차단
+    public static string IapVerifyConcurrencyExhausted(string maskedToken)
+        => $"iap:concurrency:verify:{maskedToken}";
 }

@@ -3,6 +3,7 @@ using Framework.Application.Features.AdminNotification;
 using Framework.Domain.Constants;
 using Framework.Domain.Enums;
 using Framework.Domain.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using IapStoreEnum = Framework.Domain.Enums.IapStore;
 
@@ -10,20 +11,27 @@ namespace Framework.Application.Features.Iap;
 
 // RTDN(Real-Time Developer Notifications) 알림 처리 서비스 구현체
 // Google Play가 서버에 실시간으로 전송하는 알림 — 환불/취소 수신 시 IapPurchase.Status를 Refunded로 갱신
+// [M-29] DbUpdateConcurrencyException 시 최대 3회 재시도 — verify ↔ RTDN Lost Update 차단
 public class IapRtdnService : IIapRtdnService
 {
     private readonly IIapPurchaseRepository _purchaseRepository;
     private readonly IAdminNotificationService _notificationService;
     private readonly ILogger<IapRtdnService> _logger;
+    private readonly IUnitOfWork _unitOfWork;
+
+    // 동시성 충돌 시 최대 재시도 횟수 — H-3 라운드 RewardDispatcher/MailService와 동일
+    private const int MaxConcurrencyRetries = 3;
 
     public IapRtdnService(
         IIapPurchaseRepository purchaseRepository,
         IAdminNotificationService notificationService,
-        ILogger<IapRtdnService> logger)
+        ILogger<IapRtdnService> logger,
+        IUnitOfWork unitOfWork)
     {
         _purchaseRepository = purchaseRepository;
         _notificationService = notificationService;
         _logger = logger;
+        _unitOfWork = unitOfWork;
     }
 
     // RTDN 페이로드 알림 유형 분기 처리
@@ -71,120 +79,178 @@ public class IapRtdnService : IIapRtdnService
     }
 
     // Voided Purchase 환불 처리 — Google Voided Purchase API로 강제 환불된 구매 처리
+    // [M-29] 동시성 충돌 시 최대 3회 재시도. 한도 초과 시 503 throw (Pub/Sub 재발송에 위임)
     private async Task HandleVoidedAsync(VoidedPurchaseNotification notification)
     {
-        // 구매 토큰으로 기존 이력 조회
-        var purchase = await _purchaseRepository.FindByTokenAsync(
-            IapStoreEnum.Google, notification.PurchaseToken);
-
-        if (purchase is null)
+        for (var attempt = 1; attempt <= MaxConcurrencyRetries; attempt++)
         {
-            // 서버에서 검증한 적 없는 토큰 — 외부 경로 환불이거나 데이터 불일치
-            _logger.LogWarning(
-                "RTDN Voided 환불 — 구매 이력 없음. PurchaseToken: {Token}, OrderId: {OrderId}",
-                notification.PurchaseToken, notification.OrderId);
-            return;
-        }
+            try
+            {
+                // 매 시도 진입 시 DB 최신값 재로드 — 동시성 충돌 후 stale 데이터 방지
+                var purchase = await _purchaseRepository.FindByTokenAsync(
+                    IapStoreEnum.Google, notification.PurchaseToken);
 
-        // 이미 환불 처리된 경우 중복 처리 방지
-        if (purchase.Status == IapPurchaseStatus.Refunded)
-        {
-            _logger.LogInformation(
-                "RTDN Voided 환불 — 이미 처리됨. IapPurchaseId: {Id}", purchase.Id);
-            return;
-        }
-
-        // 상태를 Refunded로 변경하고 환불 시각 및 사유 기록
-        purchase.Status = IapPurchaseStatus.Refunded;
-        purchase.RefundedAt = DateTime.UtcNow;
-        purchase.UpdatedAt = DateTime.UtcNow;
-        purchase.RefundReason = RefundReasons.Voided;
-
-        await _purchaseRepository.SaveChangesAsync();
-
-        _logger.LogWarning(
-            "RTDN 환불 감지 — PlayerId: {PlayerId}, ProductId: {ProductId}, OrderId: {OrderId}",
-            purchase.PlayerId, purchase.ProductId, notification.OrderId);
-
-        // Admin 알림 생성 — 실패해도 RTDN 처리에 영향 없도록 격리
-        try
-        {
-            await _notificationService.CreateAsync(
-                AdminNotificationCategory.IapClawback,
-                AdminNotificationSeverity.Critical,
-                $"IAP 강제 환불 감지 — PlayerId {purchase.PlayerId}",
-                $"ProductId: {purchase.ProductId}, OrderId: {notification.OrderId}",
-                relatedEntityType: "IapPurchase",
-                relatedEntityId: purchase.Id,
-                metadataJson: System.Text.Json.JsonSerializer.Serialize(new
+                if (purchase is null)
                 {
-                    purchase.PlayerId, purchase.ProductId,
-                    notification.OrderId, RefundReason = RefundReasons.Voided
-                }),
-                dedupKey: AdminNotificationDedupKeys.IapRefund("google", notification.PurchaseToken));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Admin 알림 생성 실패 — IapPurchaseId: {Id}", purchase.Id);
+                    // 서버에서 검증한 적 없는 토큰 — 외부 경로 환불이거나 데이터 불일치
+                    _logger.LogWarning(
+                        "RTDN Voided 환불 — 구매 이력 없음. PurchaseToken: {Token}, OrderId: {OrderId}",
+                        notification.PurchaseToken, notification.OrderId);
+                    return;
+                }
+
+                // 이미 환불 처리된 경우 — 다른 인스턴스가 먼저 완주 (At-Least-Once 멱등)
+                if (purchase.Status == IapPurchaseStatus.Refunded)
+                {
+                    _logger.LogInformation(
+                        "RTDN Voided 환불 — 이미 처리됨. IapPurchaseId: {Id}", purchase.Id);
+                    return;
+                }
+
+                // 상태를 Refunded로 변경하고 환불 시각 및 사유 기록
+                purchase.Status = IapPurchaseStatus.Refunded;
+                purchase.RefundedAt = DateTime.UtcNow;
+                purchase.UpdatedAt = DateTime.UtcNow;
+                purchase.RefundReason = RefundReasons.Voided;
+
+                await _purchaseRepository.SaveChangesAsync();
+
+                _logger.LogWarning(
+                    "RTDN 환불 감지 — PlayerId: {PlayerId}, ProductId: {ProductId}, OrderId: {OrderId}",
+                    purchase.PlayerId, purchase.ProductId, notification.OrderId);
+
+                // Admin 알림 생성 — 실패해도 RTDN 처리에 영향 없도록 격리
+                try
+                {
+                    await _notificationService.CreateAsync(
+                        AdminNotificationCategory.IapClawback,
+                        AdminNotificationSeverity.Critical,
+                        $"IAP 강제 환불 감지 — PlayerId {purchase.PlayerId}",
+                        $"ProductId: {purchase.ProductId}, OrderId: {notification.OrderId}",
+                        relatedEntityType: "IapPurchase",
+                        relatedEntityId: purchase.Id,
+                        metadataJson: System.Text.Json.JsonSerializer.Serialize(new
+                        {
+                            purchase.PlayerId, purchase.ProductId,
+                            notification.OrderId, RefundReason = RefundReasons.Voided
+                        }),
+                        dedupKey: AdminNotificationDedupKeys.IapRefund("google", notification.PurchaseToken));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Admin 알림 생성 실패 — IapPurchaseId: {Id}", purchase.Id);
+                }
+
+                // 정상 처리 완료 — 루프 탈출
+                return;
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // 동시성 충돌 — ChangeTracker 정리 후 재시도 (재로드는 루프 상단에서 수행)
+                _logger.LogWarning(
+                    ex,
+                    "RTDN Voided 동시성 충돌 — 재시도 {Attempt}/{Max} (PurchaseToken: {Token})",
+                    attempt, MaxConcurrencyRetries, notification.PurchaseToken);
+
+                _unitOfWork.ClearChangeTracker();
+
+                if (attempt >= MaxConcurrencyRetries)
+                {
+                    // 한도 초과 — 503 throw (Pub/Sub 재발송에 위임, AdminNotification 미생성)
+                    _logger.LogWarning(
+                        "RTDN Voided 동시성 충돌 한도 초과 — Pub/Sub 재발송 대기 (PurchaseToken: {Token})",
+                        notification.PurchaseToken);
+                    throw;
+                }
+            }
         }
     }
 
     // OneTimeProduct CANCELED(취소) 처리 — 구매 취소/환불 시 발생
+    // [M-29] 동시성 충돌 시 최대 3회 재시도. 한도 초과 시 503 throw (Pub/Sub 재발송에 위임)
     private async Task HandleCanceledAsync(OneTimeProductNotification notification)
     {
-        // 구매 토큰으로 기존 이력 조회
-        var purchase = await _purchaseRepository.FindByTokenAsync(
-            IapStoreEnum.Google, notification.PurchaseToken);
-
-        if (purchase is null)
+        for (var attempt = 1; attempt <= MaxConcurrencyRetries; attempt++)
         {
-            // 서버에서 검증한 적 없는 토큰 — 무시
-            _logger.LogWarning(
-                "RTDN Canceled 환불 — 구매 이력 없음. PurchaseToken: {Token}, Sku: {Sku}",
-                notification.PurchaseToken, notification.Sku);
-            return;
-        }
+            try
+            {
+                // 매 시도 진입 시 DB 최신값 재로드 — 동시성 충돌 후 stale 데이터 방지
+                var purchase = await _purchaseRepository.FindByTokenAsync(
+                    IapStoreEnum.Google, notification.PurchaseToken);
 
-        // 이미 환불 처리된 경우 중복 처리 방지
-        if (purchase.Status == IapPurchaseStatus.Refunded)
-        {
-            _logger.LogInformation(
-                "RTDN Canceled 환불 — 이미 처리됨. IapPurchaseId: {Id}", purchase.Id);
-            return;
-        }
-
-        // 상태를 Refunded로 변경하고 환불 시각 및 사유 기록
-        purchase.Status = IapPurchaseStatus.Refunded;
-        purchase.RefundedAt = DateTime.UtcNow;
-        purchase.UpdatedAt = DateTime.UtcNow;
-        purchase.RefundReason = RefundReasons.Canceled;
-
-        await _purchaseRepository.SaveChangesAsync();
-
-        _logger.LogWarning(
-            "RTDN 환불 감지 — PlayerId: {PlayerId}, ProductId: {ProductId}, OrderId: {OrderId}",
-            purchase.PlayerId, purchase.ProductId, purchase.OrderId);
-
-        // Admin 알림 생성 — 실패해도 RTDN 처리에 영향 없도록 격리
-        try
-        {
-            await _notificationService.CreateAsync(
-                AdminNotificationCategory.IapClawback,
-                AdminNotificationSeverity.Warning,
-                $"IAP 취소 환불 감지 — PlayerId {purchase.PlayerId}",
-                $"ProductId: {purchase.ProductId}, Sku: {notification.Sku}",
-                relatedEntityType: "IapPurchase",
-                relatedEntityId: purchase.Id,
-                metadataJson: System.Text.Json.JsonSerializer.Serialize(new
+                if (purchase is null)
                 {
-                    purchase.PlayerId, purchase.ProductId,
-                    notification.Sku, RefundReason = RefundReasons.Canceled
-                }),
-                dedupKey: AdminNotificationDedupKeys.IapCancel("google", notification.PurchaseToken));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Admin 알림 생성 실패 — IapPurchaseId: {Id}", purchase.Id);
+                    // 서버에서 검증한 적 없는 토큰 — 무시
+                    _logger.LogWarning(
+                        "RTDN Canceled 환불 — 구매 이력 없음. PurchaseToken: {Token}, Sku: {Sku}",
+                        notification.PurchaseToken, notification.Sku);
+                    return;
+                }
+
+                // 이미 환불 처리된 경우 — 다른 인스턴스가 먼저 완주 (At-Least-Once 멱등)
+                if (purchase.Status == IapPurchaseStatus.Refunded)
+                {
+                    _logger.LogInformation(
+                        "RTDN Canceled 환불 — 이미 처리됨. IapPurchaseId: {Id}", purchase.Id);
+                    return;
+                }
+
+                // 상태를 Refunded로 변경하고 환불 시각 및 사유 기록
+                purchase.Status = IapPurchaseStatus.Refunded;
+                purchase.RefundedAt = DateTime.UtcNow;
+                purchase.UpdatedAt = DateTime.UtcNow;
+                purchase.RefundReason = RefundReasons.Canceled;
+
+                await _purchaseRepository.SaveChangesAsync();
+
+                _logger.LogWarning(
+                    "RTDN 환불 감지 — PlayerId: {PlayerId}, ProductId: {ProductId}, OrderId: {OrderId}",
+                    purchase.PlayerId, purchase.ProductId, purchase.OrderId);
+
+                // Admin 알림 생성 — 실패해도 RTDN 처리에 영향 없도록 격리
+                try
+                {
+                    await _notificationService.CreateAsync(
+                        AdminNotificationCategory.IapClawback,
+                        AdminNotificationSeverity.Warning,
+                        $"IAP 취소 환불 감지 — PlayerId {purchase.PlayerId}",
+                        $"ProductId: {purchase.ProductId}, Sku: {notification.Sku}",
+                        relatedEntityType: "IapPurchase",
+                        relatedEntityId: purchase.Id,
+                        metadataJson: System.Text.Json.JsonSerializer.Serialize(new
+                        {
+                            purchase.PlayerId, purchase.ProductId,
+                            notification.Sku, RefundReason = RefundReasons.Canceled
+                        }),
+                        dedupKey: AdminNotificationDedupKeys.IapCancel("google", notification.PurchaseToken));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Admin 알림 생성 실패 — IapPurchaseId: {Id}", purchase.Id);
+                }
+
+                // 정상 처리 완료 — 루프 탈출
+                return;
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // 동시성 충돌 — ChangeTracker 정리 후 재시도 (재로드는 루프 상단에서 수행)
+                _logger.LogWarning(
+                    ex,
+                    "RTDN Canceled 동시성 충돌 — 재시도 {Attempt}/{Max} (PurchaseToken: {Token})",
+                    attempt, MaxConcurrencyRetries, notification.PurchaseToken);
+
+                _unitOfWork.ClearChangeTracker();
+
+                if (attempt >= MaxConcurrencyRetries)
+                {
+                    // 한도 초과 — 503 throw (Pub/Sub 재발송에 위임, AdminNotification 미생성)
+                    _logger.LogWarning(
+                        "RTDN Canceled 동시성 충돌 한도 초과 — Pub/Sub 재발송 대기 (PurchaseToken: {Token})",
+                        notification.PurchaseToken);
+                    throw;
+                }
+            }
         }
     }
 }
