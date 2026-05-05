@@ -7,9 +7,9 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace Framework.Api.Controllers.Player;
 
-// 인증 관련 API 컨트롤러
+// 인증 관련 API 컨트롤러 — 다른 Player 컨트롤러와 동일하게 /api/* prefix 통일
 [ApiController]
-[Route("auth")]
+[Route("api/auth")]
 // [EnableRateLimiting]: 지정한 정책 이름의 Rate Limit을 이 컨트롤러 전체에 적용한다
 // RateLimitPolicies.Auth 정책 = 미인증 IP당 분당 15회 / 인증 PlayerId당 분당 30회 (ServiceExtensions.cs 정책 정의)
 [EnableRateLimiting(RateLimitPolicies.Auth)]

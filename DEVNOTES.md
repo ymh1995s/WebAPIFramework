@@ -18,7 +18,7 @@
 | 시스템 설정 | 점검 모드, 앱 버전, 일일 보상 기준 시각 등 SystemConfig Admin 제어 |
 | 어뷰징 방어 | auth 엔드포인트 Rate Limiting (IP 기준, `RateLimiting:AuthPermitLimit` 설정), 429 발생 시 PlayerId·UserAgent 포함 DB 로그. Admin 보안 감시 — 통합 타임라인(Rate Limit 초과 / 재화 이상치 / 계정 정지 이벤트 병합), IP 집계, 타임라인에서 직접 영구밴 가능. 인게임 API: `game` 정책 PlayerId 기준 120회/분, IAP 검증: `iap-verify` 정책 20회/분 |
 | 점검 모드 | 수동 ON/OFF 및 시각 예약, 미들웨어에서 503 차단, Admin은 점검 중에도 접근 가능 |
-| 계정 탈퇴 | DELETE /auth/withdraw, SoftDelete + PII 익명화 처리. Player 행 보존(IapPurchase FK 유지), 게임 진행 데이터 hard delete, 멱등 재호출 204 반환 (H-12 round_20260503) |
+| 계정 탈퇴 | DELETE /api/auth/withdraw, SoftDelete + PII 익명화 처리. Player 행 보존(IapPurchase FK 유지), 게임 진행 데이터 hard delete, 멱등 재호출 204 반환 (H-12 round_20260503) |
 | 클라이언트 앱 버전 체크 | GET /api/version/check, 강제 업데이트 여부 반환, Admin에서 최소/최신 버전 설정 (서버 버전 아님 — 앱스토어 배포 Unity 빌드 기준) |
 | 공지/1회 공지 시스템 | **공지**: `GET /api/notices/latest` 최신 활성 공지 1개 반환. 클라이언트가 NoticeId를 PlayerPrefs에 저장해 1회성 팝업 표시. Admin CRUD. **1회 공지**: Admin에서 전체/특정 플레이어 대상 HUD 텍스트 발송. DB 이력 기록. 클라이언트 접속 시 `GET /api/shouts/active` 1회 호출(폴링 방식) — 만료 시간 내 활성 1회 공지 수신. Admin `/notices`, `/shouts` 페이지 별도 관리 |
 | 플레이어 문의 | POST /api/inquiries 제출, GET /api/inquiries 내 목록 조회. Admin 답변 등록. 소원수리함 형태(자유 텍스트). Blazor 테스트 페이지 포함 |
