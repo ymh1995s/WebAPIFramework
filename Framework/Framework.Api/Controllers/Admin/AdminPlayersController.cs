@@ -89,12 +89,36 @@ public class AdminPlayersController : ControllerBase
         };
     }
 
-    // 플레이어 영구 삭제 (Hard Delete) — DB에서 완전히 제거, 복구 불가
+    // 플레이어 DB 직접 삭제 (DELETE /api/admin/players/{id}) — 소프트 딜리트 미적용 계정 대상
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
         var success = await _adminPlayerService.DeleteAsync(id);
         if (!success) return NotFound();
-        return Ok(new MessageResponse("플레이어가 영구 삭제되었습니다."));
+        return Ok(new MessageResponse("플레이어가 삭제되었습니다."));
+    }
+
+    // 플레이어 인앱결제 건수 조회 — 하드삭제 모달 경고 표시용 (GET /api/admin/players/{id}/iap-count)
+    [HttpGet("{id}/iap-count")]
+    public async Task<IActionResult> GetIapCount(int id)
+    {
+        var count = await _adminPlayerService.GetIapPurchaseCountAsync(id);
+        return Ok(new { Count = count });
+    }
+
+    // 플레이어 하드삭제 — 탈퇴 처리(IsDeleted=true)된 계정만 허용 (DELETE /api/admin/players/{id}/hard)
+    // IapPurchase 선삭제 → 게임 데이터 정리 → Player 삭제 단일 트랜잭션
+    [HttpDelete("{id}/hard")]
+    public async Task<IActionResult> HardDelete(int id)
+    {
+        var result = await _adminPlayerService.HardDeleteAsync(id);
+
+        return result switch
+        {
+            HardDeleteResult.NotFound     => NotFound(),
+            // 탈퇴 처리되지 않은 계정 — 하드삭제 불가 (409 Conflict)
+            HardDeleteResult.NotWithdrawn => Conflict(new MessageResponse("탈퇴 처리(소프트 딜리트)된 계정만 하드삭제할 수 있습니다.")),
+            _                            => Ok(new MessageResponse("플레이어가 영구 삭제되었습니다."))
+        };
     }
 }

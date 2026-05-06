@@ -18,6 +18,12 @@ public interface IAdminPlayerService
     // 플레이어 밴 해제 — 밴 상태가 아니면 NotBanned 반환
     Task<BanOperationResult> UnbanAsync(int id, string? reason, string? actorIp);
 
-    // 플레이어 영구 삭제 (Hard Delete)
+    // 플레이어 DB 직접 삭제 — 소프트 딜리트 미적용 계정 대상 관리자 삭제 (기존 DELETE /{id} 유지)
     Task<bool> DeleteAsync(int id);
+
+    // 플레이어 영구 삭제 (Hard Delete) — 소프트 딜리트 상태인 계정만 허용, IapPurchase 선삭제 포함
+    Task<HardDeleteResult> HardDeleteAsync(int id);
+
+    // 특정 플레이어의 인앱결제 건수 조회 — 하드삭제 확인 모달 경고 표시용
+    Task<int> GetIapPurchaseCountAsync(int id);
 }

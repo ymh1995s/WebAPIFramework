@@ -87,12 +87,13 @@
                         <td>@(p.IsDeleted ? "true" : "false")</td>
                         <!-- MergedIntoPlayerId 원시 값 (병합 흡수된 대상 PlayerA의 int Id) -->
                         <td>@(p.MergedIntoPlayerId?.ToString() ?? "-")</td>
-                        <!-- 밴/밴 해제/삭제/밴 이력 버튼 (소프트 딜리트 계정은 비활성화) -->
+                        <!-- 밴/밴 해제/삭제/밴 이력 버튼 (소프트 딜리트 계정은 영구 삭제 버튼 표시) -->
                         <td>
                             @if (p.IsDeleted)
                             {
                                 <span class="text-muted small">삭제됨</span>
-                                @* 삭제된 계정도 이력 확인 가능 *@
+                                @* 탈퇴 계정은 영구 삭제(하드삭제) 버튼 표시 *@
+                                <button class="btn btn-danger btn-sm ms-1" @onclick="() => OpenHardDeleteModal(p)">영구 삭제</button>
                                 <a href="/ban-logs?playerId=@p.Id" class="btn btn-sm btn-outline-secondary ms-1">밴 이력</a>
                             }
                             else if (!p.IsEffectivelyBanned)
@@ -115,9 +116,10 @@
             </tbody>
         </table>
 
-        @* 삭제 확인 모달 *@
+        @* 삭제 확인 모달 — 소프트 딜리트 / 하드삭제 공용 *@
         <ConfirmDeleteModal IsVisible="showDeleteModal"
                             PlayerInfo="deletingPlayerInfo"
+                            ExtraInfo="deletingExtraInfo"
                             OnConfirm="ConfirmDelete"
                             OnCancel="CancelDelete" />
 
@@ -190,12 +192,13 @@
                             <td>@(p.IsDeleted ? "true" : "false")</td>
                             <!-- MergedIntoPlayerId 원시 값 -->
                             <td>@(p.MergedIntoPlayerId?.ToString() ?? "-")</td>
-                            <!-- 밴/밴 해제/삭제/밴 이력 버튼 (소프트 딜리트 계정은 비활성화) -->
+                            <!-- 밴/밴 해제/삭제/밴 이력 버튼 (소프트 딜리트 계정은 영구 삭제 버튼 표시) -->
                             <td>
                                 @if (p.IsDeleted)
                                 {
                                     <span class="text-muted small">삭제됨</span>
-                                    @* 삭제된 계정도 이력 확인 가능 *@
+                                    @* 탈퇴 계정은 영구 삭제(하드삭제) 버튼 표시 *@
+                                    <button class="btn btn-danger btn-sm ms-1" @onclick="() => OpenHardDeleteModal(p)">영구 삭제</button>
                                     <a href="/ban-logs?playerId=@p.Id" class="btn btn-sm btn-outline-secondary ms-1">밴 이력</a>
                                 }
                                 else if (!p.IsEffectivelyBanned)

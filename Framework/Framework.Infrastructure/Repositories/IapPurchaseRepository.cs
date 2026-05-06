@@ -89,4 +89,16 @@ public class IapPurchaseRepository : IIapPurchaseRepository
                      && p.ConsumedAt == null
                      && p.ConsumeAttempts < maxAttempts)
             .ToListAsync();
+
+    // 특정 플레이어의 결제 건수 조회 — 하드삭제 전 관리자 경고 팝업에 표시할 건수
+    public async Task<int> CountByPlayerAsync(int playerId)
+        => await _db.IapPurchases.CountAsync(p => p.PlayerId == playerId);
+
+    // 특정 플레이어의 모든 결제 이력 하드삭제
+    // ExecuteDeleteAsync 사용 — EF 변경 추적 없이 직접 DELETE SQL 실행하여 대량 삭제에 최적화
+    // Player FK Restrict 제약 해소 목적이므로 Player 하드삭제 직전에 호출
+    public async Task DeleteAllByPlayerAsync(int playerId)
+        => await _db.IapPurchases
+            .Where(p => p.PlayerId == playerId)
+            .ExecuteDeleteAsync();
 }

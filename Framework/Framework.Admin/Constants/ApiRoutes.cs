@@ -45,8 +45,14 @@ public static class ApiRoutes
         /// <summary>플레이어 밴 해제 (POST)</summary>
         public static string Unban(int id) => $"{Base}/{id}/unban";
 
-        /// <summary>플레이어 영구 삭제 (DELETE)</summary>
+        /// <summary>플레이어 소프트 딜리트 (DELETE) — 활성 계정 대상</summary>
         public static string Delete(int id) => $"{Base}/{id}";
+
+        /// <summary>플레이어 인앱결제 건수 조회 (GET) — 하드삭제 모달 경고 표시용</summary>
+        public static string IapCount(int id) => $"{Base}/{id}/iap-count";
+
+        /// <summary>플레이어 하드삭제 (DELETE) — 탈퇴 처리된 계정만 허용</summary>
+        public static string HardDelete(int id) => $"{Base}/{id}/hard";
     }
 
     // ── 랭킹 (RankingController: Route = "api/ranking") ───────────────────

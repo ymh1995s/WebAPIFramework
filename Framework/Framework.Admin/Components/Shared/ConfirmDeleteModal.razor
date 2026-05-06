@@ -21,6 +21,11 @@
                 <div class="modal-body">
                     <p class="text-danger fw-bold">이 작업은 되돌릴 수 없습니다.</p>
                     <p>대상 플레이어: <strong>@PlayerInfo</strong></p>
+                    @* 결제 건수 등 부가 정보가 있으면 경고 문구로 표시 *@
+                    @if (!string.IsNullOrEmpty(ExtraInfo))
+                    {
+                        <p class="text-warning small">@ExtraInfo</p>
+                    }
                     <p class="text-muted small">확인을 위해 아래 입력란에 <strong>삭제</strong> 를 입력하세요.</p>
                     @* 확인 텍스트 입력란 — "삭제" 입력 여부로 버튼 활성화 제어 *@
                     <input type="text"
@@ -53,6 +58,9 @@
 
     /// <summary>삭제 대상 플레이어 정보 문자열 (예: "ID: 1 / 닉네임: 홍길동")</summary>
     [Parameter] public string PlayerInfo { get; set; } = "";
+
+    /// <summary>부가 경고 정보 — 결제 건수 표시 등 (비어있으면 렌더링 생략)</summary>
+    [Parameter] public string? ExtraInfo { get; set; }
 
     /// <summary>삭제 확인 시 호출되는 콜백</summary>
     [Parameter] public EventCallback OnConfirm { get; set; }

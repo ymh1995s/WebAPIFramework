@@ -37,7 +37,10 @@ public partial class PlayerManagement : SafeComponentBase
     // ─── 삭제 확인 모달 상태 ────────────────────────
     private bool showDeleteModal = false;
     private string deletingPlayerInfo = "";
+    private string? deletingExtraInfo;    // 결제 건수 등 부가 경고 정보 — null이면 모달에서 비표시
     private int deletingPlayerId = 0;
+    // 하드삭제 여부 — true이면 /hard 엔드포인트, false이면 소프트 딜리트
+    private bool _isHardDelete = false;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -143,32 +146,70 @@ public partial class PlayerManagement : SafeComponentBase
         }
     }
 
-    /// <summary>삭제 모달 열기 — 대상 플레이어 정보를 상태에 저장</summary>
+    /// <summary>소프트 딜리트 모달 열기 — 활성 계정 대상</summary>
     private void OpenDeleteModal(PlayerDto p)
     {
-        deletingPlayerId = p.Id;
+        deletingPlayerId    = p.Id;
+        deletingPlayerInfo  = $"ID: {p.Id} / 닉네임: {p.Nickname}";
+        deletingExtraInfo   = null;
+        _isHardDelete       = false;
+        showDeleteModal     = true;
+    }
+
+    /// <summary>하드삭제 모달 열기 — 탈퇴 계정 대상, IAP 결제 건수를 API로 조회하여 경고 표시</summary>
+    private async Task OpenHardDeleteModal(PlayerDto p)
+    {
+        deletingPlayerId   = p.Id;
         deletingPlayerInfo = $"ID: {p.Id} / 닉네임: {p.Nickname}";
+        _isHardDelete      = true;
+
+        // 결제 건수 조회 — 모달에 소실 경고 표시
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var response = await client.GetAsync(ApiRoutes.AdminPlayers.IapCount(p.Id));
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<IapCountResponse>();
+            deletingExtraInfo = result?.Count > 0
+                ? $"주의: 인앱결제 이력 {result.Count}건이 함께 삭제됩니다."
+                : null;
+        }
+        else
+        {
+            // 건수 조회 실패 시에도 모달은 열고 경고만 표시하지 않음
+            deletingExtraInfo = null;
+        }
+
         showDeleteModal = true;
     }
 
     /// <summary>삭제 취소 — 모달 닫기 및 상태 초기화</summary>
     private void CancelDelete()
     {
-        showDeleteModal = false;
-        deletingPlayerId = 0;
+        showDeleteModal    = false;
+        deletingPlayerId   = 0;
         deletingPlayerInfo = "";
+        deletingExtraInfo  = null;
+        _isHardDelete      = false;
     }
 
-    /// <summary>삭제 확인 — API 호출 후 목록 갱신</summary>
+    /// <summary>삭제 확인 — 하드삭제 여부에 따라 엔드포인트 분기 후 목록 갱신</summary>
     private async Task ConfirmDelete()
     {
         var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.DeleteAsync(ApiRoutes.AdminPlayers.Delete(deletingPlayerId));
+
+        // 하드삭제: DELETE /api/admin/players/{id}/hard, 소프트 딜리트: DELETE /api/admin/players/{id}
+        var url = _isHardDelete
+            ? ApiRoutes.AdminPlayers.HardDelete(deletingPlayerId)
+            : ApiRoutes.AdminPlayers.Delete(deletingPlayerId);
+
+        var response = await client.DeleteAsync(url);
 
         // 모달 닫기 및 상태 초기화
-        showDeleteModal = false;
-        deletingPlayerId = 0;
+        showDeleteModal    = false;
+        deletingPlayerId   = 0;
         deletingPlayerInfo = "";
+        deletingExtraInfo  = null;
+        _isHardDelete      = false;
 
         if (response.IsSuccessStatusCode)
         {
@@ -284,4 +325,7 @@ public partial class PlayerManagement : SafeComponentBase
     }
 
     private record GuestLoginResponse(string AccessToken, string RefreshToken, Guid PlayerId, bool IsNewPlayer);
+
+    // IAP 결제 건수 API 응답 — GET /api/admin/players/{id}/iap-count 응답 역직렬화용
+    private record IapCountResponse(int Count);
 }

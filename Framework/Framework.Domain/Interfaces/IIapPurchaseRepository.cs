@@ -31,4 +31,10 @@ public interface IIapPurchaseRepository
 
     // consume 재시도 대상 조회 — Granted 상태 + Consumable + ConsumedAt 미기록 + 최대 시도 미달
     Task<List<IapPurchase>> FindPendingConsumesAsync(int maxAttempts);
+
+    // 특정 플레이어의 결제 건수 조회 — 하드삭제 전 경고 팝업용
+    Task<int> CountByPlayerAsync(int playerId);
+
+    // 특정 플레이어의 모든 결제 이력 하드삭제 — Player 하드삭제 전 FK 제약 해소 목적
+    Task DeleteAllByPlayerAsync(int playerId);
 }
