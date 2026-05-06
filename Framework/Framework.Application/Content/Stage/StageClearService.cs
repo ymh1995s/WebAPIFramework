@@ -145,9 +145,12 @@ public class StageClearService : IStageClearService
             }
 
             // 5단계: 경험치 지급 (ExpService 위임) — SourceKey: SourceKeys.StageExp
+            // 레벨업 발생 시 오른 레벨 목록을 받아 레벨업 보상 지급 (RewardDispatcher 위임)
             if (stage.ExpReward > 0)
             {
-                await _expService.AddExpAsync(playerId, stage.ExpReward, SourceKeys.StageExp(stageId));
+                var leveledUp = await _expService.AddExpAsync(playerId, stage.ExpReward, SourceKeys.StageExp(stageId));
+                if (leveledUp.Count > 0)
+                    await _rewardDispatcher.GrantLevelUpRewardsAsync(playerId, leveledUp);
             }
 
             _logger.LogInformation(

@@ -1,6 +1,7 @@
 using Framework.Application.Common;
 using Framework.Application.Features.AuditLog;
 using Framework.Application.Features.Exp;
+using Framework.Application.Features.Reward;
 using Framework.Domain.Constants;
 using Framework.Domain.Entities;
 using Framework.Domain.Interfaces;
@@ -17,6 +18,7 @@ public class MailService : IMailService
     private readonly IPlayerItemRepository _playerItemRepository;
     private readonly IPlayerProfileRepository _playerProfileRepository;
     private readonly IExpService _expService;
+    private readonly IRewardDispatcher _rewardDispatcher;
     private readonly IAuditLogService _auditLogService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<MailService> _logger;
@@ -27,6 +29,7 @@ public class MailService : IMailService
         IPlayerItemRepository playerItemRepository,
         IPlayerProfileRepository playerProfileRepository,
         IExpService expService,
+        IRewardDispatcher rewardDispatcher,
         IAuditLogService auditLogService,
         IUnitOfWork unitOfWork,
         ILogger<MailService> logger)
@@ -36,6 +39,7 @@ public class MailService : IMailService
         _playerItemRepository = playerItemRepository;
         _playerProfileRepository = playerProfileRepository;
         _expService = expService;
+        _rewardDispatcher = rewardDispatcher;
         _auditLogService = auditLogService;
         _unitOfWork = unitOfWork;
         _logger = logger;
@@ -217,10 +221,14 @@ public class MailService : IMailService
                             mail.ItemCount, balanceBefore, balanceBefore + mail.ItemCount);
                     }
 
-                    // Exp는 레벨업 처리가 포함되어 있으므로 별도로 처리
+                    // Exp 수령 처리 — 레벨업 발생 시 오른 레벨 목록을 받아 레벨업 보상 지급
                     // TODO: 감사 로그 구조 개선 시 Currency(Gold/Gems) 로그도 기록 필요
                     if (mail.Exp > 0)
-                        await _expService.AddExpAsync(mail.PlayerId, mail.Exp, SourceKeys.Mail(mail.Id));
+                    {
+                        var leveledUp = await _expService.AddExpAsync(mail.PlayerId, mail.Exp, SourceKeys.Mail(mail.Id));
+                        if (leveledUp.Count > 0)
+                            await _rewardDispatcher.GrantLevelUpRewardsAsync(mail.PlayerId, leveledUp);
+                    }
 
                     return true;
                 });

@@ -15,12 +15,13 @@ namespace Framework.Application.Features.Reward;
 // [파이프라인] 트랜잭션 시작 → RewardGrant 선기록(원자적 중복 차단) → Direct/Mail 분기 → MailId 업데이트 → 커밋
 // [원자성] IUnitOfWork를 통해 전체 흐름을 단일 DB 트랜잭션으로 묶어 부분 성공 상태를 방지
 // [멱등성] UNIQUE(PlayerId, SourceType, SourceKey) 제약 위반 catch로 레이스 컨디션 완전 차단
-// [순환 의존] RewardDispatcher → ExpService → RewardDispatcher 구조이나 레벨업 보상은 Exp=0 이므로 무한 루프 불발
+// [의존 방향] RewardDispatcher → ExpService 단방향. self-recurse(GrantLevelUpRewardsAsync)는 Exp=0 번들만 사용하므로 반드시 종료됨
 public class RewardDispatcher : IRewardDispatcher
 {
     private readonly IRewardGrantRepository _grantRepo;
     private readonly IPlayerRepository _playerRepository;
     private readonly IExpService _expService;
+    private readonly IRewardTableRepository _rewardTableRepo;
     private readonly IPlayerItemRepository _itemRepo;
     private readonly IMailRepository _mailRepo;
     private readonly IAuditLogService _auditLogService;
@@ -31,6 +32,7 @@ public class RewardDispatcher : IRewardDispatcher
         IRewardGrantRepository grantRepo,
         IPlayerRepository playerRepository,
         IExpService expService,
+        IRewardTableRepository rewardTableRepo,
         IPlayerItemRepository itemRepo,
         IMailRepository mailRepo,
         IAuditLogService auditLogService,
@@ -40,6 +42,7 @@ public class RewardDispatcher : IRewardDispatcher
         _grantRepo = grantRepo;
         _playerRepository = playerRepository;
         _expService = expService;
+        _rewardTableRepo = rewardTableRepo;
         _itemRepo = itemRepo;
         _mailRepo = mailRepo;
         _auditLogService = auditLogService;
@@ -209,20 +212,72 @@ public class RewardDispatcher : IRewardDispatcher
                 request.ActorId);
         }
 
-        // ExpService 경유 — 임계값 초과 시 자동 레벨업 + 레벨업 보상 지급
-        // [순환 호출 안전] 레벨업 보상(GrantLevelUpRewardAsync)은 Items만 포함(Exp=0)이므로
-        //   ExpService.AddExpAsync 재진입 없이 반드시 종료됨
+        // ExpService 경유 — 임계값 초과 시 자동 레벨업, 오른 레벨 목록 수신
         // [트랜잭션 위치] DispatchDirectAsync는 ExecuteInTransactionAsync 내부에서 호출되므로
         //   아이템 지급과 Exp 처리가 동일 트랜잭션 스코프에 묶임
+        // [self-recurse 종료 보장] GrantLevelUpRewardsAsync가 내부에서 GrantAsync를 호출하지만
+        //   레벨업 보상 번들은 Items만 포함(Exp=0)이므로 AddExpAsync 재진입이 발생하지 않아 반드시 종료됨
         if (bundle.Exp > 0)
         {
-            await _expService.AddExpAsync(
+            var leveledUp = await _expService.AddExpAsync(
                 request.PlayerId,
                 bundle.Exp,
                 sourceKey: $"{request.SourceType}:{request.SourceKey}");
+
+            // 레벨업이 발생한 경우 각 레벨의 보상 지급
+            if (leveledUp.Count > 0)
+                await GrantLevelUpRewardsAsync(request.PlayerId, leveledUp);
         }
 
         return GrantRewardResult.DirectSuccess();
+    }
+
+    // 레벨업 보상 일괄 지급 — 각 레벨의 RewardTable 조회 후 GrantAsync 위임
+    // [호출자] StageClearService / MailService 등이 AddExpAsync 반환 레벨 목록으로 한 줄 처리
+    // [self-recurse 종료 보장] 레벨업 보상 번들은 Items만 포함 — Exp=0이므로 AddExpAsync 재진입 없이 반드시 종료
+    public async Task GrantLevelUpRewardsAsync(int playerId, IEnumerable<int> levels)
+    {
+        foreach (var level in levels)
+        {
+            // 해당 레벨의 보상 테이블 조회 (Code = "levelup:{level}")
+            var tableCode = SourceKeys.LevelUp(level);
+            var table = await _rewardTableRepo.FindAsync(RewardSourceType.LevelUp, tableCode);
+
+            if (table is null)
+            {
+                // 보상 테이블 없으면 스킵 (설정 안 된 레벨은 무보상)
+                _logger.LogDebug(
+                    "레벨업 보상 테이블 없음 — PlayerId: {PlayerId}, Level: {Level}, Code: {Code}",
+                    playerId, level, tableCode);
+                continue;
+            }
+
+            // 보상 번들 구성 — 아이템만 포함, Exp는 절대 포함하지 않음 (self-recurse 종료 보장)
+            var items = table.Entries
+                .Select(e => new Domain.ValueObjects.RewardItem(e.ItemId, e.Count))
+                .ToList();
+
+            var bundle = new RewardBundle(Items: items);
+            if (bundle.IsEmpty) continue;
+
+            // 보상 지급 (멱등성: SourceKey="levelup:{level}")
+            var request = new GrantRewardRequest(
+                PlayerId: playerId,
+                SourceType: RewardSourceType.LevelUp,
+                SourceKey: SourceKeys.LevelUp(level),
+                Bundle: bundle,
+                MailTitle: $"레벨 {level} 달성 보상",
+                MailBody: $"레벨 {level}에 도달하셨습니다. 보상을 수령하세요."
+            );
+
+            var result = await GrantAsync(request);
+            if (!result.Success && !result.AlreadyGranted)
+            {
+                _logger.LogWarning(
+                    "레벨업 보상 지급 실패 — PlayerId: {PlayerId}, Level: {Level}, Message: {Message}",
+                    playerId, level, result.Message);
+            }
+        }
     }
 
     // Mail 지급 — MailItems로 우편 생성

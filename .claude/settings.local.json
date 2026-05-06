@@ -26,7 +26,8 @@
       "Bash(xargs wc *)",
       "Bash(git -C /c/Users/user/Documents/WebAPIFramework log --oneline --format=\"%s\")",
       "Bash(git -C /c/Users/user/Documents/WebAPIFramework log --format=\"%H %s\")",
-      "PowerShell(dotnet ef database *)"
+      "PowerShell(dotnet ef database *)",
+      "Bash(dotnet test *)"
     ]
   }
 }

@@ -21,6 +21,9 @@ public static class TestServiceProviderBuilder
         services.AddDbContext<AppDbContext>(opts =>
             opts.UseInMemoryDatabase(databaseName ?? Guid.NewGuid().ToString()));
 
+        // IMemoryCache 등록 — LevelTableProvider 등 캐시 의존 서비스용 (운영 Program.cs AddMemoryCache()와 동일)
+        services.AddMemoryCache();
+
         return services;
     }
 }
