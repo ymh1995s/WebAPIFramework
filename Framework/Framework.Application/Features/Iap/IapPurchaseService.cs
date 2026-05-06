@@ -310,9 +310,39 @@ public class IapPurchaseService : IIapPurchaseService
             // 성공 — ConsumedAt 기록
             purchase.ConsumedAt = DateTime.UtcNow;
             purchase.UpdatedAt = DateTime.UtcNow;
-            await _purchaseRepo.SaveChangesAsync();
+            try
+            {
+                await _purchaseRepo.SaveChangesAsync();
+                _logger.LogInformation("consume 완료 — PurchaseId: {Id}", purchase.Id);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // [동시성 최소 패턴] ConsumedAt 갱신 중 RTDN 등 외부 갱신과 충돌 시
+                // 1회 재시도 + 재로드 가드 — verify 본 경로(3회)와 달리 retry 워커가 안전망이므로 최소 처리
+                _logger.LogWarning("consume 성공 후 ConsumedAt 갱신 동시성 충돌 — 재로드 후 1회 재시도. PurchaseId: {Id}", purchase.Id);
+                _unitOfWork.ClearChangeTracker();
 
-            _logger.LogInformation("consume 완료 — PurchaseId: {Id}", purchase.Id);
+                var reloaded = await _purchaseRepo.FindByTokenAsync(IapStore.Google, purchaseToken);
+                // 재로드 가드 — 다른 인스턴스가 이미 처리했거나 환불된 경우 재시도 불필요
+                if (reloaded is null || reloaded.ConsumedAt is not null || reloaded.Status == IapPurchaseStatus.Refunded)
+                {
+                    _logger.LogInformation("consume ConsumedAt 갱신 재시도 불필요 (이미 처리 or 환불) — PurchaseId: {Id}", purchase.Id);
+                    return;
+                }
+
+                reloaded.ConsumedAt = DateTime.UtcNow;
+                reloaded.UpdatedAt = DateTime.UtcNow;
+                try
+                {
+                    await _purchaseRepo.SaveChangesAsync();
+                    _logger.LogInformation("consume 완료 (재시도 성공) — PurchaseId: {Id}", purchase.Id);
+                }
+                catch (DbUpdateConcurrencyException ex2)
+                {
+                    // 1회 재시도도 실패 — 예외 전파 없이 종료. retry 워커가 다음 사이클에 후속 처리
+                    _logger.LogError(ex2, "consume ConsumedAt 갱신 재시도 실패 — retry 워커 위임. PurchaseId: {Id}", purchase.Id);
+                }
+            }
         }
         catch (IapConsumeException ex)
         {
@@ -356,7 +386,41 @@ public class IapPurchaseService : IIapPurchaseService
                     purchase.Id);
             }
 
-            await _purchaseRepo.SaveChangesAsync();
+            try
+            {
+                await _purchaseRepo.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // [동시성 최소 패턴] consume 실패 메타 갱신 중 충돌 시 1회 재시도
+                _logger.LogWarning("consume 실패 메타 갱신 동시성 충돌 — 재로드 후 1회 재시도. PurchaseId: {Id}", purchase.Id);
+                _unitOfWork.ClearChangeTracker();
+
+                var reloaded = await _purchaseRepo.FindByTokenAsync(IapStore.Google, purchaseToken);
+                // 재로드 가드 — 이미 처리됐거나 환불된 경우 재시도 불필요
+                if (reloaded is null || reloaded.Status == IapPurchaseStatus.Refunded || reloaded.ConsumedAt is not null)
+                {
+                    _logger.LogInformation("consume 실패 메타 갱신 재시도 불필요 (이미 처리 or 환불) — PurchaseId: {Id}", purchase.Id);
+                    return;
+                }
+
+                reloaded.ConsumeAttempts++;
+                reloaded.LastConsumeAttemptAt = DateTime.UtcNow;
+                reloaded.LastConsumeError = ex.Message;
+                reloaded.UpdatedAt = DateTime.UtcNow;
+                if (ex.IsPermanent)
+                    reloaded.ConsumedAt = DateTime.UtcNow;
+
+                try
+                {
+                    await _purchaseRepo.SaveChangesAsync();
+                }
+                catch (DbUpdateConcurrencyException exRetry)
+                {
+                    // 재시도 실패 — 예외 전파 없이 종료. 다음 RTDN/워커 사이클에 위임
+                    _logger.LogError(exRetry, "consume 실패 메타 재시도 실패 — 워커 위임. PurchaseId: {Id}", purchase.Id);
+                }
+            }
         }
     }
 
