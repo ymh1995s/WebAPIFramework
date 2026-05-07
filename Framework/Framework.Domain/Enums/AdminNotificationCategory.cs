@@ -14,4 +14,7 @@ public enum AdminNotificationCategory
 
     // IAP verify 동시성 충돌 한도(3회) 초과 — 재무 영향 가능, 즉시 확인 필요
     IapVerifyConcurrencyExhausted = 4,
+
+    // 백그라운드 서비스 장기 실패 — PII 정리 등 서비스가 임계값 초과 동안 미실행 시 발송
+    BackgroundServiceFailure = 5,
 }

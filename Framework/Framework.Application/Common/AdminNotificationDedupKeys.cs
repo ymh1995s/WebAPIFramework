@@ -23,4 +23,8 @@ public static class AdminNotificationDedupKeys
     // IAP verify 동시성 충돌 한도 초과 — 마스킹된 토큰 기준 중복 알림 차단
     public static string IapVerifyConcurrencyExhausted(string maskedToken)
         => $"iap:concurrency:verify:{maskedToken}";
+
+    // PII 보관기간 정리 서비스 장기 미실행 알림 — 날짜(UTC date) 기준 1일 1회 중복 차단
+    public static string PiiRetentionStalled(DateOnly date)
+        => $"pii-retention-stalled:{date:yyyy-MM-dd}";
 }

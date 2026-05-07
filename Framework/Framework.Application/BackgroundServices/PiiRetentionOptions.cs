@@ -24,4 +24,13 @@ public class PiiRetentionOptions
 
     // 비상 정지 스위치 — false 시 Cleanup 전체 건너뜀 (인시던트 대응 시 즉시 중단 가능)
     public bool Enabled { get; set; } = true;
+
+    // ── 헬스체크 임계값 ──────────────────────────────────────────────────
+    // 마지막 성공 실행으로부터 이 시간 이내이면 Healthy 판정
+    // 기본값 30h: 매일 실행이므로 24h + 여유 6h
+    public double HealthyThresholdHours { get; set; } = 30.0;
+
+    // 마지막 성공 실행으로부터 이 시간 초과이면 Unhealthy 판정 (HealthyThresholdHours ~ 이 값 사이는 Degraded)
+    // 기본값 54h: 1회 실행 주기(24h) × 2 + 여유 6h
+    public double UnhealthyThresholdHours { get; set; } = 54.0;
 }

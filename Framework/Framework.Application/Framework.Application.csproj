@@ -11,6 +11,8 @@
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.6" />
     <!-- BackgroundService(PiiRetentionCleanupService) 기반 클래스 제공 -->
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.6" />
+    <!-- PiiRetentionHealthCheck: IHealthCheck 인터페이스 참조 -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.6" />
     <!-- DbUpdateExceptionExtensions.IsUniqueViolation에서 PostgresException / PostgresErrorCodes 직접 참조 — M-46 -->
     <PackageReference Include="Npgsql" Version="10.0.2" />
   </ItemGroup>

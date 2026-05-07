@@ -64,8 +64,13 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // ── 헬스체크 ──────────────────────────────────────────────────
 // 외부 probe(컨테이너 오케스트레이터, 모니터링)용 — DB 연결 상태 포함
+// PiiRetentionHealthState: PiiRetentionCleanupService(작성)와 PiiRetentionHealthCheck(읽기)가 공유하는 Singleton 상태 객체
+builder.Services.AddSingleton<PiiRetentionHealthState>();
+
 builder.Services.AddHealthChecks()
-    .AddDbContextCheck<AppDbContext>("database");
+    .AddDbContextCheck<AppDbContext>("database")
+    // PII 보관기간 정리 서비스 상태 — 장기 미실행 감지용
+    .AddCheck<PiiRetentionHealthCheck>("pii-retention");
 
 // ── 저장소 ────────────────────────────────────────────────────
 builder.Services.AddAuthRepositories();      // 인증 (Player, RefreshToken)
