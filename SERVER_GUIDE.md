@@ -202,7 +202,13 @@ dotnet ef database update --project Framework/Framework.Infrastructure --startup
 
 ### 10.1 위치
 - `Framework/Framework.Tests/` — 단일 테스트 프로젝트
-- `Unit/` — 단위 테스트 (도메인별 폴더 권장: `Reward/`, `Auth/` 등)
+- `Infrastructure/` — 테스트 공용 헬퍼
+  - `TestDbContextFactory.cs` — InMemory DbContext 직접 생성
+  - `TestServiceProviderBuilder.cs` — InMemory DbContext + 로깅 기본 DI 세팅
+  - `UnitOfWorkSubstitute.cs` — NSubstitute IUnitOfWork 패스스루 헬퍼 (ExecuteInTransactionAsync 람다 실행)
+- `Unit/Smoke/` — DI 스모크 테스트 (서비스 Resolve 가능 여부)
+- `Unit/Exp/` — ExpService 단위 테스트 (AddExpAsync 10케이스)
+- `Unit/Auth/` — AuthService 단위 테스트 (GuestLogin/Refresh/Logout 16케이스)
 - `Integration/` — PostgreSQL 의존 테스트 (Testcontainers 도입 후 사용 예정, 현재 빈 폴더)
 
 ### 10.2 작성 규칙
@@ -224,7 +230,8 @@ dotnet ef database update --project Framework/Framework.Infrastructure --startup
 - Coverage: `--collect:"XPlat Code Coverage"`
 
 ### 10.5 도입 배경
-H-4 (round_20260503) — 풀 테스트 코드 작성은 별도 라운드. 본 셋업은 인프라/스모크만.
+- H-4 (round_20260503) — 인프라/스모크 셋업 완료
+- 2026-05-07 — 1단계 단위 테스트 구현: ExpService(10개) + AuthService GuestLogin/Refresh/Logout(16개). 총 31개 통과. GoogleLoginAsync 등 나머지 AuthService 메서드는 2단계로 보류
 
 ---
 
