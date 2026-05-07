@@ -114,21 +114,42 @@ else
                         <div class="border-top pt-2">
                             @if (!items.Any())
                             {
-                                <p class="small text-muted mb-0">아이템 없음</p>
+                                <!-- 아이템 없을 때 안내 — 다음 액션(+ 추가)을 명시하여 신규 사용자 혼란 방지 -->
+                                <p class="small text-muted mb-0">아이템 없음. 위 "+ 추가" 버튼으로 항목을 추가하세요.</p>
                             }
-                            @foreach (var item in items)
+                            else
                             {
-                                <div class="row g-2 mb-1 align-items-center">
-                                    <div class="col-5">
-                                        <input type="number" class="form-control form-control-sm" @bind="item.ItemId" placeholder="ItemId (Gold=1, Gems=2)" />
-                                    </div>
-                                    <div class="col-4">
-                                        <input type="number" class="form-control form-control-sm" @bind="item.Quantity" min="1" placeholder="수량" />
-                                    </div>
-                                    <div class="col-3">
-                                        <button class="btn btn-outline-danger btn-sm w-100" @onclick="() => RemoveItem(item)">×</button>
-                                    </div>
+                                <!-- 컬럼 헤더 — 아이템이 1개 이상일 때만 표시하여 빈 상태 노이즈 제거 -->
+                                <div class="row g-2 mb-1 align-items-center text-muted small fw-semibold">
+                                    <div class="col-5">아이템</div>
+                                    <div class="col-4">수량</div>
+                                    <div class="col-3 text-center">삭제</div>
                                 </div>
+                                @foreach (var item in items)
+                                {
+                                    <div class="row g-2 mb-1 align-items-center">
+                                        <div class="col-5">
+                                            <!-- 아이템 이름 드롭다운 — availableItems는 OnAfterRenderAsync에서 로드 -->
+                                            <select class="form-select form-select-sm" @bind="item.ItemId" aria-label="아이템 선택">
+                                                <option value="0">-- 아이템 선택 --</option>
+                                                @foreach (var opt in availableItems)
+                                                {
+                                                    <option value="@opt.Id">@opt.Name (Id:@opt.Id)</option>
+                                                }
+                                            </select>
+                                        </div>
+                                        <div class="col-4">
+                                            <input type="number" class="form-control form-control-sm"
+                                                   @bind="item.Quantity" min="1"
+                                                   aria-label="수량" placeholder="수량" />
+                                        </div>
+                                        <div class="col-3">
+                                            <button class="btn btn-outline-danger btn-sm w-100"
+                                                    @onclick="() => RemoveItem(item)"
+                                                    title="이 아이템 행 삭제" aria-label="아이템 삭제">×</button>
+                                        </div>
+                                    </div>
+                                }
                             }
                         </div>
                     </div>

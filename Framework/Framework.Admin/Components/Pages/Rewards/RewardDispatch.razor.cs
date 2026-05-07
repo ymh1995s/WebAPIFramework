@@ -33,6 +33,9 @@ public partial class RewardDispatch : SafeComponentBase
     // 아이템 목록 (단일/Bulk 공통)
     private List<ItemGrantModel> items = new();
 
+    // 드롭다운용 아이템 목록 — 페이지 최초 렌더링 시 API에서 로드
+    private List<ItemOption> availableItems = new();
+
     // ─── 우편 설정 (공통) ───────────────────────────
     private string mailTitle = "";
     private string mailBody = "";
@@ -42,6 +45,26 @@ public partial class RewardDispatch : SafeComponentBase
     private string? resultMessage;
     private bool resultSuccess;
     private GrantResultDetail? resultDetail;
+
+    // 최초 렌더링 시 아이템 마스터 목록 로드 — 드롭다운 옵션 구성용
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await SafeExecute(LoadAvailableItemsAsync, _ => { });
+        StateHasChanged();
+    }
+
+    // 아이템 마스터 목록 조회 — GET api/admin/items
+    private async Task LoadAvailableItemsAsync()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var response = await client.GetAsync(ApiRoutes.AdminItems.Collection);
+        if (!response.IsSuccessStatusCode) return;
+
+        var dtos = await response.Content.ReadFromJsonAsync<List<ItemOptionDto>>();
+        if (dtos is not null)
+            availableItems = dtos.Select(d => new ItemOption(d.Id, d.Name)).ToList();
+    }
 
     /// <summary>대상 모드 변경 핸들러 — Bulk 선택 시 지급 방식을 Mail(1)로 강제 설정</summary>
     private void OnTargetModeChanged(string mode)
@@ -234,6 +257,12 @@ public partial class RewardDispatch : SafeComponentBase
     }
 
     // ─── 내부 모델 ──────────────────────────────────
+
+    // 드롭다운 표시용 아이템 옵션 모델
+    private record ItemOption(int Id, string Name);
+
+    // API 응답 역직렬화용 — Id와 Name만 사용
+    private record ItemOptionDto(int Id, string Name);
 
     // 아이템 지급 편집 모델
     private class ItemGrantModel
