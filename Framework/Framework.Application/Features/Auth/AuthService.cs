@@ -58,8 +58,8 @@ public class AuthService : IAuthService
                 };
                 // Player 저장 — 트랜잭션 내 SaveChanges로 Id 확정, 아직 미커밋 상태
                 await _playerRepo.AddAsync(player);
-                // 확정된 Id로 프로필 초기화 (레벨 1, 재화 0) — 동일 트랜잭션 내 원자성 보장
-                await _profileRepo.AddAsync(new PlayerProfile { PlayerId = player!.Id });
+                // 네비게이션 프로퍼티로 부모 관계 등록 — EF가 INSERT 순서 자동 결정 및 Id 전파
+                await _profileRepo.AddAsync(new PlayerProfile { Player = player });
             });
         }
         else
@@ -141,8 +141,8 @@ public class AuthService : IAuthService
                 };
                 // Player 저장 — 트랜잭션 내 Id 확정
                 await _playerRepo.AddAsync(newPlayer);
-                // 확정된 Id로 프로필 생성 — 동일 트랜잭션 내 원자성 보장
-                await _profileRepo.AddAsync(new PlayerProfile { PlayerId = newPlayer.Id });
+                // 네비게이션 프로퍼티로 부모 관계 등록 — EF가 INSERT 순서 자동 결정 및 Id 전파
+                await _profileRepo.AddAsync(new PlayerProfile { Player = newPlayer });
             });
             return await IssueTokensAsync(newPlayer, true, ipAddress, userAgent);
         }
