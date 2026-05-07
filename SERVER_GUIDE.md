@@ -208,7 +208,7 @@ dotnet ef database update --project Framework/Framework.Infrastructure --startup
   - `UnitOfWorkSubstitute.cs` — NSubstitute IUnitOfWork 패스스루 헬퍼 (ExecuteInTransactionAsync 람다 실행)
 - `Unit/Smoke/` — DI 스모크 테스트 (서비스 Resolve 가능 여부)
 - `Unit/Exp/` — ExpService 단위 테스트 (AddExpAsync 10케이스)
-- `Unit/Auth/` — AuthService 단위 테스트 (GuestLogin/Refresh/Logout 16케이스)
+- `Unit/Auth/` — AuthService 단위 테스트 (GuestLogin/Refresh/Logout/GoogleLogin/Withdraw/LinkGoogle/ResolveConflict 31케이스)
 - `Integration/` — PostgreSQL 의존 테스트 (Testcontainers 도입 후 사용 예정, 현재 빈 폴더)
 
 ### 10.2 작성 규칙
@@ -218,6 +218,26 @@ dotnet ef database update --project Framework/Framework.Infrastructure --startup
 - DI 의존 테스트는 `TestServiceProviderBuilder.CreateBaseServices()` 후 `Add*Services()` 호출
 - Repository 모킹: `Substitute.For<IXxxRepository>()`
 - 명명 규칙: `메서드_조건_기대결과` 예) `Grant_DuplicateSourceKey_ReturnsAlreadyGranted`
+
+### 10.2.1 테스트 선정 기준
+**대상**: 비즈니스 로직이 있는 **Service 레이어만**. 컨트롤러(위임만 하는 경우)·Repository는 제외.
+
+**시나리오 선정**: 분기마다 1개. 아래 4가지 유형을 기준으로 선정:
+
+| 유형 | 예시 |
+|------|------|
+| 정상 경로 | 신규 플레이어 생성, 유효한 토큰 갱신 |
+| 예외 경로 | 밴 → `PlayerBannedException`, 만료 토큰 → `RefreshTokenExpiredException` |
+| 멱등 경로 | 이미 탈퇴된 계정 재호출 → NoOp, SaveChanges 미호출 |
+| 경계값 | DeviceId 8자 미만, 다중 레벨업, 시간 임계값(24h/30h) |
+
+**검증 방식**:
+- 협력 호출: `Received(1)`, `DidNotReceive()` — 의존 서비스가 몇 번 불렸는지
+- 상태 변화: `Assert.Equal(...)` — 엔티티 필드값 직접 확인
+- 예외: `Assert.ThrowsAsync<T>()` + `ErrorCode` 일치 확인
+
+**테스트 추가 요청 예시**:
+> "`PiiRetentionHealthCheck` 단위 테스트 추가. 시나리오: LastSuccessUtc 없음 → Unhealthy, 24h 이내 → Healthy, 24~54h → Degraded, 54h 초과 → Unhealthy. `TimeProvider.Fixed()`로 시간 고정해서 경계값 검증."
 
 ### 10.3 xmin / 동시성 / Raw SQL 테스트
 - InMemory에서는 **동작 불가**
@@ -232,6 +252,7 @@ dotnet ef database update --project Framework/Framework.Infrastructure --startup
 ### 10.5 도입 배경
 - H-4 (round_20260503) — 인프라/스모크 셋업 완료
 - 2026-05-07 — 1단계 단위 테스트 구현: ExpService(10개) + AuthService GuestLogin/Refresh/Logout(16개). 총 31개 통과. GoogleLoginAsync 등 나머지 AuthService 메서드는 2단계로 보류
+- 2026-05-07 — 2단계: AuthService GoogleLoginAsync/WithdrawAsync/LinkGoogleAsync/ResolveGoogleConflictAsync(15개) 추가. AuthService 누적 31개, 전체 41개 통과
 
 ---
 
