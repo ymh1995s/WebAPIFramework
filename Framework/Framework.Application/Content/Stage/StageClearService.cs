@@ -334,6 +334,34 @@ public class StageClearService : IStageClearService
         return stage is null ? null : ToDto(stage);
     }
 
+    // Admin — 스테이지 영구 삭제 (클리어 기록 포함, 트랜잭션 보장)
+    // [순서] 1. 스테이지 존재 확인 → 2. 클리어 기록 일괄 삭제 → 3. 스테이지 삭제
+    public async Task<bool> DeleteStageAsync(int stageId)
+    {
+        return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            // 1단계: 삭제 대상 스테이지 조회
+            var stage = await _stageRepo.GetByIdAsync(stageId);
+            if (stage is null)
+            {
+                _logger.LogWarning("스테이지 삭제 실패 — 대상 없음. StageId: {StageId}", stageId);
+                return false;
+            }
+
+            // 2단계: 해당 스테이지의 플레이어 클리어 기록 일괄 삭제 (Bulk DELETE)
+            var deletedClears = await _clearRepo.DeleteByStageIdAsync(stageId);
+            _logger.LogInformation("스테이지 클리어 기록 삭제 — StageId: {StageId}, 삭제 행 수: {Count}",
+                stageId, deletedClears);
+
+            // 3단계: 스테이지 마스터 데이터 삭제
+            await _stageRepo.DeleteAsync(stage);
+
+            _logger.LogInformation("스테이지 영구 삭제 완료 — StageId: {StageId}, Code: {Code}",
+                stageId, stage.Code);
+            return true;
+        });
+    }
+
     // 엔티티 → DTO 변환 헬퍼
     private static StageDto ToDto(Domain.Content.Entities.Stage s) => new(
         s.Id, s.Code, s.Name,

@@ -26,6 +26,9 @@ public interface IStageRepository
     // 스테이지 추가
     Task AddAsync(Stage stage);
 
+    // 스테이지 영구 삭제 — Admin DEBUG 전용
+    Task DeleteAsync(Stage stage);
+
     // 변경사항 저장
     Task SaveChangesAsync();
 }

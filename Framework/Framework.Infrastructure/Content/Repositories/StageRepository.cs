@@ -64,6 +64,13 @@ public class StageRepository : IStageRepository
     public async Task AddAsync(Stage stage)
         => await _db.Stages.AddAsync(stage);
 
+    // 스테이지 영구 삭제 — ChangeTracker 통해 Remove 후 즉시 SaveChanges
+    public async Task DeleteAsync(Stage stage)
+    {
+        _db.Stages.Remove(stage);
+        await _db.SaveChangesAsync();
+    }
+
     // 변경사항 저장
     public async Task SaveChangesAsync()
         => await _db.SaveChangesAsync();

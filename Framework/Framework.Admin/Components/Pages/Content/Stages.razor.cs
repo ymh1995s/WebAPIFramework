@@ -47,6 +47,19 @@ public partial class Stages : SafeComponentBase
     private int newSortOrder = 0;
     private string? createError;
 
+    // DEBUG 빌드 여부 — 삭제 버튼 및 모달 표시 제어
+#if DEBUG
+    private const bool _isDebugBuild = true;
+#else
+    private const bool _isDebugBuild = false;
+#endif
+
+    // ─── 삭제 확인 모달 상태 (DEBUG 빌드에서만 UI 노출) ────────
+    // 필드 자체는 항상 컴파일되어야 Razor 마크업 참조가 가능
+    private bool _showDeleteModal;
+    private int _deletingStageId;
+    private string _deletingStageInfo = "";
+
     // ─── 편집 모달 상태 ─────────────────────────────
     private bool showEditModal;
     private StageItem? editingStage;
@@ -192,6 +205,45 @@ public partial class Stages : SafeComponentBase
 
     /// <summary>편집 모달 닫기</summary>
     private void CloseEditModal() => showEditModal = false;
+
+    /// <summary>스테이지 삭제 모달 열기 — 삭제 대상 정보 설정 후 모달 표시</summary>
+    private void OpenDeleteModal(StageItem s)
+    {
+        _deletingStageId   = s.Id;
+        _deletingStageInfo = $"ID: {s.Id} / 코드: {s.Code} / 이름: {s.Name}";
+        _showDeleteModal   = true;
+    }
+
+    /// <summary>삭제 취소 — 모달 닫기 및 상태 초기화</summary>
+    private void CancelDelete()
+    {
+        _showDeleteModal   = false;
+        _deletingStageId   = 0;
+        _deletingStageInfo = "";
+    }
+
+    /// <summary>삭제 확인 — DELETE /api/admin/stages/{id} 호출 후 목록 갱신</summary>
+    private async Task ConfirmDeleteAsync()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var response = await client.DeleteAsync(ApiRoutes.AdminStages.Delete(_deletingStageId));
+
+        // 모달 닫기 및 상태 초기화
+        _showDeleteModal   = false;
+        _deletingStageId   = 0;
+        _deletingStageInfo = "";
+
+        if (response.IsSuccessStatusCode)
+        {
+            // 삭제 성공 시 현재 페이지 목록 갱신
+            successMessage = "스테이지가 삭제되었습니다.";
+            await Load();
+        }
+        else
+        {
+            errorMessage = $"삭제 실패: {response.StatusCode}";
+        }
+    }
 
     /// <summary>스테이지 수정 저장 — PUT /api/admin/stages/{id}</summary>
     private async Task SaveEdit()

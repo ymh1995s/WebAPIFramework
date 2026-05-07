@@ -434,6 +434,9 @@ public static class ApiRoutes
         /// <summary>단건 조회 (GET) / 수정 (PUT)</summary>
         public static string ById(int id) => $"{Base}/{id}";
 
+        /// <summary>스테이지 영구 삭제 (DELETE) — DEBUG 빌드 전용</summary>
+        public static string Delete(int id) => $"{Base}/{id}";
+
         /// <summary>키워드 + 페이지네이션 검색</summary>
         public static string Search(string? keyword, int page, int pageSize)
         {

@@ -20,6 +20,9 @@ public interface IStageClearRepository
     // 클리어 기록 추가
     Task AddAsync(StageClear stageClear);
 
+    // 특정 스테이지의 모든 클리어 기록 일괄 삭제 — Admin DEBUG 전용, 반환값: 삭제된 행 수
+    Task<int> DeleteByStageIdAsync(int stageId);
+
     // 변경사항 저장
     Task SaveChangesAsync();
 }

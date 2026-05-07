@@ -77,4 +77,16 @@ public class AdminStagesController : ControllerBase
         if (!success) return NotFound();
         return Ok(new MessageResponse("스테이지가 수정되었습니다."));
     }
+
+#if DEBUG
+    // 스테이지 영구 삭제 — DEBUG 빌드 전용 (테스트 데이터 정리 목적)
+    // 관련 클리어 기록도 함께 삭제 (트랜잭션 보장)
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var success = await _service.DeleteStageAsync(id);
+        if (!success) return NotFound();
+        return NoContent();
+    }
+#endif
 }

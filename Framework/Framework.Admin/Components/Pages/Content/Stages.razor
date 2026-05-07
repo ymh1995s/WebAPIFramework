@@ -104,6 +104,11 @@ else
                     </td>
                     <td>
                         <button class="btn btn-outline-primary btn-sm" @onclick="() => OpenEditModal(s)">편집</button>
+                        @* 스테이지 삭제 버튼 — DEBUG 빌드에서만 표시 *@
+                        @if (_isDebugBuild)
+                        {
+                            <button class="btn btn-outline-danger btn-sm ms-1" @onclick="() => OpenDeleteModal(s)">삭제</button>
+                        }
                     </td>
                 </tr>
             }
@@ -181,6 +186,18 @@ else
             </div>
         </div>
     </div>
+}
+
+@* 스테이지 삭제 확인 모달 — DEBUG 빌드 전용 *@
+@if (_isDebugBuild)
+{
+    <ConfirmDeleteModal Title="스테이지 영구 삭제"
+                        InfoLabel="대상 스테이지"
+                        IsVisible="_showDeleteModal"
+                        PlayerInfo="_deletingStageInfo"
+                        ExtraInfo="이 스테이지를 선행 조건으로 가진 스테이지들의 조건이 해제됩니다"
+                        OnConfirm="ConfirmDeleteAsync"
+                        OnCancel="CancelDelete" />
 }
 
 <!-- 편집 모달 -->

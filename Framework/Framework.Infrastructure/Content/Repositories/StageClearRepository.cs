@@ -36,6 +36,13 @@ public class StageClearRepository : IStageClearRepository
     public async Task AddAsync(StageClear stageClear)
         => await _db.StageClears.AddAsync(stageClear);
 
+    // 특정 스테이지의 모든 클리어 기록 일괄 삭제 — EF 7+ ExecuteDeleteAsync (Bulk DELETE SQL)
+    // 반환: 삭제된 행 수
+    public async Task<int> DeleteByStageIdAsync(int stageId)
+        => await _db.StageClears
+            .Where(c => c.StageId == stageId)
+            .ExecuteDeleteAsync();
+
     // 변경사항 저장
     public async Task SaveChangesAsync()
         => await _db.SaveChangesAsync();

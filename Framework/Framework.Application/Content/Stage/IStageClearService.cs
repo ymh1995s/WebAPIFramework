@@ -31,4 +31,8 @@ public interface IStageClearService
 
     // Admin — 스테이지 단건 조회
     Task<StageDto?> GetByIdAsync(int id);
+
+    // Admin — 스테이지 영구 삭제 (관련 클리어 기록 포함) — DEBUG 빌드 전용
+    // 반환: 삭제 성공 여부 (스테이지 없으면 false)
+    Task<bool> DeleteStageAsync(int stageId);
 }
