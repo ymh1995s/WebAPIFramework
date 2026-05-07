@@ -1,0 +1,87 @@
+@using Framework.Admin.Constants
+
+<!-- 보상 지급 취소 확인 다이얼로그 -->
+<!-- 취소 사유 필수, 안내 우편 발송 선택, Direct 지급은 UI에서 이미 필터링됨 -->
+<div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.4)">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">보상 지급 취소</h5>
+                <button type="button" class="btn-close" @onclick="OnClosed" disabled="@isProcessing"></button>
+            </div>
+            <div class="modal-body">
+                <!-- 대상 정보 요약 -->
+                <div class="alert alert-warning py-2 small mb-3">
+                    <strong>Grant ID:</strong> @GrantId &nbsp;|&nbsp;
+                    <strong>PlayerId:</strong> @PlayerId
+                </div>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger py-2 small">@errorMessage</div>
+                }
+
+                <!-- 취소 사유 입력 (필수) -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">
+                        취소 사유 <span class="text-danger">*</span>
+                    </label>
+                    <textarea class="form-control form-control-sm"
+                              rows="3"
+                              placeholder="취소 사유를 입력하세요 (필수)"
+                              @bind="reason"
+                              maxlength="500"
+                              disabled="@isProcessing"></textarea>
+                    <div class="form-text">최대 500자</div>
+                </div>
+
+                <!-- 안내 우편 발송 선택 -->
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="sendMailCheck"
+                               @bind="sendMailNotification" disabled="@isProcessing" />
+                        <label class="form-check-label small" for="sendMailCheck">
+                            플레이어에게 취소 안내 우편 발송
+                        </label>
+                    </div>
+                </div>
+
+                @if (sendMailNotification)
+                {
+                    <!-- 안내 우편 제목/본문 커스터마이징 (선택) -->
+                    <div class="mb-2">
+                        <label class="form-label small">안내 우편 제목 (미입력 시 기본값 사용)</label>
+                        <input type="text" class="form-control form-control-sm"
+                               placeholder="보상 지급 취소 안내"
+                               @bind="notificationMailTitle"
+                               maxlength="100"
+                               disabled="@isProcessing" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">안내 우편 본문 (미입력 시 기본값 사용)</label>
+                        <textarea class="form-control form-control-sm"
+                                  rows="3"
+                                  placeholder="미입력 시 '보상 지급이 취소되었습니다. 사유: ...' 문구 사용"
+                                  @bind="notificationMailBody"
+                                  maxlength="2000"
+                                  disabled="@isProcessing"></textarea>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" @onclick="OnClosed" disabled="@isProcessing">취소</button>
+                <button class="btn btn-danger btn-sm" @onclick="Confirm" disabled="@isProcessing">
+                    @if (isProcessing)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        <span>처리 중...</span>
+                    }
+                    else
+                    {
+                        <span>지급 취소 확인</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

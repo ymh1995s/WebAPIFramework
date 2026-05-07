@@ -30,7 +30,10 @@ public class RewardGrantQueryService : IRewardGrantQueryService
             g.SourceKey,
             g.GrantedAt,
             g.MailId.HasValue,
-            g.MailId
+            g.MailId,
+            // 취소 여부 및 사유 — Admin 취소 상태 표시용
+            g.IsCancelled,
+            g.CancelReason
         )).ToList();
 
         return new PagedResultDto<RewardGrantDto>(dtos, total, page, pageSize);
@@ -50,7 +53,10 @@ public class RewardGrantQueryService : IRewardGrantQueryService
             grant.GrantedAt,
             grant.MailId.HasValue,
             grant.MailId,
-            grant.BundleSnapshot
+            grant.BundleSnapshot,
+            // 취소 여부 및 사유 — 상세 모달 표시용
+            grant.IsCancelled,
+            grant.CancelReason
         );
     }
 }

@@ -70,9 +70,11 @@ public class RewardGrantRepository : IRewardGrantRepository
         return (items, total);
     }
 
-    // ID로 단건 조회
+    // ID로 단건 조회 — Mail 수령 여부 확인을 위해 Mail 엔티티 함께 로드
     public async Task<RewardGrant?> GetByIdAsync(int id)
-        => await _db.RewardGrants.FirstOrDefaultAsync(g => g.Id == id);
+        => await _db.RewardGrants
+            .Include(g => g.Mail)
+            .FirstOrDefaultAsync(g => g.Id == id);
 
     // 오늘 광고 보상 지급 건수 조회 — 일일 한도 체크용
     // sourceKeyPrefix: "{network}:{placementId}:" 형태로 PlacementId별 카운트

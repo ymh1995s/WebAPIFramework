@@ -11,7 +11,10 @@ public record RewardGrantDto(
     DateTime GrantedAt,
     // 지급 방식: MailId가 있으면 Mail, 없으면 Direct
     bool IsMailGrant,
-    int? MailId
+    int? MailId,
+    // 취소 여부 및 사유 — Admin 취소 처리된 건 표시용
+    bool IsCancelled = false,
+    string? CancelReason = null
 );
 
 // 보상 지급 이력 상세 DTO (BundleSnapshot 포함)
@@ -24,7 +27,10 @@ public record RewardGrantDetailDto(
     bool IsMailGrant,
     int? MailId,
     // 지급 당시 번들 스냅샷 (JSON 문자열)
-    string BundleSnapshot
+    string BundleSnapshot,
+    // 취소 여부 및 사유
+    bool IsCancelled = false,
+    string? CancelReason = null
 );
 
 // 보상 지급 이력 검색 필터 DTO

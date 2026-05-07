@@ -289,6 +289,9 @@ public static class ApiRoutes
     {
         /// <summary>단일 수동 보상 지급 (POST)</summary>
         public const string Grant = "api/admin/reward-dispatch/grant";
+
+        /// <summary>보상 지급 단건 취소 (POST) — Direct 지급은 422 반환</summary>
+        public static string Cancel(int grantId) => $"api/admin/reward-dispatch/{grantId}/cancel";
     }
 
     // ── 매치 이력 Admin (AdminMatchesController: Route = "api/admin/matches") ──

@@ -138,6 +138,9 @@ public class MailService : IMailService
         var mail = await _mailRepository.GetByIdWithItemsAsync(mailId);
         if (mail is null || mail.PlayerId != playerId || mail.IsClaimed) return false;
 
+        // 만료 우편 수령 차단 — ExpiresAt이 현재 UTC보다 이전이면 수령 불가
+        if (mail.ExpiresAt < DateTime.UtcNow) return false;
+
         // PlayerItem.xmin 동시성 충돌 시 재시도 루프 — 최대 3회
         // Mail.IsClaimed 충돌은 즉시 false (재시도 루프 내부에서 분기)
         const int maxAttempts = 3;

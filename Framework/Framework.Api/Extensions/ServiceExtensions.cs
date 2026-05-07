@@ -22,6 +22,7 @@ using Framework.Application.Features.Shout;
 using Framework.Application.Features.AdminMatch;
 using Framework.Application.Features.AdminPlayer;
 using Framework.Application.Features.Ranking;
+using Framework.Application.Features.AdminRewardDispatch;
 using Framework.Application.Features.Reward;
 using Framework.Application.Features.RewardGrant;
 using Framework.Application.Features.RewardTable;
@@ -161,6 +162,9 @@ public static class ServiceExtensions
         services.AddScoped<IRewardTableService, RewardTableService>();
         services.AddScoped<IRewardGrantQueryService, RewardGrantQueryService>();
         services.AddScoped<IAdminMatchService, AdminMatchService>();
+
+        // 보상 지급 취소 서비스 등록 — Admin 단건 취소 + 안내 우편 발송
+        services.AddScoped<IRewardCancelService, RewardCancelService>();
 
         // 광고 정책 Admin 서비스 등록
         services.AddScoped<IAdPolicyService, AdPolicyService>();

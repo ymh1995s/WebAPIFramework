@@ -16,10 +16,14 @@ namespace Framework.Api.Controllers.Admin;
 public class AdminRewardDispatchController : ControllerBase
 {
     private readonly IRewardDispatcher _dispatcher;
+    private readonly IRewardCancelService _cancelService;
 
-    public AdminRewardDispatchController(IRewardDispatcher dispatcher)
+    public AdminRewardDispatchController(
+        IRewardDispatcher dispatcher,
+        IRewardCancelService cancelService)
     {
         _dispatcher = dispatcher;
+        _cancelService = cancelService;
     }
 
     // 수동 단일 보상 지급 — SourceType=AdminGrant 고정
@@ -70,5 +74,36 @@ public class AdminRewardDispatchController : ControllerBase
             return Ok(new AdminGrantResponse("이미 지급된 보상입니다.", null, null, true));
 
         return Ok(new AdminGrantResponse(result.Message, result.UsedMode.ToString(), result.MailId));
+    }
+
+    // 보상 지급 단건 취소
+    // [제약] Direct 지급(MailId=null)은 취소 불가 — 422 Unprocessable Entity 반환
+    // [동작] IsCancelled 플래그 설정 + 선택적 안내 우편 발송
+    // adminId: AdminApiKey 인증만 사용하므로 null 저장 (설계 결정사항)
+    [HttpPost("{grantId:int}/cancel")]
+    public async Task<IActionResult> Cancel(int grantId, [FromBody] CancelRewardDto dto)
+    {
+        var result = await _cancelService.CancelAsync(grantId, dto, adminId: null);
+
+        // 이력 없음
+        if (result.NotFound)
+            return NotFound(new MessageResponse(result.Message));
+
+        // Direct 지급 — 취소 불가 (422)
+        if (result.IsDirectGrant)
+            return UnprocessableEntity(new MessageResponse(result.Message));
+
+        // 이미 취소된 상태 (409)
+        if (result.AlreadyCancelled)
+            return Conflict(new MessageResponse(result.Message));
+
+        // 우편이 이미 수령된 상태 — 취소 불가 (409)
+        if (result.AlreadyClaimed)
+            return Conflict(new MessageResponse(result.Message));
+
+        if (!result.Success)
+            return BadRequest(new MessageResponse(result.Message));
+
+        return Ok(new MessageResponse(result.Message));
     }
 }

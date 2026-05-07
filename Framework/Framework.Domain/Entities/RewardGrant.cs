@@ -27,6 +27,18 @@ public class RewardGrant
     // 지급된 번들 스냅샷 (JSON 직렬화 — 추후 감사/환불 근거)
     public string BundleSnapshot { get; set; } = "{}";
 
+    // 취소 여부 — Admin이 보상 지급을 취소하면 true
+    public bool IsCancelled { get; set; }
+
+    // 취소 일시 (UTC) — 취소 시 설정, 미취소는 null
+    public DateTime? CancelledAt { get; set; }
+
+    // 취소 사유 — Admin이 입력한 필수 사유 텍스트
+    public string? CancelReason { get; set; }
+
+    // 취소를 수행한 Admin ID — 감사 목적 기록, null 허용 (시스템 자동 취소 대비)
+    public int? CancelledByAdminId { get; set; }
+
     // 플레이어 네비게이션 프로퍼티
     public Player Player { get; set; } = null!;
 

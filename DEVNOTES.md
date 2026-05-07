@@ -27,6 +27,7 @@
 | 클라이언트 앱 버전 체크 | GET /api/version/check, 강제 업데이트 여부 반환, Admin에서 최소/최신 버전 설정 (서버 버전 아님 — 앱스토어 배포 Unity 빌드 기준) |
 | 공지/1회 공지 시스템 | **공지**: `GET /api/notices/latest` 최신 활성 공지 1개 반환. 클라이언트가 NoticeId를 PlayerPrefs에 저장해 1회성 팝업 표시. Admin CRUD. **1회 공지**: Admin에서 전체/특정 플레이어 대상 HUD 텍스트 발송. DB 이력 기록. 클라이언트 접속 시 `GET /api/shouts/active` 1회 호출(폴링 방식) — 만료 시간 내 활성 1회 공지 수신. Admin `/notices`, `/shouts` 페이지 별도 관리 |
 | 플레이어 문의 | POST /api/inquiries 제출, GET /api/inquiries 내 목록 조회. Admin 답변 등록. 소원수리함 형태(자유 텍스트). Blazor 테스트 페이지 포함 |
+| 보상 취소 | 미수령 우편 강제 만료. `POST /api/admin/reward-dispatch/{grantId}/cancel` — 사유 필수, Mail.ExpiresAt 과거 시각으로 갱신 + RewardGrant.IsCancelled 플래그. Admin `/reward-grants` 페이지에서 Mail 지급 건에 취소 버튼 표시. Direct 지급(즉시 반영) 취소는 별도 차감 절차 필요 — 미구현 |
 | 감사 로그 | 재화/아이템 변동 추적. Item.AuditLevel(AnomalyOnly/Full) + AnomalyThreshold 기준으로 저장 범위 차별화. Admin `/audit-logs` 페이지에서 플레이어·아이템·기간·이상치 필터 조회. 현재 훅은 `MailService.ClaimAsync` 적용. Gold/Gems는 Currency-as-Item 전환(ItemId=1/2)으로 감사 로그 기록 가능. Exp는 단조 증가 자원이므로 AuditLog 대상 아님 — 어뷰징 추적은 `RewardGrants(SourceKey="levelup:{N}")`로 위임 |
 | 광고 SSV 보상 | Unity Ads / IronSource SSV(Server Side Verification) 콜백 검증 및 보상 지급. Strategy 패턴으로 모듈화 — 새 네트워크 추가 시 검증기 클래스 1개 + DI 등록 1줄. HMAC-SHA256 서명 검증, 일일 한도 제한, RewardDispatcher 멱등성 보장. Admin `/ad-policies` 페이지에서 PlacementId별 보상 정책 CRUD 관리. 콜백 URL: `GET /api/ads/callback/unity-ads`, `GET /api/ads/callback/ironsource` |
 | 트랜잭션 추상화 | `IUnitOfWork` 인터페이스(Domain) + `UnitOfWork` 구현체(Infrastructure). RewardDispatcher가 IUnitOfWork를 통해 전체 보상 지급을 단일 트랜잭션으로 보장 |
@@ -221,6 +222,7 @@ PlayerItem.Quantity / Mail.IsClaimed / IapPurchase.Status 등 동시 갱신이 �
 
 
 ## [미구현] 추가 개발 필요 항목
+- **인벤토리 아이템 사용 버튼** — 현재 인벤토리 팝업은 목록 조회만 제공. 소모품(Consumable) 아이템에 대한 사용 기능 미구현. 백엔드 사용 엔드포인트(`POST /api/items/{itemId}/use` 등) 설계 후 Unity 클라이언트 사용 버튼 및 콜백 처리 추가 필요
 - **계정 탈퇴 유예 기간(취소 흐름)** — 현재는 즉시 익명화 처리. 사용자 실수 탈퇴 복구 불가. 향후 출시 후 민원 패턴 따라 BackgroundService로 N일 유예 검토. 도입 시: `WithdrawalScheduledAt` 컬럼 + BackgroundService 1개 + 취소 API 1개. Unity 클라이언트 안내 팝업도 같이.
 - **PII 정리 BackgroundService 다중 인스턴스 안전성** — PostgreSQL advisory lock(`pg_try_advisory_lock`)으로 동시 실행 방지. 단일 컨테이너 운영 시 불필요
 - **DailyLogin 보상 누락 자동 보전 워커** — 2차 트랜잭션(RewardDispatcher 호출) 실패 시 현재는 AdminNotification + 운영자 수동 처리. 자동 보전 워커는 별도 라운드

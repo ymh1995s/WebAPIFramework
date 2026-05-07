@@ -34,6 +34,11 @@ public partial class RewardGrants : SafeComponentBase
     private bool showSnapshotModal;
     private RewardGrantDetail? snapshotDetail;
 
+    // ─── 취소 다이얼로그 상태 ──────────────────────
+    private bool showCancelDialog;
+    private int cancelTargetGrantId;
+    private int cancelTargetPlayerId;
+
     // SourceType 드롭다운 옵션 — 서버 enum 값과 일치
     // DailyLogin(0)은 RewardTables 미사용이지만 이력 조회에서는 표시 유지
     private static readonly List<(string Label, int Value)> SourceTypeOptions = new()
@@ -139,6 +144,28 @@ public partial class RewardGrants : SafeComponentBase
         snapshotDetail = null;
     }
 
+    /// <summary>취소 다이얼로그 열기 — 대상 GrantId/PlayerId 설정</summary>
+    private void OpenCancelDialog(int grantId, int playerId)
+    {
+        cancelTargetGrantId = grantId;
+        cancelTargetPlayerId = playerId;
+        showCancelDialog = true;
+    }
+
+    /// <summary>취소 다이얼로그 닫기</summary>
+    private void CloseCancelDialog()
+    {
+        showCancelDialog = false;
+    }
+
+    /// <summary>취소 완료 콜백 — 다이얼로그 닫고 목록 새로고침</summary>
+    private async Task OnCancelConfirmed()
+    {
+        showCancelDialog = false;
+        // 취소 처리 후 현재 페이지 목록을 즉시 갱신
+        await Load();
+    }
+
     /// <summary>UTC DateTime을 KST 문자열로 변환</summary>
     private static string ToKst(DateTime utc)
         => TimeZoneInfo.ConvertTimeFromUtc(
@@ -147,11 +174,14 @@ public partial class RewardGrants : SafeComponentBase
             .ToString("yyyy-MM-dd HH:mm:ss");
 
     // ─── 내부 모델 ──────────────────────────────────
+    // 취소 상태 및 취소 사유를 목록에서 표시하기 위해 필드 추가
     private record RewardGrantItem(int Id, int PlayerId, string SourceType, string SourceKey,
-        DateTime GrantedAt, bool IsMailGrant, int? MailId);
+        DateTime GrantedAt, bool IsMailGrant, int? MailId,
+        bool IsCancelled = false, string? CancelReason = null);
 
     private record RewardGrantDetail(int Id, int PlayerId, string SourceType, string SourceKey,
-        DateTime GrantedAt, bool IsMailGrant, int? MailId, string BundleSnapshot);
+        DateTime GrantedAt, bool IsMailGrant, int? MailId, string BundleSnapshot,
+        bool IsCancelled = false, string? CancelReason = null);
 
     private record PagedResult<T>(List<T> Items, int TotalCount, int Page, int PageSize)
     {

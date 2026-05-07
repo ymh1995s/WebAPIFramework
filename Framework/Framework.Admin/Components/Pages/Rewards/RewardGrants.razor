@@ -2,6 +2,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inherits SafeComponentBase
 @using Framework.Admin.Constants
+@using Framework.Admin.Components.Pages.Rewards
 
 <PageTitle>보상 지급 이력</PageTitle>
 
@@ -87,13 +88,14 @@ else
                 <th>지급일시 (KST)</th>
                 <th title="직접 지급 또는 우편 지급 여부">방식</th>
                 <th>MailId</th>
-                <th>상세</th>
+                <th>상태</th>
+                <th>상세/취소</th>
             </tr>
         </thead>
         <tbody>
             @foreach (var g in result.Items)
             {
-                <tr>
+                <tr class="@(g.IsCancelled ? "table-secondary text-muted" : "")">
                     <td>@g.Id</td>
                     <td>@g.PlayerId</td>
                     <td><span class="badge bg-secondary">@g.SourceType</span></td>
@@ -111,7 +113,23 @@ else
                     </td>
                     <td>@(g.MailId.HasValue ? g.MailId.Value.ToString() : "-")</td>
                     <td>
+                        @if (g.IsCancelled)
+                        {
+                            <!-- 취소된 보상 — 취소 일시와 사유를 툴팁으로 표시 -->
+                            <span class="badge bg-danger" title="@g.CancelReason">취소됨</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success">정상</span>
+                        }
+                    </td>
+                    <td class="d-flex gap-1">
                         <button class="btn btn-outline-secondary btn-sm" @onclick="() => OpenSnapshot(g.Id)">상세</button>
+                        @if (!g.IsCancelled && g.IsMailGrant)
+                        {
+                            <!-- Mail 지급 건만 취소 가능 — Direct 지급은 취소 불가 -->
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => OpenCancelDialog(g.Id, g.PlayerId)">취소</button>
+                        }
                     </td>
                 </tr>
             }
@@ -124,6 +142,16 @@ else
         <span class="small">@(page) / @(result.TotalPages) 페이지</span>
         <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@(page >= result.TotalPages)">다음</button>
     </div>
+}
+
+<!-- 취소 다이얼로그 컴포넌트 -->
+@if (showCancelDialog)
+{
+    <RewardCancelDialog
+        GrantId="cancelTargetGrantId"
+        PlayerId="cancelTargetPlayerId"
+        OnConfirmed="OnCancelConfirmed"
+        OnClosed="CloseCancelDialog" />
 }
 
 <!-- BundleSnapshot 상세 모달 -->
