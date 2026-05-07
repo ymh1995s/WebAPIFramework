@@ -2,6 +2,7 @@ using Framework.Admin.Components;
 using Framework.Admin.Constants;
 using Framework.Admin.Http;
 using Framework.Admin.Json;
+using Framework.Application.Common;
 using Framework.Domain.Enums;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
@@ -27,7 +28,7 @@ public partial class IapProducts : SafeComponentBase
     private int pageSize = 20;
 
     // ─── 결과 상태 ──────────────────────────────────
-    private PagedResult<IapProductItem>? result;
+    private PagedResultDto<IapProductItem>? result;
     private bool isLoading;
     private string? errorMessage;
     private string? successMessage;
@@ -116,7 +117,7 @@ public partial class IapProducts : SafeComponentBase
         var response = await ApiClient.GetRawAsync(url);
 
         if (response.IsSuccessStatusCode)
-            result = await response.Content.ReadFromJsonAsync<PagedResult<IapProductItem>>(AdminJsonOptions.Default);
+            result = await response.Content.ReadFromJsonAsync<PagedResultDto<IapProductItem>>(AdminJsonOptions.Default);
         else
             errorMessage = $"조회 실패: {response.StatusCode}";
 
@@ -291,9 +292,4 @@ public partial class IapProducts : SafeComponentBase
         };
     };
 
-    // 페이지네이션 래퍼
-    private record PagedResult<T>(List<T> Items, int TotalCount, int Page, int PageSize)
-    {
-        public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
-    }
 }

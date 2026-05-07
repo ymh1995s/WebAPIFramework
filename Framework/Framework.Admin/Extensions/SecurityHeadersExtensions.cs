@@ -1,6 +1,5 @@
 // OWASP 권장 보안 응답 헤더 미들웨어 — 모든 응답에 부착 (예외/점검/RateLimit 포함)
 // CSP는 Admin Blazor 깨짐 위험 회피를 위해 별도 라운드에서 도입 예정
-// Api와 동일한 6종 헤더를 적용. 향후 CSP 추가 시 두 파일이 갈라질 예정
 namespace Framework.Admin.Extensions;
 
 public static class SecurityHeadersExtensions

@@ -1,4 +1,6 @@
 using Framework.Admin.Constants;
+using Framework.Application.Features.Auth;
+using Framework.Application.Features.Inquiry;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -40,7 +42,7 @@ public partial class InquiryTest : Microsoft.AspNetCore.Components.ComponentBase
 
         if (response.IsSuccessStatusCode)
         {
-            var result = await response.Content.ReadFromJsonAsync<TokenResponse>();
+            var result = await response.Content.ReadFromJsonAsync<TokenResponseDto>();
             if (result is not null)
             {
                 accessToken = result.AccessToken;
@@ -103,9 +105,4 @@ public partial class InquiryTest : Microsoft.AspNetCore.Components.ComponentBase
             listError = $"조회 실패: {response.StatusCode}";
     }
 
-    // 로그인 응답 역직렬화용 로컬 레코드
-    private record TokenResponse(string AccessToken, string RefreshToken, Guid PlayerId, bool IsNewPlayer);
-
-    // 문의 응답 역직렬화용 로컬 레코드
-    private record InquiryDto(int Id, string Content, string? AdminReply, DateTime? RepliedAt, DateTime CreatedAt);
 }

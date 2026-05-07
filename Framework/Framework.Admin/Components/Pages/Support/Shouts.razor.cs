@@ -1,5 +1,6 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Application.Features.Shout;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 
@@ -154,12 +155,6 @@ public partial class Shouts : SafeComponentBase
     }
 
     // ─── API 응답 역직렬화용 로컬 레코드 ───────────────
-
-    // Admin 1회 공지 목록 항목 DTO
-    private record ShoutAdminDto(int Id, int? PlayerId, string Message, DateTime CreatedAt, DateTime ExpiresAt, bool IsActive);
-
-    // 목록 응답 래퍼
-    private record ShoutListResponse(List<ShoutAdminDto> Items, int Total);
 
     // 에러 응답
     private record ErrorDto(string Message);

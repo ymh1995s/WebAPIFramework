@@ -1,3 +1,4 @@
+using Framework.Domain.Common.Exceptions;
 using Framework.Domain.Enums;
 
 namespace Framework.Application.Features.Iap;
@@ -5,8 +6,10 @@ namespace Framework.Application.Features.Iap;
 // IAP consume API 호출 실패 예외
 // IsPermanent=true : 400/404/410 — 재시도해도 무의미, 즉시 중단
 // IsPermanent=false: 500/503/네트워크 오류 — 일시적 오류, retry 워커가 재시도
-public class IapConsumeException : Exception
+public class IapConsumeException : DomainException
 {
+    public override string ErrorCode => "IAP_CONSUME_FAILED";
+
     // 실패가 발생한 스토어 종류
     public IapStore Store { get; }
 

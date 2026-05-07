@@ -1,5 +1,6 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Application.Features.Notice;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 
@@ -118,6 +119,4 @@ public partial class Notices : SafeComponentBase
             errorMessage = "공지 삭제에 실패했습니다.";
     }
 
-    // Admin DTO — API 응답 역직렬화용 로컬 레코드
-    private record NoticeAdminDto(int Id, string Content, bool IsActive, DateTime CreatedAt, DateTime? UpdatedAt);
 }

@@ -36,6 +36,9 @@ public static class ApiProblemDetailsExtensions
         // 인증 도메인 예외 전용 핸들러 등록 (401 반환)
         services.AddExceptionHandler<AuthDomainExceptionHandler>();
 
+        // Auth 핸들러 다음 등록 — 401 흐름 보호, 나머지 DomainException 400 반환
+        services.AddExceptionHandler<DomainExceptionHandler>();
+
         // 처리되지 않은 모든 예외에 대한 폴백 핸들러 등록 (500 반환, 프로덕션 전용)
         services.AddExceptionHandler<GlobalExceptionHandler>();
 

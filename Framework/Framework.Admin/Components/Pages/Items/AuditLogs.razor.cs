@@ -1,5 +1,6 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Application.Common;
 using Framework.Domain.Constants;
 using Microsoft.AspNetCore.Components;
 
@@ -26,7 +27,7 @@ public partial class AuditLogs : SafeComponentBase
     private int pageSize = 50;
 
     // 결과 상태
-    private PagedResult<AuditLogDto>? result;
+    private PagedResultDto<AuditLogDto>? result;
     private bool isLoading;
     private string? errorMessage;
 
@@ -85,7 +86,7 @@ public partial class AuditLogs : SafeComponentBase
         var response = await client.GetAsync(url);
 
         if (response.IsSuccessStatusCode)
-            result = await response.Content.ReadFromJsonAsync<PagedResult<AuditLogDto>>();
+            result = await response.Content.ReadFromJsonAsync<PagedResultDto<AuditLogDto>>();
         else
             errorMessage = $"조회 실패: {response.StatusCode}";
 
@@ -122,5 +123,4 @@ public partial class AuditLogs : SafeComponentBase
 
     // API 응답 매핑용 로컬 DTO
     private record AuditLogDto(long Id, int PlayerId, int ItemId, string ItemName, string Reason, int ChangeAmount, int BalanceBefore, int BalanceAfter, bool IsAnomaly, DateTime CreatedAt);
-    private record PagedResult<T>(List<T> Items, int TotalCount, int Page, int PageSize, int TotalPages);
 }

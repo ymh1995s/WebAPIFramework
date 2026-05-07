@@ -1,3 +1,4 @@
+using Framework.Domain.Common.Exceptions;
 using Framework.Domain.Enums;
 
 namespace Framework.Application.Features.Iap;
@@ -5,8 +6,10 @@ namespace Framework.Application.Features.Iap;
 // 인앱결제 관련 도메인 예외 클래스 모음
 
 // 스토어에 등록된 상품을 찾을 수 없을 때 발생하는 예외
-public class IapProductNotFoundException : Exception
+public class IapProductNotFoundException : DomainException
 {
+    public override string ErrorCode => "IAP_PRODUCT_NOT_FOUND";
+
     public IapStore Store { get; }
     public string ProductId { get; }
 
@@ -19,8 +22,10 @@ public class IapProductNotFoundException : Exception
 }
 
 // 영수증 검증 실패 시 발생하는 예외 — 위변조 또는 만료된 영수증
-public class IapReceiptInvalidException : Exception
+public class IapReceiptInvalidException : DomainException
 {
+    public override string ErrorCode => "IAP_RECEIPT_INVALID";
+
     public IapStore Store { get; }
 
     public IapReceiptInvalidException(IapStore store, string reason)
@@ -31,8 +36,10 @@ public class IapReceiptInvalidException : Exception
 }
 
 // 구매 토큰 소유자 불일치 예외 — 다른 플레이어의 토큰으로 요청한 경우
-public class IapTokenOwnershipMismatchException : Exception
+public class IapTokenOwnershipMismatchException : DomainException
 {
+    public override string ErrorCode => "IAP_TOKEN_OWNERSHIP_MISMATCH";
+
     public IapStore Store { get; }
     public string PurchaseToken { get; }
 
@@ -45,8 +52,10 @@ public class IapTokenOwnershipMismatchException : Exception
 }
 
 // 외부 스토어 API 오류 시 발생하는 예외 — 네트워크 장애, API 응답 이상 등
-public class IapVerifierException : Exception
+public class IapVerifierException : DomainException
 {
+    public override string ErrorCode => "IAP_VERIFIER_ERROR";
+
     public IapStore Store { get; }
 
     public IapVerifierException(IapStore store, string message)
@@ -58,8 +67,10 @@ public class IapVerifierException : Exception
 
 // verify 경로 동시성 충돌 재시도 한도(3회) 초과 — 503 응답 매핑 대상
 // AdminNotification(Critical)이 발송된 뒤 이 예외를 throw하여 컨트롤러가 503을 반환하도록 함
-public class IapVerifyConcurrencyException : Exception
+public class IapVerifyConcurrencyException : DomainException
 {
+    public override string ErrorCode => "IAP_VERIFY_CONCURRENCY";
+
     public IapStore Store { get; }
     public string MaskedToken { get; }
 

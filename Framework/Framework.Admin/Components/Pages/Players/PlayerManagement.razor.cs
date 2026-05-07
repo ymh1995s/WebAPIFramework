@@ -1,5 +1,6 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Application.Features.Auth;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using System.Net.Http.Json;
@@ -270,7 +271,7 @@ public partial class PlayerManagement : SafeComponentBase
 
         if (response.IsSuccessStatusCode)
         {
-            var result = await response.Content.ReadFromJsonAsync<GuestLoginResponse>();
+            var result = await response.Content.ReadFromJsonAsync<TokenResponseDto>();
             var status = result?.IsNewPlayer == true ? "신규 생성" : "기존 플레이어";
             registerMessage = $"{status}됨 (PlayerId: {result?.PlayerId})";
             registerSuccess = true;
@@ -323,8 +324,6 @@ public partial class PlayerManagement : SafeComponentBase
     {
         public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
     }
-
-    private record GuestLoginResponse(string AccessToken, string RefreshToken, Guid PlayerId, bool IsNewPlayer);
 
     // IAP 결제 건수 API 응답 — GET /api/admin/players/{id}/iap-count 응답 역직렬화용
     private record IapCountResponse(int Count);

@@ -21,7 +21,7 @@
 1. git clone + cd WebAPIFramework
 2. .env 파일 작성 (.env.example 복사 후 시크릿 채우기 — §2 참조)
 3. dotnet restore
-4. dotnet build Framework.Api.slnx
+4. dotnet build Framework.slnx
 5. (DB 컨테이너 사용 시) docker-compose up -d postgres
 6. dotnet ef database update --project Framework/Framework.Infrastructure --startup-project Framework/Framework.Api
 7. dotnet run --project Framework/Framework.Api

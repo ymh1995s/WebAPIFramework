@@ -1,5 +1,6 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Application.Common;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 
@@ -23,7 +24,7 @@ public partial class RewardTables : SafeComponentBase
     private int pageSize = 20;
 
     // ─── 결과 상태 ──────────────────────────────────
-    private PagedResult<RewardTableItem>? result;
+    private PagedResultDto<RewardTableItem>? result;
     private bool isLoading;
     private string? errorMessage;
     private string? successMessage;
@@ -137,7 +138,7 @@ public partial class RewardTables : SafeComponentBase
         var response = await client.GetAsync(url);
 
         if (response.IsSuccessStatusCode)
-            result = await response.Content.ReadFromJsonAsync<PagedResult<RewardTableItem>>();
+            result = await response.Content.ReadFromJsonAsync<PagedResultDto<RewardTableItem>>();
         else
             errorMessage = $"조회 실패: {response.StatusCode}";
 
@@ -374,12 +375,6 @@ public partial class RewardTables : SafeComponentBase
     // 상세 응답 DTO
     private record RewardTableDetail(int Id, string SourceType, string Code, string Description, bool IsDeleted, List<EntryDto> Entries);
     private record EntryDto(int Id, int ItemId, string ItemName, int Count, int? Weight);
-
-    // 페이지네이션 래퍼
-    private record PagedResult<T>(List<T> Items, int TotalCount, int Page, int PageSize)
-    {
-        public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
-    }
 
     // API 에러 응답 DTO — BadRequest 메시지 역직렬화용
     private record ErrorResponse(string Message);

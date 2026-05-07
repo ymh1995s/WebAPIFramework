@@ -1,5 +1,6 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Application.Features.Inquiry;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 
@@ -83,6 +84,4 @@ public partial class Inquiries : SafeComponentBase
         }
     }
 
-    // Admin DTO — API 응답 역직렬화용 로컬 레코드
-    private record InquiryAdminDto(int Id, int PlayerId, string PlayerNickname, string Content, string? AdminReply, DateTime? RepliedAt, DateTime CreatedAt);
 }

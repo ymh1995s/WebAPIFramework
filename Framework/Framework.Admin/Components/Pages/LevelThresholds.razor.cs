@@ -1,5 +1,6 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Application.Features.Exp;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 
@@ -138,9 +139,6 @@ public partial class LevelThresholds : SafeComponentBase
         public int Level { get; set; }
         public int RequiredExp { get; set; }
     }
-
-    // 레벨 임계값 DTO — API 응답 역직렬화용
-    private record LevelThresholdDto(int Level, int RequiredExp);
 
     // 에러 응답 구조
     private record ErrorResponse(string Message);

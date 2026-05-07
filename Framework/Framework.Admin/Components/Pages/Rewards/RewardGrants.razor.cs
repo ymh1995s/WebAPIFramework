@@ -1,5 +1,6 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Application.Common;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 
@@ -26,7 +27,7 @@ public partial class RewardGrants : SafeComponentBase
     private int pageSize = 50;
 
     // ─── 결과 상태 ──────────────────────────────────
-    private PagedResult<RewardGrantItem>? result;
+    private PagedResultDto<RewardGrantItem>? result;
     private bool isLoading;
     private string? errorMessage;
 
@@ -113,7 +114,7 @@ public partial class RewardGrants : SafeComponentBase
         var response = await client.GetAsync(url);
 
         if (response.IsSuccessStatusCode)
-            result = await response.Content.ReadFromJsonAsync<PagedResult<RewardGrantItem>>();
+            result = await response.Content.ReadFromJsonAsync<PagedResultDto<RewardGrantItem>>();
         else
             errorMessage = $"조회 실패: {response.StatusCode}";
 
@@ -183,8 +184,4 @@ public partial class RewardGrants : SafeComponentBase
         DateTime GrantedAt, bool IsMailGrant, int? MailId, string BundleSnapshot,
         bool IsCancelled = false, string? CancelReason = null);
 
-    private record PagedResult<T>(List<T> Items, int TotalCount, int Page, int PageSize)
-    {
-        public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
-    }
 }

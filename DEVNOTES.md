@@ -53,6 +53,15 @@
 
 ## [설계 결정]
 
+### Framework.Domain/Common 도입 (2026-05-07)
+
+Feature마다 산재하던 Result 패턴·예외 계층을 단일 지점으로 통합. `Framework.Domain/Common/` 하위 폴더로 편입. `Result<T>` / `Error`, `DomainException` 추상 베이스, `Guard` 헬퍼를 담는다.
+
+- **의존 방향**: Domain이 소유. Application·Api·Admin은 Domain을 참조하므로 별도 참조 불필요.
+- **기존 Result 타입 통합 안 함**: `GrantRewardResult` 등 5종은 분기 정보를 보유하므로 `Result<T>`로 평탄화 시 컴파일 타임 안전성 손실. 신규 코드의 기본 반환형으로만 사용.
+- **ErrorCode 표준**: 대문자_언더스코어 형식 (`AUTH_BANNED`, `IAP_PRODUCT_NOT_FOUND`). Unity 클라이언트 분기 식별자.
+- **DomainExceptionHandler 등록 순서**: AuthDomainExceptionHandler(401/503) → DomainExceptionHandler(400) 순서 고정. 역전 시 Auth 예외가 400으로 잘못 처리됨.
+
 ### 계정 탈퇴 정책 — SoftDelete + PII 익명화 (round_20260503)
 
 - Player 행은 hard delete하지 않고 `IsDeleted=true` + `DeletedAt` 기록으로 SoftDelete

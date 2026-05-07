@@ -1,5 +1,6 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Application.Common;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 
@@ -27,7 +28,7 @@ public partial class Matches : SafeComponentBase
     private int pageSize = 20;
 
     // ─── 결과 상태 ──────────────────────────────────
-    private PagedResult<MatchSummary>? result;
+    private PagedResultDto<MatchSummary>? result;
     private bool isLoading;
     private string? errorMessage;
 
@@ -119,7 +120,7 @@ public partial class Matches : SafeComponentBase
         var response = await client.GetAsync(url);
 
         if (response.IsSuccessStatusCode)
-            result = await response.Content.ReadFromJsonAsync<PagedResult<MatchSummary>>();
+            result = await response.Content.ReadFromJsonAsync<PagedResultDto<MatchSummary>>();
         else
             errorMessage = $"조회 실패: {response.StatusCode}";
 
@@ -182,8 +183,4 @@ public partial class Matches : SafeComponentBase
     private record MatchParticipant(int Id, int PlayerId, string Nickname, string HumanType, int? Score, string? Result);
     private record MatchDetail(Guid Id, string Tier, string State, DateTime StartedAt, DateTime? EndedAt, List<MatchParticipant> Participants);
 
-    private record PagedResult<T>(List<T> Items, int TotalCount, int Page, int PageSize)
-    {
-        public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
-    }
 }

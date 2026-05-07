@@ -7,7 +7,7 @@ Root CLAUDE.md. Sub-projects may have their own CLAUDE.md, but this document tak
 - **Framework.Api**: ASP.NET Core Web API (EF Core backend)
 - **Framework.Admin**: Blazor Server admin tool
 - **Framework.Application**: Use cases, workflows, domain orchestration
-- **Framework.Domain**: Entities, value objects, enums, interfaces — domain core
+- **Framework.Domain**: 엔티티, Value Object, Enum, 도메인 인터페이스. `Common/` 하위에 Result&lt;T&gt;, Guard, DomainException 베이스 등 도메인 프리미티브 포함. 다른 Framework 프로젝트를 참조하지 않음
 - **Framework.Infrastructure**: EF Core DbContext, repositories, external integrations
 
 ## Technology Stack
