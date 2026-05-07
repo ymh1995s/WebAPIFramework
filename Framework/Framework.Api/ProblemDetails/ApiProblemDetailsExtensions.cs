@@ -33,6 +33,9 @@ public static class ApiProblemDetailsExtensions
         // enum 역직렬화 예외 전용 핸들러 등록 (400 반환)
         services.AddExceptionHandler<EnumDeserializationExceptionHandler>();
 
+        // 인증 도메인 예외 전용 핸들러 등록 (401 반환)
+        services.AddExceptionHandler<AuthDomainExceptionHandler>();
+
         // 처리되지 않은 모든 예외에 대한 폴백 핸들러 등록 (500 반환, 프로덕션 전용)
         services.AddExceptionHandler<GlobalExceptionHandler>();
 

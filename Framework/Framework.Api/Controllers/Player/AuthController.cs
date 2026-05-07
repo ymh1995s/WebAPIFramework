@@ -1,6 +1,7 @@
 using Framework.Api.Constants;
 using Framework.Api.Extensions;
 using Framework.Application.Features.Auth;
+using Framework.Application.Features.Auth.Exceptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -40,9 +41,10 @@ public class AuthController : ControllerBase
             var result = await _authService.GuestLoginAsync(request.DeviceId, ipAddress, userAgent);
             return Ok(result);
         }
-        catch (UnauthorizedAccessException ex)
+        catch (PlayerBannedException ex)
         {
-            // 밴된 계정 로그인 시도 — 403 반환 (인증은 됐으나 접근 거부)
+            // 밴된 계정 로그인 시도 — 403 반환 (Unity 클라이언트가 401을 token refresh 트리거로 해석하여
+            // 로그인 화면에서 SessionExpired 이벤트가 잘못 발생하므로 의도적으로 403 사용)
             return StatusCode(403, ex.Message);
         }
     }
@@ -56,15 +58,8 @@ public class AuthController : ControllerBase
         var userAgent = HttpContext.Request.Headers.UserAgent.ToString();
         if (userAgent?.Length > 512) userAgent = userAgent[..512];
 
-        try
-        {
-            var result = await _authService.RefreshAsync(request.RefreshToken, ipAddress, userAgent);
-            return Ok(result);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Unauthorized(ex.Message);
-        }
+        var result = await _authService.RefreshAsync(request.RefreshToken, ipAddress, userAgent);
+        return Ok(result);
     }
 
     // 로그아웃 - 리프래시 토큰 삭제
@@ -100,10 +95,6 @@ public class AuthController : ControllerBase
             // 409 Conflict — AuthService에서 미리 조립된 PlayerSummaryDto를 그대로 사용
             return Conflict(new GoogleConflictDto("GOOGLE_ACCOUNT_CONFLICT", ex.ExistingPlayer, ex.CurrentGuestPlayer));
         }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Unauthorized(ex.Message);
-        }
     }
 
     // 게스트 계정에 구글 연동 - 기존 데이터 유지하면서 GoogleId 추가
@@ -123,10 +114,6 @@ public class AuthController : ControllerBase
         {
             // 409 Conflict — AuthService에서 미리 조립된 PlayerSummaryDto를 그대로 사용
             return Conflict(new GoogleConflictDto("GOOGLE_ACCOUNT_CONFLICT", ex.ExistingPlayer, ex.CurrentGuestPlayer));
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Unauthorized(ex.Message);
         }
         catch (InvalidOperationException ex)
         {
@@ -151,10 +138,6 @@ public class AuthController : ControllerBase
         {
             var result = await _authService.ResolveGoogleConflictAsync(guestPlayerId, request.IdToken, ipAddress, userAgent);
             return Ok(result);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Unauthorized(ex.Message);
         }
         catch (InvalidOperationException ex)
         {

@@ -1,3 +1,4 @@
+using Framework.Application.Features.Auth.Exceptions;
 using Framework.Domain.Entities;
 using Framework.Domain.Interfaces;
 
@@ -43,7 +44,7 @@ public class AuthService : IAuthService
 
         // 기존 플레이어인 경우 실효 밴 여부 확인 — 신규 가입(isNew)은 밴 대상 없음
         if (player is not null && player.IsEffectivelyBanned)
-            throw new UnauthorizedAccessException("정지된 계정입니다.");
+            throw new PlayerBannedException();
 
         if (isNew)
         {
@@ -79,23 +80,23 @@ public class AuthService : IAuthService
         // 입력 평문 토큰을 해시로 변환하여 DB 조회 — 평문이 DB에 없으므로 반드시 해시 비교
         var tokenHash = _jwtProvider.ComputeRefreshTokenHash(refreshToken);
         var stored = await _refreshTokenRepo.GetByTokenHashAsync(tokenHash)
-            ?? throw new UnauthorizedAccessException("유효하지 않은 리프래시 토큰입니다.");
+            ?? throw new InvalidRefreshTokenException();
 
         // 명시적 폐기 여부 확인 (강제 로그아웃 등)
         if (stored.RevokedAt is not null)
-            throw new UnauthorizedAccessException("폐기된 리프래시 토큰입니다.");
+            throw new RefreshTokenRevokedException();
 
         if (stored.ExpiresAt < DateTime.UtcNow)
         {
             // 만료된 토큰 삭제 후 즉시 flush (예외 전 DB 정리)
             await _refreshTokenRepo.DeleteAsync(stored);
             await _refreshTokenRepo.SaveChangesAsync();
-            throw new UnauthorizedAccessException("리프래시 토큰이 만료되었습니다.");
+            throw new RefreshTokenExpiredException();
         }
 
         // 토큰 갱신 시점에도 실효 밴 여부 재확인 — 로그인 후 밴 처리된 계정의 추가 갱신 차단
         if (stored.Player.IsEffectivelyBanned)
-            throw new UnauthorizedAccessException("정지된 계정입니다.");
+            throw new PlayerBannedException();
 
         // 기존 토큰 삭제 후 새 토큰 발급 (토큰 교체 방식)
         // DeleteAsync는 ChangeTracker에만 등록 — IssueTokensAsync의 SaveChanges에서 Delete + Add 함께 flush
@@ -151,7 +152,7 @@ public class AuthService : IAuthService
         {
             // 실효 밴 여부 확인 — 정지 기간이 남아있으면 로그인 거부
             if (existing.IsEffectivelyBanned)
-                throw new UnauthorizedAccessException("정지된 계정입니다.");
+                throw new PlayerBannedException();
 
             existing.LastLoginAt = DateTime.UtcNow;
             await _playerRepo.UpdateAsync(existing);
@@ -162,6 +163,10 @@ public class AuthService : IAuthService
         // [분기 C] 요청자가 이미 이 구글 계정의 소유자 → 자기 재인증
         if (existing.Id == currentPlayerId.Value)
         {
+            // 실효 밴 여부 확인 — 자기 재인증이라도 정지 계정은 토큰 발급 차단
+            if (existing.IsEffectivelyBanned)
+                throw new PlayerBannedException();
+
             existing.LastLoginAt = DateTime.UtcNow;
             await _playerRepo.UpdateAsync(existing);
             await _playerRepo.SaveChangesAsync();

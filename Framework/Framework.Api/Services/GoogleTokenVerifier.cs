@@ -1,4 +1,5 @@
 using Framework.Application.Features.Auth;
+using Framework.Application.Features.Auth.Exceptions;
 using Google.Apis.Auth;
 
 namespace Framework.Api.Services;
@@ -30,7 +31,7 @@ public class GoogleTokenVerifier : IGoogleTokenVerifier
         }
         catch (InvalidJwtException)
         {
-            throw new UnauthorizedAccessException("유효하지 않은 구글 토큰입니다.");
+            throw new InvalidGoogleTokenException();
         }
     }
 }
