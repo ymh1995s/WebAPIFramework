@@ -71,19 +71,19 @@ WebAPIFramework 프로젝트를 **Phase × Chunk 2축 분할**로 전사 검토�
 
 #### P1.1 의존성·책임·인터페이스 위치
 - 점검 ID: A1, A2, A3
-- 대상: 각 `.csproj` ProjectReference, `Framework.Domain/Interfaces/`, `Framework.Application/Interfaces/`, `Framework.Infrastructure/Repositories/`, `Framework.Application/Features/**/*Service.cs`(레이어 책임 측면), `Framework.Api/Controllers/**/*.cs`(레이어 책임 측면)
+- 대상: 각 `.csproj` ProjectReference, `Framework.Domain/Interfaces/`, `Framework.Domain/Common/`(Result&lt;T&gt;/Error/Guard/DomainException 도메인 프리미티브 — 의존 방향 및 책임 범위 포함), `Framework.Application/Interfaces/`, `Framework.Infrastructure/Repositories/`, `Framework.Application/Features/**/*Service.cs`(레이어 책임 측면), `Framework.Api/Controllers/**/*.cs`(레이어 책임 측면)
 - 산출물: `review/{ROUND_ID}/p1_1_dependencies.md`
 - 인계 입력: 없음(시작 청크)
 
 #### P1.2 DTO·DI·트랜잭션·Content·캐시
 - 점검 ID: A4, A5, A6, A7, AX-Cache
-- 대상: `Framework.Api/Program.cs`, `Framework.Api/Extensions/ServiceExtensions.cs`, `Framework.Admin/Program.cs`, `Framework.Domain/Interfaces/IUnitOfWork.cs`, `Framework.Infrastructure/Persistence/UnitOfWork.cs`, `Framework.Application/Features/Reward/RewardDispatcher.cs`, `Framework.Domain/Content/`, `Framework.Application/Content/`, 캐시 Provider(`ILevelTableProvider`, `IItemMasterCache` 등) + Admin 마스터 편집 화면 → 캐시 갱신 흐름
+- 대상: `Framework.Api/Program.cs`, `Framework.Api/Extensions/ServiceExtensions.cs`, `Framework.Admin/Program.cs`, `Framework.Domain/Interfaces/IUnitOfWork.cs`, `Framework.Infrastructure/Persistence/UnitOfWork.cs`, `Framework.Application/Features/Reward/RewardDispatcher.cs`, `Framework.Domain/Content/`, `Framework.Application/Content/`, 캐시 Provider(`ILevelTableProvider` 등) + Admin 마스터 편집 화면 → 캐시 갱신 흐름, `Framework.Application/BackgroundServices/`(PiiRetentionCleanupService·PiiRetentionHealthCheck DI 등록 및 수명 주기)
 - 산출물: `review/{ROUND_ID}/p1_2_dto_di_tx_content.md`
 - 인계 입력: `p1_1_dependencies.md`
 
 #### P1.3 Strategy·인증·횡단·Currency-as-Item
 - 점검 ID: A8, A9, A10, A11(Currency-as-Item 정합성)
-- 대상: `Framework.Api/Services/AdNetwork/`, `Framework.Api/Services/IapStore/`, JWT/X-Admin-Key 미들웨어·필터(`Framework.Api/Filters/`), Rate Limiting/점검 모드/전역 예외/로깅 등록부, `Framework.Domain/Entities/Item*`, `PlayerProfile`, `Mail`, `RewardDispatcher` 내 Currency 처리 경로
+- 대상: `Framework.Api/Services/AdNetwork/`, `Framework.Api/Services/IapStore/`, JWT/X-Admin-Key 미들웨어·필터(`Framework.Api/Filters/`), Rate Limiting/점검 모드/전역 예외/로깅 등록부, `Framework.Api/Middleware/AuthDomainExceptionHandler.cs`·`DomainExceptionHandler.cs`(핸들러 등록 순서·책임 범위), `Framework.Domain/Entities/Item*`, `PlayerProfile`, `Mail`, `RewardDispatcher` 내 Currency 처리 경로
 - 산출물: `review/{ROUND_ID}/p1_3_strategy_auth_xcut.md`
 - 인계 입력: `p1_2_dto_di_tx_content.md`
 
@@ -97,7 +97,7 @@ WebAPIFramework 프로젝트를 **Phase × Chunk 2축 분할**로 전사 검토�
 
 #### P2.2 Services + 시간/타임존
 - 점검 ID: Q1, Q4, Q5, Q7, Q10(Service 범위), AX-Time
-- 대상: `Framework.Application/Features/**/*Service.cs` 전수, `RewardDispatcher`, `DailyLogin*Service`, `MailService`, `AuthService`, 시간 사용 지점 전반(UtcNow vs DateTimeOffset, KST 변환)
+- 대상: `Framework.Application/Features/**/*Service.cs` 전수, `RewardDispatcher`, `DailyLogin*Service`, `MailService`, `AuthService`, 시간 사용 지점 전반(UtcNow vs DateTimeOffset, KST 변환), `Framework.Application/BackgroundServices/`(PiiRetentionCleanupService 청크 크기·타이머 정확도·KST 03:00 스케줄·헬스체크 연동)
 - 산출물: `review/{ROUND_ID}/p2_2_services.md`
 - 인계 입력: `p2_1_controllers.md`
 
@@ -117,7 +117,7 @@ WebAPIFramework 프로젝트를 **Phase × Chunk 2축 분할**로 전사 검토�
 
 #### P3.1 인증·인가·디버그
 - 점검 ID: S1, S2, S3
-- 대상: `Framework.Api/Services/JwtTokenProvider.cs`, `Framework.Application/Features/Auth/AuthService.cs`, `Framework.Api/Filters/AdminApiKeyAttribute.cs`, `RequireLinkedAccountAttribute.cs`, 모든 Controller `[Authorize]`/`[AdminApiKey]` 적용 현황, `Framework.Api/Program.cs`+`Framework.Admin/Program.cs`의 `#if DEBUG`
+- 대상: `Framework.Api/Services/JwtTokenProvider.cs`, `Framework.Application/Features/Auth/AuthService.cs`, `Framework.Application/Features/Auth/Exceptions/`(AuthDomainException 계층 전체 — 예외 종류·ErrorCode·발생 지점), `Framework.Api/Middleware/AuthDomainExceptionHandler.cs`(응답 직렬화·핸들러 순서), `Framework.Api/Filters/AdminApiKeyAttribute.cs`, `RequireLinkedAccountAttribute.cs`, 모든 Controller `[Authorize]`/`[AdminApiKey]` 적용 현황, `Framework.Api/Program.cs`+`Framework.Admin/Program.cs`의 `#if DEBUG`
 - 산출물: `review/{ROUND_ID}/p3_1_authn_authz_debug.md`
 - 인계 입력: `p2_4_razor_tests.md`
 

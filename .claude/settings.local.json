@@ -27,7 +27,26 @@
       "Bash(git -C /c/Users/user/Documents/WebAPIFramework log --oneline --format=\"%s\")",
       "Bash(git -C /c/Users/user/Documents/WebAPIFramework log --format=\"%H %s\")",
       "PowerShell(dotnet ef database *)",
-      "Bash(dotnet test *)"
+      "Bash(dotnet test *)",
+      "Bash(Get-ChildItem -Recurse -Directory)",
+      "Bash(Select-Object -First 20)",
+      "PowerShell(ls -Recurse \"C:\\\\Users\\\\user\\\\Documents\\\\WebAPIFramework\" -Directory | Select-Object -First 20 | ForEach-Object { $_.FullName })",
+      "Bash(del *)",
+      "Bash(xargs grep -l \"SourceKeys\\\\.\")",
+      "PowerShell(Rename-Item *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\user\\\\Documents\\\\WebAPIFramework\\\\Framework\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(xargs grep -l \"BackgroundService\\\\|IHostedService\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\user\\\\Documents\\\\WebAPIFramework\\\\Framework\" -Filter \"*.csproj\" -Recurse)",
+      "Bash(Select-Object FullName)",
+      "Bash(awk '$1 > 1 {print $2, \"\\(\" $1 \"\\)\"}')",
+      "Bash(awk '$1 > 1')",
+      "Bash(grep \"\\\\.cs$\")",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Test-Path *)",
+      "Bash(dotnet restore *)",
+      "PowerShell(New-Item *)",
+      "PowerShell(Copy-Item *)"
     ]
   }
 }

@@ -1,8 +1,7 @@
-# WebAPIFramework 종합 리뷰 보고서 (round_20260503)
+# WebAPIFramework 종합 리뷰 보고서 (round_20260507)
 
-> 라운드: 2026-05-03 | 청크 분할 13개(검토 12 + 합본 1) 모두 완료
-> **종결: 2026-05-05** — Critical/High 처리 완료, 잔여 Med/Low 백로그화
-> 직전 라운드(2026-04-30) 보고서: `review/round_20260503/REVIEW_REPORT.previous.md`
+> 라운드: 2026-05-08 | 청크 분할 13개(검토 12 + 합본 1) 모두 완료
+> 직전 라운드(round_20260503) 보고서: `review/round_20260507/REVIEW_REPORT.previous.md`
 > 청크 산출물 인덱스: 부록 A 참고
 
 ---
@@ -10,29 +9,31 @@
 ## Executive Summary
 
 ### 라운드 메타
-- ROUND_ID: round_20260503
+- ROUND_ID: round_20260507
 - 검토 청크: P1.1~P1.3 / P2.1~P2.4 / P3.1~P3.5 (12)
 - 에이전트: architect 3 + qa-reviewer 4 + security-master 5
-- 총 식별 이슈: **101건** (Critical 2 / High 14 / Med 51 / Low 34)
-- **종결 시점 처리율**: Critical 2/2, High 12/14(+2 의도적 보류), Med 약 22/51, Low 약 7/34
+- 총 식별 이슈: **74건** (Critical 0 / High 2 / Med 35 / Low 37)
+- **주요 신규 발견**: docker-compose 인프라 격차 2건(광고 SecretKey 누락, secrets/ 볼륨 마운트 누락), GooglePlayClientFactory 매 호출 디스크 I/O
+- **이전 라운드 누락 보완**: round_20260503 미해결 상태였으나 round_20260507 에이전트가 재확인 안 한 항목 10건 코드 직접 확인 후 추가 (M-26~M-35)
 
-### 심각도별 합계 (라운드 종결 기준)
-| 심각도 | 건수 | 해결 | 보류·방치 | 잔여 |
-|---|---|---|---|---|
-| Critical | 2 | 2 | 0 | 0 |
-| High | 14 | 12 | 5 (H-5/H-9/H-11/H-14/H-15) | 0 |
-| Med | 51 | ~22 | 0 | ~29 |
-| Low | 34 | ~7 | 0 | ~27 |
+### 심각도별 합계
 
-### Top 5 즉시 조치 (Critical → 비용 대비 영향 순)
+| 심각도 | 건수 |
+|---|---|
+| Critical | 0 |
+| High | 2 |
+| Medium | 35 |
+| Low | 37 |
+
+### Top 5 즉시 조치
 
 | # | ID | 위치 | 영향 |
 |---|---|---|---|
-| 1 | ~~C-1~~ | Framework.Admin/Program.cs:67 + Razor 페이지 4건 | **[해결]** FallbackPolicy(RequireAuthenticatedUser) 적용 + AdminNotifications [Authorize] / Errors [AllowAnonymous] 부착 |
-| 2 | ~~C-2~~ | Framework.Api/Extensions/ServiceExtensions.cs | **[해결]** AddPolicy("auth")로 IP/PlayerId 파티션 분기 적용 (미인증 IP 15/min, 인증 PlayerId 30/min) |
-| 3 | ~~H-15~~ | — | **방치 — 개발용 더미값 정책 (운영은 .env 교체)** |
-| 4 | ~~H-11~~ | Framework.Admin/Program.cs:125 | **[보류 — 운영 단계 도입]** /admin-login Rate Limit 부재 + Antiforgery Disable. 단일 운영자·비공개 도메인 단계에서는 발동 시나리오 제한적. 운영자 2인↑ 또는 도메인 공개 시점에 처리 (Top 5 ID 오기 정정: H-9 → H-11) |
-| 5 | ~~H-12~~ | AuthService.cs + PlayerRepository.cs + PlayerWithdrawalCleaner.cs(신규) | **[해결]** WithdrawAsync SoftDelete + PII 익명화 + IPlayerWithdrawalCleaner 도입. IapPurchase Restrict FK 유지 |
+| 1 | H-1 | `docker-compose.yml:38-51` | UnityAds/IronSource SecretKey 매핑 누락 → 운영 시 광고 SSV 전면 장애 |
+| 2 | H-2 | `Framework.Api/Services/IapStore/GooglePlayClientFactory.cs:33-49` | 매 IAP 호출마다 디스크 I/O + JSON 파싱 → 결제 검증 신뢰성 취약 |
+| 3 | M-22 | `docker-compose.yml` | `secrets/` 볼륨 마운트 누락 → IAP 검증 전면 장애 위험 |
+| 4 | M-4 | `Framework.Application/Features/Auth/AuthDto.cs` | Auth DTO 4종 `[Required]`/`[MaxLength]` 미부착 → 빈 문자열 서비스 도달 |
+| 5 | M-10 | 테스트 프로젝트 전체 | RewardDispatcher/MailService 단위 테스트 완전 부재 → 핵심 보상 파이프라인 미검증 |
 
 ---
 
@@ -42,28 +43,34 @@
 
 | 점검 ID | 결과 |
 |---|---|
-| A1 의존성 방향 | WARN — 그래프는 준수, 단 Application이 EFCore 패키지 직접 참조(Med) |
-| A2 레이어 책임 | **FAIL** — Admin 컨트롤러 2곳(AppDbContext 직접 주입, High×2), Application Service 7곳 DbUpdateException catch(Med), IapRtdnController 페이로드 디코딩(Med) |
-| A3 인터페이스 위치 | PASS |
+| A1 의존성 방향 | PASS — 5개 `.csproj` 역방향 0건. Domain.Common 신규 모듈 위치 정합 |
+| A2 레이어 책임 | WARN — Controller 비즈니스 로직 0건, Repository 영속성 한정 OK. 단 `PiiRetentionCleanupService`가 Application에서 EF Core `DbContext` Service Locator 패턴 사용(이 때문에 Application.csproj에 EF Core + Npgsql 패키지 잔류) |
+| A3 인터페이스 위치 | PASS — Domain/Interfaces 22개 위치 정상, Infrastructure 인터페이스 0건 |
+
+**신규 발견 — Domain.Common 모듈 채택 현황**:
+- `DomainException`: 6곳 채택 진행 중 (양호)
+- `Result<T>/Error`: 사용처 0건 (dead code 위험)
+- `Guard`: 사용처 0건 (dead code 위험)
+- 기존 6종 결과 타입(record 4 + enum 2) 형식 불일치 공존
 
 ### 1.2 DTO·DI·트랜잭션·Content·캐시 (P1.2)
 
 | 점검 ID | 결과 |
 |---|---|
-| A4 DTO 경계 | WARN — Player 영역 17건 익명 객체 응답 잔존(IapPurchase/IapRtdn/AdsCallback 핵심) |
-| A5 DI 등록 일관성 | WARN — RateLimitLogRepository 인터페이스 없이 구체 등록(Med), IUnitOfWork/BanLog 그룹화 결여 |
-| A6 트랜잭션 경계 | WARN — 다단계 쓰기 9개 Service UoW 적용 PASS, BeginTransactionAsync 재진입 가드 부재(Low), AdminPlayerService Ban/Unban 명시 UoW 미사용(Low), 3개 UNIQUE catch DetachEntry 누락(Low) |
-| A7 Content 영역 분리 | PASS (grep 위반 0건, 컴파일러 강제력 없음) |
-| AX-Cache | WARN — Level/SystemConfig 캐시 정합, LevelTableProvider Singleton 동기 블로킹(Med), IItemMasterCache 미구현(Med) |
+| A4 DTO 위치 | PASS — Entity 직접 노출 0건, Vertical Slice 일관 |
+| A5 DI 수명 주기 | PASS — Singleton 8종 모두 안전, Captive Dependency 0건 |
+| A6 트랜잭션 | PASS — IUnitOfWork.ExecuteInTransactionAsync 10곳 일관, BeginTransaction 직접 호출 0건 |
+| A7 Content 의존 방향 | WARN — `PlayerWithdrawalCleaner`가 Content 테이블(`StageClears`) 직접 정리(OCP 위반). `SourceKeys.cs`에 Stage 메서드 3종 비-Content 위치 |
+| AX-Cache | PASS — LevelTableProvider 1시간 TTL + Admin 편집 시 Invalidate 트리거 정상 |
 
 ### 1.3 Strategy·인증·횡단·Currency-as-Item (P1.3)
 
 | 점검 ID | 결과 |
 |---|---|
-| A8 Strategy 패턴 | PASS — AdNetwork/IapStore Resolver 정합. GooglePlayClientFactory 인터페이스 부재(Med), IapConsumerResolver 패턴 불일치(Low) |
-| A9 인증 분리 | PASS — JWT/AdminKey 스킴 독립, Admin 23/23 + Player 8/12(의도된 익명 4) |
-| A10 횡단관심사 | WARN — VersionController Rate Limit 누락(Med), MatchMakingHub 메서드 throttle 부재(Med), GlobalExceptionHandler ProblemDetails 미사용·환경 분기 정책 불일치(Med), 점검 모드 인라인 람다(Med) |
-| A11 Currency-as-Item | PASS — Gold/Gems 컬럼 제거 마이그레이션 완전, RewardDispatcher/MailService 신규 경로 정합. Mail.ItemId/Item deprecated 잔존(Med), MailService.SendAsync 다중 정책 미적용(Med), CurrencyIds 시드 보호 가드 부재(Low) |
+| A8 Strategy 패턴 | PASS — AdNetwork/IapStore Verifier/Consumer 3종 동일 골격, 확장성 정상 |
+| A9 인증/인가 흐름 | WARN — AuthDomainException 7종/핸들러 순서 정상. 단 `PlayerBannedException` 응답 코드 GuestLogin(403) vs 나머지(401) 불일치 |
+| A10 횡단 관심사 | PASS — 예외 핸들러 4단계(EnumDeserialization→AuthDomain→Domain→Global), Rate Limit 5정책, 점검 미들웨어 위치 정상 |
+| A11 Currency-as-Item | PASS — Gold/Gems 컬럼 제거 완료, ItemType.Currency 단일 판별, RewardDispatcher 통합 경로 |
 
 ---
 
@@ -73,40 +80,42 @@
 
 | 점검 ID | 결과 |
 |---|---|
-| Q1 한국어 주석 | PASS (34파일 전수) |
-| Q2 네이밍 | PASS |
-| Q3 DTO 사용 | **FAIL** — Player 27건 + Admin 3건 = 30건 익명 객체 응답 잔존 |
-| Q4 Async 일관성 | PASS — .Result/.Wait() 0건. CancellationToken 전파 전무(Low) |
-| Q5 예외 처리 | WARN — AdsCallback/IapPurchase catch-all로 GlobalExceptionHandler 우회(Med×2) |
-| Q10 Magic String | WARN — Rate Limit 정책명 5종 문자열 산재(Med) |
-| AX-Observability | WARN — **UseSerilogRequestLogging 미호출(High)**, Enrichment 미설정(Med), AuthController ILogger 미주입(Low), traceId 전체 미포함 |
+| Q1 한국어 주석 | PASS |
+| Q2 HTTP 응답 코드 | WARN — MailsController.Claim: bool 반환으로 404/400 미구분 |
+| Q3 모델 바인딩 | WARN — Auth DTO 3종(RefreshToken/GoogleLogin/LinkGoogle) `[Required]` 미부착 |
+| Q4 예외 처리 | WARN — AuthController `InvalidOperationException` 범용 catch 2건, ProblemDetails 미준수 |
+| Q5 비동기 | PASS — async void / .Result / .Wait() 0건 |
+| Q10 null 처리 | PASS |
+| AX-Observability | WARN — TraceId 전파 정상, 비즈니스 이벤트 로깅 대부분 누락(Low) |
 
 ### 2.2 Services + 시간/타임존 (P2.2)
 
 | 점검 ID | 결과 |
 |---|---|
-| Q1 한국어 주석 | PASS (22 Service 전수) |
-| Q4 Async | WARN — LevelTableProvider .GetAwaiter().GetResult() 동기 블로킹(Med) |
-| Q5 예외 처리 | WARN — RewardDispatcher Direct 경로 Exp 가산 시 레벨업 누락(Med), AuthService ILogger 미주입(Med), MailService 감사 로그 트랜잭션 격리 미흡(Low) |
-| Q7 멱등성 | WARN — DailyLoginService RewardDispatcher 미경유(DEVNOTES 명세 불일치, Med) |
-| Q10 Magic String | WARN — IsUniqueViolation 5곳 중복(Med), BuildBundleAsync 2곳 동일 코드 중복(Med), dedupKey 네이밍 불일치(Med), SourceKey 패턴 산재(Med) |
-| AX-Time | PASS — DateTime.UtcNow 일관, KST 변환 정확, DST 영향 없음 |
+| Q1 한국어 주석 | PASS — Service 28 + BackgroundService 4파일 전수 |
+| Q4 예외 처리 | PASS — 예외 삼킴 0건 |
+| Q5 비동기 | PASS |
+| Q7 시간/타임존 | PASS — Application 레이어 `DateTime.Now` 0건, KST TimeConstants 일관 |
+| Q10 null 처리 | WARN — DailyRewardSlot 미설정 시 사일런트 스킵 |
+| AX-Time | PASS |
 
-### 2.3 Repos + Migrations + DbContext + 동시성 (P2.3)
+**추가 발견**: `PiiRetentionCleanupService` 품질 양호(KST 스케줄/청크/HealthCheck 연동 정상). DEVNOTES.md "HealthCheck 통합 미적용" 항목은 **이미 구현 완료** — DEVNOTES 갱신 필요.
+
+### 2.3 Repositories + Migrations + DbContext + 동시성 (P2.3)
 
 | 점검 ID | 결과 |
 |---|---|
-| Q6 EF Core 패턴 | PASS — N+1 방지, DB 페이지네이션 적용. Admin 전용 GetAllAsync 3곳 미적용(Med), 플레이어 우편 전체 로딩(Med) |
-| Q8 Soft Delete | PASS — Player Global Query Filter + 나머지 수동 필터 일관 |
-| AX-Migration | PASS — 30개 마이그레이션 전수 정합, Currency-as-Item 4단계 정합. 수동 재실행 시 수량 누적 주의(Med) |
-| AX-Concurrency | **FAIL** — **PlayerItem.Quantity 동시성 토큰 미적용(High)** — Currency-as-Item Lost Update 위험. IapPurchase.Status 토큰 미적용(Med) |
+| Q6 Repository 패턴 | PASS — 자율 SaveChanges 0건, IUnitOfWork 일관 사용 |
+| Q8 Migration 품질 | PASS — 30개 전수 Down() 완전 역전. 2건 Medium |
+| AX-Migration xmin | PASS — Mail/PlayerItem/IapPurchase 3건 빈 본문 처리 완료 |
+| AX-Concurrency | PASS — 동시성 토큰 매핑(PlayerItem/Mail/IapPurchase) 정상 |
 
 ### 2.4 Razor + 테스트 커버리지 (P2.4)
 
 | 점검 ID | 결과 |
 |---|---|
-| Q9 Razor 일관성 | PASS(조건부) — 21개 업무 페이지 중 18개 SafeComponentBase/DirtyGuardBase 일관. 미적용 3페이지(InquiryTest/MatchMaking/AdminNotifications) Med. RewardDispatch.razor.cs CS8604 경고(Med) |
-| AX-Test | **FAIL** — 테스트 프로젝트 0개, .sln 부재, 핵심 비즈니스 로직 자동화 검증 전무(High) |
+| Q9 컴포넌트 안전성 | WARN — SafeErrorBoundary 전역 적용 확인, SafeComponentBase 상속률 78%(21/27). RewardTables/LevelThresholds DirtyGuardBase 미적용 |
+| AX-Test | WARN — 47 테스트 전통과. RewardDispatcher/MailService 단위 테스트 완전 부재 |
 
 ---
 
@@ -116,265 +125,174 @@
 
 | 점검 ID | 결과 |
 |---|---|
-| S1 JWT 흐름 | PASS(조건부) — 검증 파라미터·HS256·OnMessageReceived 양호. RefreshToken 보안 메타데이터(IP/UA/Revoked) 부재(Med), DB 평문 저장(Med), JWT SecretKey 길이 가드 부재(High) |
-| S2 인가 누락 | **FAIL Critical** — Framework.Admin AddAuthorization() FallbackPolicy 미설정 + 모든 Razor 페이지 [Authorize] 미부착 → 익명 사용자가 모든 운영 페이지 직접 URL 접근 가능, X-Admin-Key 자동 부착으로 데이터 변경까지 가능 |
-| S3 디버그 우회 | PASS — #if DEBUG 블록 Release 컴파일 제외 정상 |
+| S1 JWT 보안 | WARN — RefreshToken 해시 저장 PASS. AccessToken 1시간 하드코딩(Medium), RotatedFromId 부재(Medium), ClockSkew 기본 5분(Low), HS256(Low) |
+| S2 인가 체계 | PASS — Player 17 + Admin 23 컨트롤러 전수. 공개 엔드포인트 모두 의도적 |
+| S3 디버그 우회 | PASS — `#if DEBUG` Release 제외 확인 |
 
 ### 3.2 입력·SQLi·IDOR·Rate (P3.2)
 
 | 점검 ID | 결과 |
 |---|---|
-| S4 입력 검증 | PASS(조건부) — 핫패스(Auth/Inquiry/IAP) 검증 양호. Mail/Shout/Notice/Item/AdminGrantReward DTO 길이·범위 검증 부재(Med), JoinMatchRequestDto enum 검증 부재(Med), 페이지네이션 클램프 미일관(Med) |
-| S5 SQL Injection | **PASS** — 솔루션 전체 raw SQL/SqlCommand 사용 0건, LINQ 파라미터 바인딩 일관 |
-| S6 IDOR | **PASS** — MailService.ClaimAsync PlayerId 강제 비교, 모든 Player 컨트롤러 JWT PlayerId만 신뢰 |
-| S7 Rate Limiting | **FAIL Critical** — auth 정책이 AddFixedWindowLimiter 단일 글로벌(파티션 키 없음). 모든 IP/유저 합산 분당 60회 → 단일 공격자로 전체 인증 차단 |
+| S4 입력 유효성 | WARN — Auth DTO 4종 `[Required]`/`[MaxLength]` 미부착(P2.1 중복) |
+| S5 SQL 인젝션 | PASS — Raw SQL 0건 |
+| S6 IDOR | PASS — JWT PlayerId만 사용, 소유권 가드 확인 |
+| S7 Rate Limiting | PASS — 5정책 + GlobalLimiter 600/분 |
 
 ### 3.3 시크릿·외부검증·OIDC·로깅·회복탄력성 (P3.3)
 
 | 점검 ID | 결과 |
 |---|---|
-| S8 시크릿 관리 | PASS(조건부) — .gitignore/secrets/docker-compose 정상. appsettings.Development.json 평문 시크릿 git 추적(Med, P3.5에서 High로 격상), JWT 길이 가드 부재(Med), Iap PackageName/RtdnAudience docker-compose 매핑 부재(Med) |
-| S9 외부 검증 | PASS(조건부) — Google IdToken Audience/HMAC FixedTimeEquals/UNIQUE token/PackageName 검증 모두 양호 |
-| S10 OIDC RTDN | PASS(조건부) — JWKS 동적 회전 + Issuer/Audience/Lifetime/서명 4종 검증. messageId dedup 비즈니스 멱등성 의존(추적) |
-| S11 로깅 민감정보 | **FAIL Med** — IapRtdnService L82,L141 PurchaseToken 평문 로깅(MaskToken 미사용). DeviceId/IdToken/Refresh/Access/ServiceAccountJson 평문 로깅 0건 |
-| AX-Resilience | **FAIL High** — DB EnableRetryOnFailure 미설정, HealthChecks 0건, Polly/Microsoft.Extensions.Http.Resilience 미참조 → 일시 장애 시 즉시 5xx |
+| S8 시크릿 노출 | WARN — **High: docker-compose.yml 광고 SecretKey 매핑 누락**. Dev appsettings 더미값 평문(Medium) |
+| S9 외부 서비스 검증 | PASS — 모든 검증기 서명 검증 수행, 우회 경로 0건 |
+| S10 OIDC/RTDN | PASS — 4종 검증 정상, JWKS 캐시 Singleton |
+| S11 로깅 민감정보 | PASS — 토큰/DeviceId 직접 로깅 0건 |
+| AX-Resilience | WARN — **High: GooglePlayClientFactory 매 호출 디스크 I/O**. JWKS 타임아웃 없음(Medium), Polly 미도입(Medium) |
 
 ### 3.4 CORS·멱등·Admin·개인정보 (P3.4)
 
 | 점검 ID | 결과 |
 |---|---|
-| S12 CORS/보안 헤더/Swagger | **FAIL High** — API/Admin 모두 X-Content-Type-Options/X-Frame-Options/Referrer-Policy/CSP 0건. CORS는 모바일 단독 구조라 Informational. Swagger Development 분기 OK |
-| S13 보상 멱등 | **PASS** — RewardDispatcher UNIQUE 선기록 + DbUpdateException catch 패턴이 AdReward/IAP/StageClear/LevelUp/AdminGrant 전 경로 통일. DailyLogin/MailClaim 동등 보장 |
-| S14 Admin 보호 | **FAIL High** — /admin-login Rate Limit 미적용(P3.2 재확인). Cookie HttpOnly/Secure/SameSite 명시 부재(Med). FixedTimeEquals + BCrypt(workFactor=12) 양호 |
-| S15 개인정보 | **FAIL High** — (1) IapPurchase.PlayerId Restrict ↔ AuthService.WithdrawAsync hard delete → IAP 이력 보유자 탈퇴 시 FK 위반, (2) RefreshToken DB 평문 저장(P3.3 미해결), (3) AuditLog/RateLimitLog/IapPurchase.ClientIp 보관 정책 0건 |
+| S12 CORS·HSTS·Swagger | PASS — CORS 의도적 미등록, HSTS Production 한정, Swagger Development 한정 |
+| S13 멱등성 | PASS — RewardGrants UNIQUE + IsUniqueViolation catch, WithdrawAsync 멱등 |
+| S14 Admin 인가 | PASS — FixedTimeEquals, 22개 Admin 컨트롤러 [AdminApiKey] 전수. Medium: docker-compose Admin 서비스 정의 부재, /admin-login DisableAntiforgery |
+| S15 PII | PASS — WithdrawAnonymize/IapPurchase Restrict FK/PiiRetention 4단계 정상. Medium: secrets/ 볼륨 마운트 누락, RewardGrant FK OnDelete 명시 누락 |
 
 ### 3.5 도구 (P3.5)
 
 | 점검 ID | 결과 |
 |---|---|
-| S16 시크릿 하드코딩 | **FAIL High** — appsettings.Development.json이 .gitignore 미등재로 git 추적. 평문 노출: JWT SecretKey, DB Password "postgres", Admin ApiKey "admin", BCrypt PasswordHash, 실 Google OAuth ClientId. C# 소스/PEM/Bearer/외부 SaaS 키 0건 |
-| S17 취약 패키지 | Informational — dotnet list package --vulnerable 도구 미실행(샌드박스). 직접 의존성 14종 모두 .NET 10 GA(10.0.6) + 최신 안정. 사용자 로컬에서 재실행 권고 |
+| S16 시크릿 스캔 | WARN — gitleaks 미설치(대체 grep 수행). 운영 시크릿 git 추적 0건. CI 자동화 미통합(Medium) |
+| S17 패키지 취약점 | PASS — 28개 패키지 .NET 10 GA 안정 라인. 알려진 CVE 매칭 0건. CI 자동 스캔 미통합(Medium) |
 
 ---
 
-## 4장. Critical Issues (즉시 조치)
+## 4장. Critical Issues
 
-### ~~C-1~~. Framework.Admin Razor 페이지 인가 누락 — **[해결] (round_20260503)**
-- **파일**: `Framework.Admin/Program.cs:67` + Razor 페이지 3건 (실측: 24개 부착됨, AdminNotifications 1건만 누락)
-- **영향**: 익명 사용자가 `/admin-notifications` 직접 URL 접근. ApiHttpClient의 X-Admin-Key 자동 부착으로 RTDN 환불 알림 조회·읽음 처리 가능 (결제 사고 은폐 벡터)
-- **해결 적용**:
-  - `AddAuthorization()` → `FallbackPolicy = RequireAuthenticatedUser()` 설정 (구조적 안전망)
-  - `Pages/Operations/AdminNotifications.razor` `[Authorize]` 부착
-  - `Pages/Errors/NotFound.razor` / `Pages/Errors/Error.razor` `[AllowAnonymous]` 부착 (FallbackPolicy 도입에 따른 명시 처리)
-- **검증**: qa-reviewer 승인 — 빌드 성공, 미들웨어 순서 정합, 27개 페이지 어노테이션 누락 0건
-
-### ~~C-2~~. `auth` Rate Limit 파티션 키 부재 — 인증 API 전체 가용성 결함 — **[해결] (round_20260503)**
-- **파일**: `Framework.Api/Extensions/ServiceExtensions.cs` + `appsettings.json` + `AdminSecurityController.cs` + Admin RateLimitLogs 페이지 등 6파일
-- **현상**: `AddFixedWindowLimiter("auth", ...)` 오버로드는 단일 limiter 인스턴스 생성(파티션 함수 없음). AuthController 전체에 `[EnableRateLimiting("auth")]` 적용되어 모든 IP·유저 합산 분당 60회. 단일 공격자가 정상 사용자 인증을 차단 가능
-- **해결 적용**:
-  - `AddPolicy("auth", httpContext => ...)`로 전환 — 인증 시 `player:{id}` / 미인증 시 `ip:{remote}` 파티션 분기 (`game`/`iap-verify` 정책과 동일 패턴)
-  - 한도: `AuthPermitLimit` 60→15 (미인증 IP 분당), `AuthPlayerPermitLimit` 30 신규 (인증 PlayerId 분당)
-  - AdminSecurityController.GetRateLimitConfig 응답 → `RateLimitConfigDto` typed record 전환 (직전 da4e42f 누락분 보강)
-  - Admin RateLimitLogs 페이지 IP/PlayerId 한도 분리 표시
-- **검증**: qa-reviewer 2회 승인 — 빌드 성공, 파티션 분기 정합, OnRejected DB 로깅 흐름 유지
-- **[추적] 잔여**: ForwardedHeaders / docker bridge IP 보존 (별도 이슈 — Caddy 도입 시점 처리)
+없음.
 
 ---
 
-## 5장. High Issues (다음 스프린트)
+## 5장. High Issues
 
-| ID | 항목 | 파일 | Phase |
-|---|---|---|---|
-| ~~H-1~~ | **[해결]** ISecurityAdminService(통합) 신설 + IRateLimitLogRepository 인터페이스 분리. 두 Controller에서 AppDbContext 완전 제거. IgnoreQueryFilters는 IPlayerRepository에 캡슐화. M-5/L-23 동시 해소 | AdminRateLimitLogsController.cs, AdminSecurityController.cs | P1.1 |
-| ~~H-2~~ | **[해결]** UseSerilogRequestLogging 적용(Authentication 이후) + EnrichDiagnosticContext(ClientIp/UserAgent/TraceId/PlayerId). M-24와 함께 처리 | Framework.Api/Program.cs | P2.1 |
-| ~~H-3~~ | **[해결]** PlayerItem.xmin 그림자 속성 매핑 + RewardDispatcher/MailService 재시도 루프(3회) + IUnitOfWork.ClearChangeTracker. Mail/PlayerItem 충돌 구분 (DEVNOTES `[설계 결정] 낙관적 동시성 토큰 — PostgreSQL xmin 채택` 박제) | AppDbContext.cs + RewardDispatcher.cs + MailService.cs | P2.3 |
-| ~~H-4~~ | **[해결, 부분]** Framework.Tests 신설(xUnit v3 + NSubstitute + EF InMemory) — 인프라/스모크 테스트 2개(DbContext 생성/IRewardDispatcher Resolve)만 도입. 풀 비즈니스 로직 테스트(RewardDispatcher 멱등성/동시성, AuthService 게스트/구글, IAP verify 등)는 코드 안정화 후 별도 라운드. Testcontainers PostgreSQL은 xmin/Raw SQL 검증 필요 시 별도 라운드 | Framework.Tests/ 신규 + Framework.Api.slnx + .gitignore + DEVNOTES.md | P2.4 |
-| ~~H-5~~ | **[방치]** 부팅 가드. DEVNOTES.md L40에 "32자 이상 랜덤 문자열로 교체" 명시되어 있고 짜바리 운영(혼자) 환경에서 본인 인지 충분. 신규 합류자/CI 누락 등 미래 시나리오 발생 시 1~3줄로 도입 가능. 현 단계 우선순위 낮음 | JwtTokenProvider.cs:24 | P3.1 |
-| ~~H-6~~ | **[해결]** RefreshToken `Token` → `TokenHash`(SHA-256/Base64) 전환 + 보안 메타데이터 추가(IpAddress/UserAgent/RevokedAt). JwtTokenProvider.ComputeRefreshTokenHash 헬퍼. 4개 인증 엔드포인트(Guest/Google/Refresh/ResolveGoogleConflict)에서 IP/UA 추출(Controller→Service 인자 전달). 마이그레이션 `H6_RefreshTokenHashAndSecurityMetadata` (dev 토큰 DELETE FROM 포함). RotatedFromId/RevokedAt 활용 로직은 별도 라운드 | RefreshToken.cs + AuthService.cs + JwtTokenProvider.cs + AuthController.cs | P3.1 / P3.4 |
-| ~~H-7~~ | **[해결]** Npgsql `EnableRetryOnFailure(5회/10초)` 적용 + IUnitOfWork.ExecuteInTransactionAsync 본문을 ExecutionStrategy.ExecuteAsync로 래핑(호출처 11곳 무손상). 외부 retry 루프(RewardDispatcher/MailService DbUpdateConcurrencyException 3회)와 트리거 예외 분리되어 중첩 없음 | Program.cs + UnitOfWork.cs | P3.3 |
-| ~~H-8~~ | **[해결]** `AddHealthChecks().AddDbContextCheck<AppDbContext>()` 등록 + `MapHealthChecks("/health")` JSON 응답(AllowAnonymous, no-store). Serilog GetLevel로 `/health` 200=Verbose / 503=Warning 강등 | Program.cs | P3.3 |
-| ~~H-9~~ | **[보류 — 운영 단계 도입]** Polly/Resilience 미참조. 사유: 본 프로젝트는 (1) RTDN(Real-Time Developer Notifications)으로 결제 백필, (2) 클라이언트 재시도, (3) UNIQUE(Store, PurchaseToken) 멱등 — 3중 안전망으로 영구 데이터 손실 거의 없음. 출시 후 verify 실패→RTDN 백필 패턴이 운영 로그에서 빈번 관찰될 시 도입(예상 30~50줄, architect 검토 필요) | Framework.Api.csproj | P3.3 |
-| ~~H-10~~ | **[해결, 부분]** Api/Admin에 OWASP 보안 헤더 6종 미들웨어 적용 (X-Content-Type-Options/X-Frame-Options/Referrer-Policy/Permissions-Policy/X-Permitted-Cross-Domain-Policies/HSTS-Production). OnStarting 콜백으로 short-circuit 응답에도 부착. Admin UseHsts() 일원화. **CSP는 별도 라운드** — Admin Blazor 깨짐 위험 회피, 출시 임박 시 도입 | Api/Admin Extensions/SecurityHeadersExtensions.cs + Program.cs | P3.4 |
-| ~~H-11~~ | **[보류 — 운영 단계 도입]** /admin-login Rate Limit 부재 + Antiforgery Disable. 사유: 단일 운영자·비공개 Admin 도메인 단계에서 공격 발동 시나리오 제한적(C-1 인가 게이트로 다른 경로는 차단됨). 운영자 2인↑ 또는 도메인 공개·검색 노출 시점에 도입 | Framework.Admin/Program.cs:125 | P3.1 / P3.2 / P3.4 |
-| ~~H-12~~ | **[해결]** WithdrawAsync SoftDelete + PII 익명화 전환 (DeviceId/GoogleId NULL, Nickname `"탈퇴유저-{Id}"`, IsDeleted=true). IPlayerWithdrawalCleaner 신설(10개 게임 데이터 테이블 ExecuteDelete). IapPurchase Restrict FK 유지(영구 보존). 멱등 재호출(M2). 검색 NULL 가드. 마이그레이션 `AllowNullableDeviceIdForWithdrawal` (DEVNOTES `[설계 결정]` 박제) | AuthService.cs + PlayerRepository.cs + PlayerWithdrawalCleaner.cs(신규) | P3.4 |
-| H-13 | (중복 — H-6과 동일 항목 — RefreshToken 평문) | RefreshToken.cs:13 | P3.4 |
-| ~~H-14~~ | **[방치]** appsettings.Development.json 평문값은 개발용 더미. 라이브 배포 시 .env로 전량 교체되므로 git 추적/회전 불필요 | — | — |
-| ~~H-15~~ | **[방치]** 동일 사유 — .gitignore 등재 미수행 확정 | — | — |
+### H-1 docker-compose.yml UnityAds/IronSource SecretKey 매핑 누락
+- **위치**: `docker-compose.yml:38-51`
+- **점검 ID**: S8
+- **설명**: `AdNetworks__UnityAds__SecretKey`, `AdNetworks__IronSource__SecretKey` 환경변수가 docker-compose에 정의되지 않음. `.env.example`에도 항목 부재. 운영 배포 시 SecretKey가 appsettings 플레이스홀더 값으로 동작 → 모든 광고 SSV 서명 검증 실패 → 광고 보상 파이프라인 전면 장애.
+- **권고**: `.env.example`에 `UNITY_ADS_SECRET_KEY`, `IRONSOURCE_SECRET_KEY` 추가 + `docker-compose.yml`에 `AdNetworks__UnityAds__SecretKey: ${UNITY_ADS_SECRET_KEY}`, `AdNetworks__IronSource__SecretKey: ${IRONSOURCE_SECRET_KEY}` 매핑 추가.
+
+### H-2 GooglePlayClientFactory 매 호출 디스크 I/O + JSON 파싱
+- **위치**: `Framework.Api/Services/IapStore/GooglePlayClientFactory.cs:33-49`
+- **점검 ID**: AX-Resilience
+- **설명**: IAP 검증/소비 요청마다 서비스 계정 JSON 파일을 디스크에서 읽고 `JsonDocument.Parse` 수행. 디스크 장애 또는 파일 락 경합 시 결제 검증 전체 차단. 부하 시 불필요한 I/O 반복.
+- **권고**: `ServiceAccountCredential`을 Singleton 또는 `Lazy<>` 패턴으로 캐싱. `GooglePlayClientFactory` 자체를 Singleton DI 등록. 초기화 실패는 시작 시점에 조기 감지.
 
 ---
 
-## 6장. Medium Issues (백로그)
+## 6장. Medium Issues
 
-### Phase 1 — 아키텍처
-
-| ID | 항목 | 파일 |
-|---|---|---|
-| M-1 | Application의 Microsoft.EntityFrameworkCore 패키지 직접 참조 | Framework.Application.csproj:10 |
-| ~~M-2~~ | **[해결, 부분]** 5곳(AdPolicy/IapProduct/IapPurchase/RewardTable/RewardDispatcher) catch 필터를 `ex.IsUniqueViolation()` 단일 헬퍼로 통합. DailyLoginService(필터 없는 catch) / MailService(DbUpdateConcurrencyException) 잔여 — 별도 라운드 | 5개 Service |
-| M-3 | IapRtdnController 페이로드 디코딩/PackageName 검증 인라인 | IapRtdnController.cs:43-110 |
-| M-4 | Player 영역 17건 익명 객체 응답 잔존(IapPurchase 7, IapRtdn 7, AdsCallback 6) | Controllers/Player |
-| ~~M-5~~ | **[해결]** IRateLimitLogRepository 도입 + DI 인터페이스 등록 + OnRejected 콜백 인터페이스 참조 전환 (H-1과 동시 해소) | ServiceExtensions.cs |
-| M-6 | LevelTableProvider Singleton 동기 블로킹(.GetAwaiter().GetResult()) | LevelTableProvider.cs:65 |
-| M-7 | IItemMasterCache 미구현 — 핫패스 매 요청 DB 조회 | ItemMasterService 전반 |
-| M-8 | GooglePlayClientFactory 인터페이스 부재 — Strategy 구현체가 구체 어댑터 결합 | GooglePlayClientFactory.cs |
-| M-9 | Mail.ItemId/Item deprecated 단일 경로 잔존 — 디케이 일정 부재 | Mail.cs:15-16, 35-36 |
-| M-10 | MailService.SendAsync 다중 정책 미적용 — 단일 아이템 경로만 | MailService.cs:57-72 |
-| ~~M-11~~ | **[해결]** VersionController에 `[EnableRateLimiting("game")]` 부착 — game 정책의 IP fallback으로 미인증 호출 보호 | VersionController.cs |
-| M-12 | MatchMakingHub 메서드 throttle 부재(SignalR 메시지 단위 무방어) | MatchMakingHub.cs |
-| ~~M-13~~ | **[해결]** RFC 7807 ProblemDetails + `errorCode` enum 확장(P2). GlobalExceptionHandler를 IProblemDetailsService.WriteAsync로 전환, EnumDeserializationExceptionHandler와 응답 형식 일원화. CustomizeProblemDetails로 traceId/instance 자동 부착. ErrorCodes 카탈로그 신설(9종) | GlobalExceptionHandler.cs + EnumDeserializationExceptionHandler.cs + ApiProblemDetailsExtensions.cs + ErrorCodes.cs(신규) |
-| M-14 | 점검 모드 인라인 람다 — 응집도/예외 안전성 부족 | Program.cs:130-154 |
-
-### Phase 2 — 구현 품질
-
-| ID | 항목 | 파일 |
-|---|---|---|
-| ~~M-15~~ | **[해결]** RewardDispatcher.DispatchDirectAsync에서 IExpService.AddExpAsync 위임으로 전환 — 레벨업 자동 처리. IPlayerProfileRepository 의존성 제거. 순환 호출(RewardDispatcher↔ExpService)은 레벨업 보상이 Items만 포함하여 무한 루프 불가 | RewardDispatcher.cs |
-| M-16 | AuthService ILogger 미주입 — 인증 핵심 경로 보안 감사 추적 불가 | AuthService.cs |
-| ~~M-17~~ | **[해결]** IRewardDispatcher.GrantAsync(Mode=Mail) 경유 + 트랜잭션 분리 (1차 DailyLoginLog 커밋 → 2차 Dispatcher 호출). 2차 실패 시 AdminNotification(Critical, RewardDispatchFailure) 등록 + 운영자 수동 보전. SourceKey 형식 `daily-login:{yyyy-MM-dd}` | DailyLoginService.cs |
-| ~~M-18~~ | **[해결]** `Framework.Application/Common/DbUpdateExceptionExtensions.cs` extension method로 단일화 — 5곳 private 중복 메서드 완전 제거 (괄호 누락 포함 자연 정정) | DbUpdateExceptionExtensions.cs (신규) + 5개 Service |
-| ~~M-19~~ | **[해결]** `Framework.Application/Common/RewardBundleBuilder.cs` static 빌더 추출 — AdRewardService + IapPurchaseService 2곳 private BuildBundleAsync 완전 제거, `RewardBundleBuilder.BuildAsync` 단일 호출로 통합 | RewardBundleBuilder.cs(신규) + AdRewardService.cs + IapPurchaseService.cs |
-| ~~M-20~~ | **[해결]** `Framework.Application/Common/AdminNotificationDedupKeys.cs` 빌더 4종(IapConsumeFail/IapRefund/IapCancel/DailyLoginFail) + kebab-case 통일. IapRtdnService underscore→hyphen 의도적 변경(출시 전 DB 0건) | AdminNotificationDedupKeys.cs(신규) + 4개 Service |
-| ~~M-21~~ | **[해결]** `Framework.Application/Common/SourceKeys.cs` 빌더 도입(8종 — LevelUp/Mail/DailyLogin/AdReward/IapPurchase/StageFirstClear/StageReplay/StageExp). 6개 Service에서 매직 문자열 → 빌더 호출. 출력값 byte-identical(RewardGrants 회귀 0). Admin 자유 형식은 빌더화 미적용(Q8) | SourceKeys.cs(신규) + 6개 Service |
-| ~~M-22~~ | **[해결, 부분]** IapPurchaseController catch-all 제거 + GlobalExceptionHandler 위임. IapVerifierException → 502 BadGateway 전환(외부 의존 실패 의미 명확). AdsCallback/IapRtdn catch-all은 광고 네트워크/Pub/Sub 재시도 회피 의도로 **유지**, 응답 형식만 ProblemDetails 통일 | IapPurchaseController.cs + AdsCallbackController.cs + IapRtdnController.cs |
-| ~~M-23~~ | **[해결]** `Framework.Api/Constants/RateLimitPolicies.cs` 5종 상수(Auth/Game/IapVerify/IapRtdn/AdsCallback). ServiceExtensions 5건 등록 + 13개 Controller `[EnableRateLimiting]` 부착 모두 상수 참조. 페이지네이션 한도 `PaginationLimits.cs` 3종 상수(AdminDefault/AdminNotifications/AdminLargeLog) — Controllers 전체 매직 숫자 0건 | RateLimitPolicies.cs + PaginationLimits.cs(신규) + ServiceExtensions + 13 Controller + 8 Admin Controller |
-| ~~M-24~~ | **[해결]** Enricher 4종 적용 — FromLogContext / WithMachineName / WithEnvironmentName / WithProperty("Application","Framework.Api"). `Serilog.Enrichers.Environment 3.0.1` 패키지 추가. H-2와 함께 처리 | Framework.Api/Program.cs |
-| M-25 | RewardDispatch.razor.cs CS8604 — UsedMode null 가능 | RewardDispatch.razor.cs:175 |
-| M-26 | Razor 미적용 3페이지 SafeComponentBase 미상속 | InquiryTest/MatchMaking/AdminNotifications |
-| M-27 | Admin 전용 GetAllAsync 3곳 페이지네이션 미적용 | NoticeRepository/InquiryRepository/RewardTableRepository |
-| M-28 | MailRepository.GetByPlayerIdAsync 페이지네이션 부재 — 장기 플레이어 수천 건 가능 | MailRepository.cs:20 |
-| ~~M-29~~ | **[해결]** IapPurchase.Status xmin 동시성 토큰 적용(H-3 PlayerItem 패턴 답습) + verify/RTDN 3회 재시도 루프. verify 충돌 시 재로드 → Status 분기(Refunded→보상 중단·200 / Granted→AlreadyGranted / Verified·Pending→재진행), 한도 초과→`IapVerifyConcurrencyException`(503) + AdminNotification(Critical, dedupKey=`iap:concurrency:verify:{token}`). RTDN 충돌 시 idempotent return(`Refunded` 가드 활용), 한도 초과→503 throw(IapRtdnController catch-all 정책상 200+LogError로 흡수, M-22 결정 답습). 빈 마이그레이션 + DEVNOTES `[설계 결정]` 박제 | AppDbContext.cs + IapPurchaseService.cs + IapRtdnService.cs + AdminNotificationCategory.cs + IapVerifyConcurrencyException 신규 |
-| M-30 | Currency-as-Item 데이터 이전 SQL 수동 재실행 시 수량 누적 위험 | 20260501100332_AddCurrencyAsItem.cs |
-
-### Phase 3 — 보안
-
-| ID | 항목 | 파일 |
-|---|---|---|
-| M-31 | RefreshToken 보안 메타데이터(IpAddress/UserAgent/RotatedFromId/RevokedAt) 부재 | RefreshToken.cs |
-| M-32 | TokenValidationParameters에 ValidAlgorithms 미설정, ClockSkew 명시 없음 | ServiceExtensions.cs:321 |
-| M-33 | AccessToken 만료 1시간 — JTI blacklist 부재로 도난 시 최대 1시간 노출 | JwtTokenProvider.cs:40 |
-| M-34 | 빌드 모드 가드 부재 — Debug 바이너리 운영 배포 시 디버그 우회 활성화 | Program.cs (양쪽) |
-| M-35 | JoinMatchRequestDto Tier/HumanType enum 검증 부재 | MatchDto.cs:6 |
-| M-36 | Mail/Shout/Notice/Item/AdminGrantReward DTO 길이·범위 검증 부재 | 다수 DTO |
-| ~~M-37~~ | **[해결]** 5개 Admin 컨트롤러에 Math.Clamp 적용 — IapProducts(2)/Notifications/Shouts/AuditLogs(record with)/Stages. 한도: 일반 100 / 알림 200 / 대용량 로그 500 | 5개 Admin Controller |
-| ~~M-38~~ | **[해결]** RateLimiter.GlobalLimiter — IP 파티션 600/분(`RateLimiting:GlobalPermitLimit`) 등록. 명시 정책과 중첩 적용으로 미커버 엔드포인트 안전망. /health는 DisableRateLimiting으로 외부 probe 면제 | ServiceExtensions.cs + Program.cs + appsettings.json |
-| M-39 | JWT SecretKey 길이 가드 부재 | JwtTokenProvider.cs:24 |
-| ~~M-40~~ | **[해결]** docker-compose.yml api 서비스에 Iap__Google__PackageName / RtdnAudience / ServiceAccountJsonPath 환경변수 매핑 추가 + .env.example 동기화 | docker-compose.yml + .env.example |
-| M-41 | IapRtdnService PurchaseToken 평문 로깅(MaskToken 미사용) | IapRtdnService.cs:81-83, 140-142 |
-| M-42 | RTDN messageId dedup 캐시 부재 — 비즈니스 멱등성 의존 | IapRtdnController.cs:41 |
-| M-43 | Admin Cookie 옵션 HttpOnly/Secure/SameSite 명시 부재 | Framework.Admin/Program.cs:59 |
-| ~~M-44~~ | **[해결]** PiiRetentionCleanupService 신설(매일 KST 03:00, 5000행 청크). AuditLog 365일/RateLimitLog 90일 hard delete, BanLog.ActorIp 365일 NULL 익명화, IapPurchase.ClientIp 상태 종결+90일 NULL. 외부 설정 PiiRetentionOptions(IOptions). 법적 근거: 개인정보보호법 §21 + 안전성 확보조치 기준 §8 + 통비법 §41 + 전자상거래법 §6 (DEVNOTES `[설계 결정]` 박제) | Application/BackgroundServices/* (신규) |
-| M-45 | IapPurchase.ClientIp 보관 정책 부재 | IapPurchase.cs:58 |
-| ~~M-46~~ | **[해결]** `PostgresException.SqlState == PostgresErrorCodes.UniqueViolation` 상수 비교로 전환. 메시지 fallback(Contains "unique"/"duplicate") 제거 — Npgsql 버전/언어팩 의존성 제거 | DbUpdateExceptionExtensions.cs |
-| M-47 | appsettings.Development.json 평문 시크릿 git 추적 (P3.3에서 식별, P3.5 High로 격상) | (H-14/H-15 참조) |
-| ~~M-48~~ | **[해결]** GooglePlayClientFactory의 BaseClientService HttpClient.Timeout = 30초 명시 (Unity 60초 미만 안전 마진) | GooglePlayClientFactory.cs |
-| ~~M-49~~ | **[해결]** AdminGrantRewardDto에 [Required] + [MaxLength(64)] + [RegularExpression(`^[a-zA-Z0-9._:\-]+$`)] 적용. MailTitle/MailBody도 [MaxLength(100)/(2000)] 추가 | AdminRewardDispatchController.cs |
-| ~~M-50~~ | **[해결]** IapVerifyRequest에 [MaxLength] 적용 — ProductId 128 / PurchaseToken 512 / OrderId 128. AppDbContext IapPurchase 컬럼 매핑과 동기화 (마이그레이션 발생 0) | IapVerifyRequest.cs |
-| M-51 | Admin BCrypt PasswordHash git 노출(workFactor=12로 보호되나 약한 평문 시 사전공격 가능) | appsettings.Development.json:9 |
+| ID | 위치 | 점검 ID | 설명 | 권고 조치 |
+|---|---|---|---|---|
+| M-1 | `Framework.Application/BackgroundServices/PiiRetentionCleanupService.cs:127` | A2 | Application 레이어가 EF Core DbContext Service Locator 사용 — Application.csproj에 EF Core + Npgsql 패키지 잔류 | 옵션A `IPiiRetentionRepository` Domain 신설/Infrastructure 구현, 옵션B BackgroundService Infrastructure 이동 |
+| M-2 | `Framework.Application.csproj:10,17` | A1/A2 | Application이 EF Core + Npgsql PackageReference 보유(M-1의 근본 원인) | M-1 해결 시 자동 제거 가능 |
+| M-3 | `Framework.Application/Features/*` (6종 결과 타입) | A2 | GrantRewardResult 등 6종 결과 타입 형식 불일치, Result&lt;T&gt; 미채택 | 신규 기능부터 `Result<T>/Error` 적용, ADR 작성 |
+| M-4 | `Framework.Infrastructure/Repositories/PlayerWithdrawalCleaner.cs:72-74` | A7 | Framework 영역이 Content 테이블(StageClears) 직접 정리 — OCP 위반 | `IPlayerDataPurger` Strategy 인터페이스 도입, Content별 Purger 별도 등록 |
+| M-5 | `Framework.Api/Middleware/AuthDomainExceptionHandler.cs:37` | A9 | PlayerBannedException GuestLogin(403) vs 핸들러(401) 응답 코드 불일치 | 핸들러에 `is PlayerBannedException → 403` 분기 추가 또는 통일 정책 명문화 |
+| M-6 | `Framework.Api/Controllers/Player/MailsController.cs:39` | Q2 | Claim 실패 시 400 일괄 반환 — 존재하지 않는 우편은 404가 적절 | MailService.ClaimAsync 반환 타입을 Result/enum으로 변경하여 상황 구분 |
+| M-7 | `Framework.Application/Features/Auth/AuthDto.cs:18,21,24,47` | Q3/S4 | Auth DTO 4종(RefreshToken/GoogleLogin/LinkGoogle/ResolveConflict) `[Required]`/`[MaxLength]` 미부착 | `[Required] [MaxLength(4096)]` 일괄 부착 |
+| M-8 | `Framework.Api/Controllers/Player/AuthController.cs:118,142` | Q4 | InvalidOperationException 범용 catch 2건 — 비의도 예외가 409/400으로 반환될 수 있음 | 전용 도메인 예외(AccountAlreadyLinkedException 등) + ProblemDetails 규격 응답 |
+| M-9 | `Framework.Application/Features/DailyLogin/` | Q10 | DailyRewardSlot 미설정 시 사일런트 스킵 — 운영 오류 감지 부재 | `slot is null` 시 `LogWarning` 추가 |
+| M-10 | 테스트 프로젝트 전체 | AX-Test | RewardDispatcher 단위 테스트 완전 부재 — 핵심 보상 파이프라인(멱등성/Direct-Mail 분기/레벨업 체인) 미검증 | 최소 5개 시나리오(정상Direct/정상Mail/중복SourceKey/빈번들/레벨업체인) 신설 |
+| M-11 | 테스트 프로젝트 전체 | AX-Test | MailService 단위 테스트 완전 부재 — ClaimAsync 동시성 재시도/감사 로그 미검증 | ClaimAsync 단위 테스트 클래스 신설 |
+| M-12 | `Framework.Admin/Components/Pages/Admin/RewardTables.razor.cs` | Q9 | 일괄 Entries 편집 시 DirtyGuardBase 미적용 — 이탈 경고 없음 | DirtyGuardBase 상속으로 전환 |
+| M-13 | `Framework.Admin/Components/Pages/Admin/LevelThresholds.razor.cs` | Q9 | 전체 테이블 편집 시 DirtyGuardBase 미적용 | DirtyGuardBase 상속으로 전환 |
+| M-14 | `Framework.Api/Services/JwtTokenProvider.cs:40` | S1 | AccessToken 만료 1시간 하드코딩 — 탈취 시 노출 시간 길고 옵션화 부재 | `Jwt:AccessTokenMinutes` 옵션 추가, 기본 15~30분으로 단축 |
+| M-15 | `Framework.Domain/Entities/RefreshToken.cs` | S1 | RotatedFromId 부재 — 도난 토큰 패밀리 단위 폐기 불가 | 회전 추적 필드 추가 + Replay 탐지 시 패밀리 일괄 Revoke (별도 라운드 권장) |
+| M-16 | `Framework.Admin/appsettings.Development.json:9` | S8 | Admin BCrypt 해시 git 커밋 — Production 재사용 시 즉시 노출 | Production PasswordHash는 환경변수(`Admin__PasswordHash`)로 주입, Dev 재사용 금지 가이드 명시 |
+| M-17 | `Framework.Api/appsettings.Development.json:9-18` | S8 | Dev 환경 DB 비밀번호/Admin Key/JWT SecretKey 평문 + 실제 Google ClientId 노출 | Dev/Prod OAuth 클라이언트 분리, `.env.example` 안내값 그대로 사용 금지 명시 |
+| M-18 | `Framework.Api/Services/IapStore/GooglePubSubAuthenticator.cs:56` | AX-Resilience | JWKS 갱신 시 GetConfigurationAsync 타임아웃 없음 | 5~10초 CancellationToken 전달 |
+| M-19 | `Framework.Admin/Program.cs:90-95` | AX-Resilience | Admin → API 호출 HttpClient에 Polly 재시도/서킷브레이커 미적용 | `AddTransientHttpErrorPolicy` 추가 검토 |
+| M-20 | `Framework.Admin/Program.cs:148` | S14 | /admin-login `DisableAntiforgery()` — CSRF 표준 위반(실위험 낮음) | Antiforgery 토큰 발급 + `RequireAntiforgery()` 적용 |
+| M-21 | `docker-compose.yml` | S14 | docker-compose.yml에 Admin 서비스 정의 자체 없음 — 운영 IaC 격차 | admin 서비스 추가(환경변수 주입 포함) |
+| M-22 | `docker-compose.yml:51` | S15 | `secrets/` 디렉터리 볼륨 마운트 누락 — 컨테이너 시작 시 GooglePlayClientFactory 초기화 실패 → IAP 검증 전면 장애 위험 | `api` 서비스 volumes에 `./secrets:/app/secrets:ro` 추가 |
+| M-23 | `Framework.Infrastructure/Persistence/AppDbContext.cs:165` | S15 | RewardGrant→Player FK OnDelete 명시 누락 — EF Core 기본 Cascade, 미래 hard delete 경로 추가 시 데이터 유실 위험 | 명시적 `OnDelete(DeleteBehavior.Restrict)` 설정 |
+| M-24 | CI 파이프라인 부재 | S16 | gitleaks 등 시크릿 자동 스캐너 미통합 | pre-commit hook 또는 GitHub Actions에 gitleaks 통합 |
+| M-25 | CI 파이프라인 부재 | S17 | `dotnet list package --vulnerable` CI 자동 실행 없음 | CI에 `--vulnerable --include-transitive` 단계 추가 |
+| M-26 | `Framework.Api/Controllers/Player/IapRtdnController.cs:66-109` | A2 | Base64 디코딩·JSON 역직렬화·PackageName 검증 인라인 — Controller가 인프라 로직 직접 처리, 테스트 불가 | `IIapRtdnPayloadParser` 등 파서 분리, Controller는 ParseResult만 수신 |
+| M-27 | `Framework.Api/Controllers/Player/IapRtdnController.cs`, `AdsCallbackController.cs` | Q3 | IapRtdn 8건·AdsCallback 5건 익명 객체(`new { ok, reason }`) 응답 잔존 — Pub/Sub·광고 네트워크 콜백이라 외부 규격 제약 있으나 DTO 타입 부재 | 전용 응답 record 타입 정의(OkResponse/FailResponse), 익명 객체 제거 |
+| M-28 | `Framework.Application/Features/Item/ItemMasterService.cs` | AX-Cache | `IItemMasterCache` 미구현 — 핫패스 아이템 조회가 매 요청 DB 직접 조회. LevelTableProvider와 달리 캐시 레이어 없음 | `IMemoryCache` 기반 아이템 마스터 캐시 도입, Admin 아이템 수정 시 Invalidate |
+| M-29 | `Framework.Domain/Entities/Mail.cs:35` | A11 | `Mail.ItemId`/`Item` deprecated 네비게이션 잔존 — 디케이 일정 없이 코드에만 주석. Currency-as-Item 완료 후 단일 경로(`MailItems`)만 존재해야 하나 구 경로 혼재 | 디케이 일정 확정 후 `Mail.ItemId`/`Item` 컬럼 마이그레이션으로 제거 |
+| M-30 | `Framework.Api/Program.cs:175` | A10 | 점검 모드 처리가 `app.Use(async (context, next) => {...})` 인라인 람다 — 응집도·예외 안전성 부족, 단위 테스트 불가 | `MaintenanceMiddleware` 클래스 분리 |
+| M-31 | `Framework.Application/Features/Auth/AuthService.cs` | AX-Observability | `AuthService`에 `ILogger` 미주입 — 로그인/탈퇴/토큰 발급 등 보안 핵심 경로 감사 로그 전무 | `ILogger<AuthService>` 주입, 로그인 성공·실패·탈퇴·연동 등 주요 이벤트 기록 |
+| M-32 | `Framework.Infrastructure/Repositories/NoticeRepository.cs:23`, `InquiryRepository.cs:27` | Q6 | `GetAllAsync()` 페이지네이션 없음 — 공지사항·문의가 대량 누적 시 전체 로딩. `MailRepository.GetByPlayerIdAsync`도 동일 | 페이지네이션 파라미터 추가 또는 최대 로딩 한도 적용 |
+| M-33 | `Framework.Application/Features/MatchMaking/MatchDto.cs:6` | S4 | `JoinMatchRequestDto.Tier`/`HumanType` enum 검증 부재 — 정의되지 않은 정수값 바인딩 시 기본값 silently 사용 | `[JsonConverter(typeof(JsonStringEnumConverter))]` 또는 `[EnumDataType]` 적용 |
+| M-34 | `Framework.Application/Features/Iap/IapRtdnService.cs:97,152,161` | S11 | `PurchaseToken` 평문 로깅 — 결제 토큰이 로그 시스템에 원문 노출. `MaskToken` 헬퍼 존재하나 미사용 | `notification.PurchaseToken` → `notification.PurchaseToken.MaskToken()` (또는 앞 8자+`***`) |
+| M-35 | `Framework.Api/Controllers/Player/IapRtdnController.cs:41` | S13 | RTDN `MessageId` 캐시 dedup 부재 — Pub/Sub 재전송 시 동일 알림 중복 처리를 비즈니스 멱등성(IapPurchase UNIQUE)에만 의존. 네트워크 순간 중복 시나리오에서 불필요한 DB 부하 | `IMemoryCache`로 최근 N분 MessageId 캐시, 중복 즉시 200 반환 |
 
 ---
 
 ## 7장. Low / 추적 항목
 
-| ID | 항목 |
-|---|---|
-| L-1 | Application의 Microsoft.Extensions.Caching.Memory 직접 참조 |
-| ~~L-2~~ | **[해결]** `Framework.Application/Features/AdminRewardDispatch/AdminRewardDispatchDto.cs` 분리 — AdminGrantRewardDto/AdminGrantItemDto Controller 외부 이동. Attribute/필드 완전 보존 | AdminRewardDispatchDto.cs(신규) + AdminRewardDispatchController.cs |
-| ~~L-3~~ | **[해결]** `RateLimitLogs.razor.cs` 내부 private record SecurityTimelineItemDto 제거 — `Framework.Application.Features.Security.SecurityTimelineItemDto` import로 전환 | RateLimitLogs.razor.cs |
-| L-4 | DailyLoginController/MatchMakingController/StagesController 익명 객체 응답 잔존 |
-| L-5 | IUnitOfWork.BeginTransactionAsync 재진입 가드 없이 인터페이스 노출 |
-| L-6 | AdminPlayerService Ban/Unban 명시 UoW 미사용(원자성 OK·일관성 미흡) |
-| L-7 | UNIQUE catch에 DetachEntry 누락 3곳 |
-| L-8 | IUnitOfWork/BanLog 등록 그룹화 일관성 부족 |
-| L-9 | IMatchMakingService Singleton 등록 — Scoped Repo 결합 시 캡처드 디펜던시 위험 |
-| L-10 | OnRejected 콜백에서 Repository 직접 사용(Service 미경유) |
-| L-11 | LevelTableProvider 분산 환경 stale 위험 |
-| L-12 | IapConsumerResolver Dictionary 매핑 미적용(다른 Resolver와 패턴 불일치) |
-| L-13 | RequireLinkedAccount 응답 익명 객체 |
-| L-14 | RewardDispatcher 괄호 누락 1건(동작 동일하나 비일관) |
-| ~~L-15~~ | **[해결]** `Framework.Domain/Constants/TimeConstants.cs` KstOffset 단일 정의 — PiiRetentionCleanupService + DailyRewardSlotService 2곳 private 선언 제거, `TimeConstants.KstOffset` 참조. (잔여) DailyLoginService.GetGameDay `AddHours(9)` 하드코딩 — 별도 라운드 |
-| L-16 | 광고 일일 한도 UTC/KST 기준 불일치 |
-| ~~L-17~~ | **[해결]** `Framework.Domain/Constants/RefundReasons.cs` Voided/Canceled 상수 정의 — IapRtdnService 4곳 리터럴 완전 제거, `RefundReasons.Voided`/`RefundReasons.Canceled` 참조 | RefundReasons.cs(신규) + IapRtdnService.cs |
-| ~~L-18~~ | **[해결]** `Framework.Domain/Constants/AuditLogReasons.cs` MailClaim 상수 정의 — MailService 2곳 + AuditLogs.razor.cs 1곳 리터럴 제거, `AuditLogReasons.MailClaim` 참조 | AuditLogReasons.cs(신규) + MailService.cs + AuditLogs.razor.cs |
-| L-19 | PlayerRepository.BanAsync/UnbanAsync 도메인 행위를 Repository에서 수행 |
-| L-20 | CurrencyIds 시드 보호 가드 부재(ItemId=1/2 수정/삭제 차단 없음) |
-| L-21 | CancellationToken 전체 미전파 |
-| L-22 | AsNoTracking 전역 미사용 다수 |
-| ~~L-23~~ | **[해결]** M-5와 동일 항목 — IRateLimitLogRepository 도입 완료 |
-| L-24 | RefreshTokenRepository.DeleteAllByPlayerIdAsync 지연 실행 |
-| L-25 | 14개 Razor 페이지 SafeComponentBase 상속하나 SafeExecute 미사용 |
-| L-26 | LevelThresholds 페이지 다수 행 편집인데 DirtyGuardBase 미적용 |
-| L-27 | MainLayout.razor CS0162 / MatchMaking CS0649 — 의도된 빌드 분기 경고 |
-| L-28 | VersionController [AllowAnonymous] 명시 부재 |
-| L-29 | Login.razor SSR 폼(HTTPS는 운영에서 강제) |
-| L-30 | UnityAds/IronSource ts 누락 fallback(HMAC가 ts 포함하므로 간접 검증) |
-| L-31 | OIDC 검증 실패에도 200 응답(Pub/Sub 재시도 방지 의도) |
-| L-32 | AuthController ex.Message 응답 직접 노출(현재 사용자 메시지뿐, 향후 위험) |
-| L-33 | Serilog PII 마스킹 enricher 미적용 |
-| L-34 | Admin 키 회전 시 프로세스 재시작 필요(Singleton + 시작 시 인코딩) |
-| L-35 | EF Core 경고 9건 — Player GlobalQueryFilter ↔ 9개 자식 엔티티(DailyLoginLog/GameResultParticipant/IapPurchase/Inquiry/Mail/PlayerItem/PlayerProfile/RefreshToken/RewardGrant) required 관계. 정상 쿼리에서 IsDeleted=true 자식 미로딩(의도된 동작), Admin은 IgnoreQueryFilters 패턴 사용 중. 기능 결함 아닌 런타임 경고. 도입: 2026-04-28 GuestGoogle 충돌 해소 커밋 |
-| L-36 | Admin 강제 삭제 경로 `PlayerRepository.DeleteAsync` 잔존 — IAP 이력 보유 계정 강제 삭제 시 여전히 FK 충돌 가능. 주석 [Deprecated] 명시됨. 향후 Admin 화면에서 버튼 비활성화/경고 도입 권고 |
-| L-37 | IapPurchaseService.VerifyAsync 람다 내부 Google Play 외부 API 호출 — EnableRetryOnFailure transient retry 시 람다 전체 재실행으로 외부 API 재호출. Google Play 영수증 검증은 멱등이라 실질 위험 낮으나 코드 주석 명시 권고 |
-| L-38 | `/health` 503 시 컨테이너 오케스트레이터 무한 재기동 가능성 — docker-compose `healthcheck.retries`/`start_period` 설정 의존. 인프라 레벨 설정 권고 |
-| L-39 | `/health` JSON 응답이 의존성 이름(`database` 등) 노출 — 인증 없이 외부 정찰 가능. 운영 환경에서 인프라 레벨 접근 제어(내부 네트워크 화이트리스트) 권고 |
-| L-40 | DB transient 장애 시 최대 50초 누적 응답 지연(EF retry 5회×10초 백오프) — Unity 클라이언트 HTTP 타임아웃 60초 이상 가정. UnityWebRequest.timeout 명시 권고 |
-| L-41 | RefreshToken.TokenHash 컬럼 MaxLength 미명시 — PostgreSQL `text` 타입으로 생성. 기능 영향 없으나 일관성 차원에서 향후 `HasMaxLength(44)` 추가 고려 |
-| L-42 | RefreshToken.RevokedAt 활용 경로 부재 — 검증 시 `IS NULL` 체크는 도입됐으나 채우는 코드는 없음. 강제 로그아웃/회전 보존 정책 라운드에서 활용 예정 |
-| L-43 | LogoutAsync가 RefreshToken 물리 삭제 유지 — 향후 RevokedAt 활용 시 `RevokedAt = UtcNow` + SaveChanges로 전환 권고 |
-| ~~L-44~~ | **[해결]** AdminStagesController catch 패턴 전환 — `DbUpdateException ex when (ex.IsUniqueViolation())` 적용. 동작 변경: catch 좁힘(UNIQUE 위반만 409, 그 외 예외 GlobalExceptionHandler 위임) + `IsUniqueViolation` SqlState 기반 정확 판별 | AdminStagesController.cs |
-| L-45 | DailyLoginService catch 필터 없음 — 모든 DbUpdateException을 silently swallow. M-2 D2 결정으로 본 라운드 미포함, 별도 라운드에서 IsUniqueViolation 필터 적용 권고 |
-| L-46 | Application 레이어 Npgsql 직접 의존 (M-1 부채 가중) — DbUpdateExceptionExtensions 도입 시 추가됨. M-1 본격 해결 시 Infrastructure로 이전하는 일괄 리팩토링 권고 |
-| L-47 | ValidationProblemDetails(ModelState 400)에 errorCode 미부착 — ErrorCodes.ValidationFailed 상수 정의됨, 향후 추가 가능 |
-| L-48 | AdsCallback/IapPurchase Unauthorized 응답이 익명 객체 — ProblemDetails 형식과 일관성 부족(JWT 미들웨어 우선이라 도달 빈도 낮음) |
-| L-49 | GlobalLimiter 600 + iap-rtdn 600 동일 한도 — 중첩 적용 시 사실상 같은 한도로 작동(운영 데이터 기반 튜닝 사항) |
-| L-50 | ForwardedHeaders 미적용 — 리버스 프록시 환경에서 IP 파티션이 프록시 IP로 통합될 위험. Caddy 도입 시점에 별도 라운드 |
+| ID | 위치 | 점검 ID | 설명 |
+|---|---|---|---|
+| L-1 | `Framework.Domain/Common/Results/Result.cs, Error.cs` | A2 | Result&lt;T&gt;/Error 채택률 0%, dead code 위험 — 신규 기능 적용 가이드 필요 |
+| L-2 | `Framework.Domain/Common/Guards/Guard.cs` | A2 | Guard 채택률 0% — 도메인 엔티티 생성자 적용 권장 |
+| L-3 | `Framework.Api/Controllers/Player/AuthController.cs:118-121` | A2 | InvalidOperationException catch 안티패턴(M-8과 연동) |
+| L-4 | `Framework.Application/Common/SourceKeys.cs:25-32` | A7 | Stage SourceKey 메서드 3종이 비-Content 위치 |
+| L-5 | `Framework.Application/BackgroundServices/PiiRetentionHealthState.cs:9-15` | A5 | Singleton 공유 상태 volatile/lock 부재 |
+| L-6 | `Framework.Application/Features/Exp/LevelTableProvider.cs:65` | AX-Cache | 캐시 미스 시 sync-over-async 패턴 |
+| L-7 | `Framework.Application/BackgroundServices/PiiRetentionCleanupService.cs:20` | 동시성 | advisory lock 미적용 — 단일 인스턴스 환경에서는 안전, 스케일아웃 시 재설계 필요 |
+| L-8 | `Framework.Api/Middleware/AuthDomainExceptionHandler.cs:56` | A9 | JsonSerializer 옵션 미지정 |
+| L-9 | `Framework.Api/Program.cs:189` | A10 | 점검 503 응답이 ProblemDetails가 아닌 단순 JSON |
+| L-10 | `Framework.Api/Services/IapStore/IapConsumerResolver.cs:19` | A8 | 다른 Resolver와 달리 FirstOrDefault O(N) 패턴 불일치 |
+| L-11 | `Framework.Domain/Constants/CurrencyIds.cs` | A11 | CurrencyIds 상수 정의 후 사용처 0건 |
+| L-12 | `Framework.Domain/ValueObjects/RewardBundle.cs:16` | A11 | IsCurrencyOnly 명명이 Currency-as-Item 도입 후 의미 모순 |
+| L-13 | `Framework.Api/Controllers/Admin/AdminNoticesController.cs:44` | Q2 | Delete/Update 성공 시 Ok() — 다른 컨트롤러와 NoContent() 불일치 |
+| L-14 | Admin DTO 다수 | Q3 | NoticeDto/ShoutDto 등 Admin DTO [Required]/[MaxLength] 미부착 |
+| L-15 | `Framework.Api/Controllers/Content/Player/StagesController.cs:73` | Q4 | KeyNotFoundException/InvalidOperationException 범용 catch |
+| L-16 | Controller 대부분 | AX-Observability | 개별 비즈니스 이벤트 로깅 누락(SerilogRequestLogging이 요청 레벨은 커버) |
+| L-17 | `Framework.Api/Middleware/GlobalExceptionHandler.cs:35` | AX | Development 환경에서 LogError 미기록 |
+| L-18 | `Framework.Application/Features/Reward/RewardCancelService.cs:106` | Q4 | Exception 범용 catch — 의도적 설계이나 패턴 주의 |
+| L-19 | Admin UI 5건 | Q7 | DateTime.Now 사용(표시용, 서버 로직 무관) |
+| L-20 | Admin UI 2건 | Q7 | DateTime.Today 사용(필터 기본값, 서버 로직 무관) |
+| L-21 | `Framework.Admin/` 빌드 | 빌드 | CS8604 nullable 경고, CS0162 접근 불가 코드 경고 |
+| L-22 | `Framework.Admin/Components/Pages/Admin/MatchMaking.razor.cs:18` | Q9 | SafeComponentBase 미상속(Release SignalR 비활성이라 실위험 제한적) |
+| L-23 | `Framework.Admin/Components/Account/Login.razor.cs:9` | Q9 | SafeComponentBase 미상속 — 로그인 실패 예외 시 회로 끊김 가능 |
+| L-24 | `Framework.Admin/Components/Pages/InquiryTest.razor.cs:15` | Q9 | SafeComponentBase 미상속(테스트 페이지, 최저 우선순위) |
+| L-25 | `Framework.Tests/Unit/Smoke/DiSmokeTests.cs:34` | AX-Test | ValidateOnBuild 미적용 — DEVNOTES 기술 부채 확인 |
+| L-26 | `Framework.Api/Extensions/ServiceExtensions.cs:332` | S1 | ClockSkew 미설정 — 기본 5분 허용 |
+| L-27 | `Framework.Api/Services/JwtTokenProvider.cs:25` | S1 | HS256 대칭키 — 운영 키 64+바이트 및 정기 로테이션 절차 문서화 필요 |
+| L-28 | `Framework.Api/Controllers/Player/AuthController.cs:44` | S2 | PlayerBannedException 401/403 불일치(보안이 아닌 UX 디자인 이슈) |
+| L-29 | `Framework.Api/Hubs/MatchMakingHub.cs:9` | S7 | SignalR 허브 메시지 단위 Rate Limit 부재 — DEVNOTES 추적 항목 |
+| L-30 | `Framework.Api/Services/IapStore/GooglePlayStoreVerifier.cs:124` | S11 | 외부 라이브러리 예외 메시지가 로거에 흘러들 수 있음 |
+| L-31 | `Framework.Api/appsettings.Development.json:18` | S8 | JWT Dev 시크릿 평문 커밋 — Production 사용 가이드 강화 필요 |
+| L-32 | 모든 .csproj | S17 | transitive 의존 포함 동적 NuGet Audit 미수행 — 배포 전 수동 실행 권고 |
 
 ---
 
-## 8장. DEVNOTES.md 갱신 권고 — 후처리 결과 (2026-05-05 종결)
+## 8장. DEVNOTES.md 갱신 권고
 
-### 신규 [Caution] 섹션 추가
-- ~~Framework.Admin 인가 정책 박제~~ → **[반영]** C-1 해결 시 코드에 FallbackPolicy 적용 + DEVNOTES Feature Status `Admin 인증` 항목에 명시
-- ~~appsettings.Development.json .gitignore 정책~~ → **[보류]** H-14/H-15 의도적 방치(개발용 더미값, 1인 운영) — 별도 박제 불필요
-
-### 기존 명세와 코드 불일치 정정
-- ~~"DailyLoginLog + RewardGrants 이중보호 유지" 정정~~ → **[반영]** M-17 RewardDispatcher Mail 경로 전환 결과를 DEVNOTES 보상 프레임워크 #4 항목에 갱신
-
-### [기술 부채] 섹션 보강
-- ~~PlayerItem.Quantity 동시성 토큰~~ → **[반영]** H-3 해결 + DEVNOTES `[설계 결정] 낙관적 동시성 토큰 — PostgreSQL xmin 채택` 박제
-- ~~IapPurchase 탈퇴 FK Restrict ↔ Withdraw 충돌~~ → **[반영]** H-12 해결 + DEVNOTES `[설계 결정] 계정 탈퇴 정책 — SoftDelete + PII 익명화` 박제
-- ~~RefreshToken DB 평문 저장~~ → **[반영]** H-6 해결 + DEVNOTES `[설계 결정] RefreshToken — DB 평문 저장 금지, SHA-256 해시` 박제
-- ~~보관기간 정책~~ → **[반영]** M-44 해결 + DEVNOTES `[설계 결정] PII 자동 보관기간 정책` 박제
-- ~~테스트 프로젝트 0개~~ → **[부분 반영]** H-4 인프라 셋업 + DEVNOTES `[Test] 프로젝트 가이드` 박제. 풀 비즈니스 테스트는 별도 라운드
-- ~~DB EnableRetryOnFailure / HealthChecks~~ → **[반영]** H-7/H-8 해결. Polly Resilience(H-9)는 보류
-- ~~보안 응답 헤더 미들웨어~~ → **[부분 반영]** H-10 6종 적용. CSP는 별도 라운드(Admin Blazor 깨짐 위험 회피)
-
-### [설계 결정] 명문화 후보
-- **Mail.ItemId/Item deprecated 디케이 일정 (M-9)** → **[보류]** Med 백로그
-- **`auth` Rate Limit IP/PlayerId 파티션 구조** → **[반영]** DEVNOTES `[설계 결정] auth Rate Limit — IP/PlayerId 이중 파티션` 박제
-- **Item 마스터 Singleton 캐시 Invalidate (M-7)** → **[보류]** Med 백로그 — 캐시 도입 시점에 함께 박제
-
-### 본 라운드 추가 박제
-- **DEVNOTES `[Admin 경로 추가 시 의무]`** — IapPurchase Status 변경 경로 추가 시 동일 xmin 토큰 적용 + 운영자 충돌은 재시도 X 명시 (M-29 라운드)
-- **DEVNOTES `[미구현] ExecuteConsumeAsync 동시성 처리`** — M-29 분리 결정사항 박제
+| 항목 | 유형 | 내용 |
+|---|---|---|
+| PiiRetentionHealthCheck 통합 | **삭제** | "[미구현] HealthCheck 통합 미적용" 항목 — P2.2에서 `PiiRetentionHealthCheck.cs` 구현 완료 확인. 해당 항목 제거 |
+| round_20260507 이슈 처리 현황 | **추가** | "§ REVIEW_REPORT.md 우선순위 처리 결과 (round_20260507)" 섹션 추가 — H-1(광고 SecretKey)/H-2(IAP 디스크 I/O)/M-22(secrets 볼륨) 즉시 처리 대상으로 기록 |
+| docker-compose Admin 서비스 정의 부재 | **추가** | M-21 — Admin 컨테이너 IaC 격차를 "[기술 부채]"에 추가. `docker-compose.yml`에 admin 서비스 정의 및 환경변수 주입 필요 |
+| GooglePlayClientFactory Singleton 캐싱 | **추가** | H-2 — "[기술 부채]"에 추가: 매 호출 디스크 I/O → Singleton/Lazy 캐싱 전환 필요 |
 
 ---
 
 ## 부록 A. 청크 산출물 인덱스
 
-| 청크 | 산출물 |
-|---|---|
-| P1.1 의존성·책임·인터페이스 | review/round_20260503/p1_1_dependencies.md |
-| P1.2 DTO·DI·트랜잭션·Content·캐시 | review/round_20260503/p1_2_dto_di_tx_content.md |
-| P1.3 Strategy·인증·횡단·Currency-as-Item | review/round_20260503/p1_3_strategy_auth_xcut.md |
-| P2.1 Controllers + 관측성 | review/round_20260503/p2_1_controllers.md |
-| P2.2 Services + 시간/타임존 | review/round_20260503/p2_2_services.md |
-| P2.3 Repos+Migrations+DbContext+동시성 | review/round_20260503/p2_3_repos_migrations_dbcontext.md |
-| P2.4 Razor + 테스트 커버리지 | review/round_20260503/p2_4_razor_tests.md |
-| P3.1 인증·인가·디버그 | review/round_20260503/p3_1_authn_authz_debug.md |
-| P3.2 입력·SQLi·IDOR·Rate | review/round_20260503/p3_2_input_sqli_idor_rate.md |
-| P3.3 시크릿·외부검증·OIDC·로깅·회복탄력성 | review/round_20260503/p3_3_secrets_external_oidc_log.md |
-| P3.4 CORS·멱등·Admin·개인정보 | review/round_20260503/p3_4_cors_idem_admin_pii.md |
-| P3.5 도구 | review/round_20260503/p3_5_tools.md |
-| 직전 라운드 보고서(2026-04-30) | review/round_20260503/REVIEW_REPORT.previous.md |
-| PLAN 스냅샷 | review/round_20260503/REVIEW_PLAN.snapshot.md |
-| 진행 상태 | review/round_20260503/STATUS.md |
+| 청크 | 파일 | 주요 판정 | 이슈 |
+|---|---|---|---|
+| P1.1 의존성·책임·인터페이스 | `review/round_20260507/p1_1_dependencies.md` | A1 PASS / A2 WARN / A3 PASS | Med 3, Low 3 |
+| P1.2 DTO·DI·트랜잭션·Content·캐시 | `review/round_20260507/p1_2_dto_di_tx_content.md` | A4/A5/A6/AX-Cache PASS / A7 WARN | Med 2, Low 4 |
+| P1.3 Strategy·인증·횡단·Currency-as-Item | `review/round_20260507/p1_3_strategy_auth_xcut.md` | A8/A10/A11 PASS / A9 WARN | Med 1, Low 6 |
+| P2.1 Controllers + 관측성 | `review/round_20260507/p2_1_controllers.md` | Q1/Q5/Q10 PASS / Q2/Q3/Q4/AX WARN | Med 4, Low 5 |
+| P2.2 Services + 시간/타임존 | `review/round_20260507/p2_2_services.md` | Q1/Q4/Q5/Q7/AX-Time PASS / Q10 WARN | Med 2, Low 3 |
+| P2.3 Repositories + Migrations + 동시성 | `review/round_20260507/p2_3_repos_migrations_dbcontext.md` | Q6/Q8/AX-Migration/AX-Concurrency PASS | Med 2, Low 2 |
+| P2.4 Razor + 테스트 커버리지 | `review/round_20260507/p2_4_razor_tests.md` | Q9/AX-Test WARN | Med 4, Low 4 |
+| P3.1 인증·인가·디버그 | `review/round_20260507/p3_1_authn_authz_debug.md` | S2/S3 PASS / S1 WARN | Med 2, Low 3 |
+| P3.2 입력·SQLi·IDOR·Rate | `review/round_20260507/p3_2_input_sqli_idor_rate.md` | S5/S6/S7 PASS / S4 WARN | Med 2, Low 2 |
+| P3.3 시크릿·외부검증·OIDC·로깅·회복탄력성 | `review/round_20260507/p3_3_secrets_external_oidc_log.md` | S9/S10/S11 PASS / S8/AX-Resilience WARN | **High 2**, Med 4, Low 2 |
+| P3.4 CORS·멱등·Admin·개인정보 | `review/round_20260507/p3_4_cors_idem_admin_pii.md` | S12/S13/S14/S15 PASS | Med 4, Low 1 |
+| P3.5 도구 | `review/round_20260507/p3_5_tools.md` | S17 PASS / S16 WARN | Med 3, Low 1 |
