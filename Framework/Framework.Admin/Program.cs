@@ -163,4 +163,7 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
+// API 서버가 먼저 기동될 수 있도록 1초 대기 후 시작
+await Task.Delay(TimeSpan.FromSeconds(1));
+
 app.Run();
