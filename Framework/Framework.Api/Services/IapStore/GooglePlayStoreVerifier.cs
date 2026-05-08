@@ -34,7 +34,7 @@ public class GooglePlayStoreVerifier : IIapStoreVerifier
         {
             // (1) Google 서비스 계정 키로 인증된 AndroidPublisher API 클라이언트 생성
             // 모든 요청에 OAuth 2.0 토큰 자동 첨부 → Google 서버는 인증된 호출만 처리
-            using var service = await _clientFactory.CreateAsync();
+            using var service = _clientFactory.Create();
 
             _logger.LogDebug(
                 "Google Play 구매 조회 요청 — PackageName: {PackageName}, ProductId: {ProductId}",

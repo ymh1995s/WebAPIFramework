@@ -30,7 +30,7 @@ public class GooglePlayConsumer : IIapConsumer
         try
         {
             // AndroidPublisherService 생성 — using으로 요청 완료 후 즉시 dispose
-            using var service = await _clientFactory.CreateAsync();
+            using var service = _clientFactory.Create();
 
             // purchases.products.consume 호출 — 응답 바디 없는 void 호출
             await service.Purchases.Products.Consume(packageName, productId, purchaseToken).ExecuteAsync();

@@ -256,8 +256,9 @@ public static class ServiceExtensions
     // Google Play 검증기 + 메인 구매 처리 서비스 + consume 재시도 워커
     public static IServiceCollection AddIapServices(this IServiceCollection services)
     {
-        // Google Play 클라이언트 팩토리 — Verifier/Consumer 공유 초기화 (Transient: 요청마다 새 클라이언트)
-        services.AddTransient<GooglePlayClientFactory>();
+        // Google Play 클라이언트 팩토리 — Singleton: Lazy<GoogleCredential>을 프로세스 전역 공유
+        // 서비스 계정 파일 I/O는 최초 1회만 발생, 이후 캐시된 인증 정보 재사용
+        services.AddSingleton<GooglePlayClientFactory>();
 
         // Google Play 영수증 검증기 등록 (IIapStoreVerifier Strategy 구현체)
         services.AddScoped<IIapStoreVerifier, GooglePlayStoreVerifier>();
