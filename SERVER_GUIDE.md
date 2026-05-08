@@ -260,6 +260,7 @@ dotnet ef database update --project Framework/Framework.Infrastructure --startup
 
 - [ ] `.env` 모든 시크릿 실제 값 채움 (§2/§3)
 - [ ] `appsettings.Development.json` 더미값이 운영에 노출 안 되는지 확인 (.env가 우선)
+- [ ] `secrets/google-play-service-account.json` 서버에 존재 확인 (Docker 볼륨 마운트 대상 — Git에 없으므로 수동 배치 필수)
 - [ ] Google Play Console 설정 완료 (§4)
 - [ ] DB 백업 정책 설정 (pg_dump 또는 볼륨 스냅샷, 최소 1일 1회 / 30일 보관)
 - [ ] 마이그레이션 운영 DB 적용 완료 (§5)
