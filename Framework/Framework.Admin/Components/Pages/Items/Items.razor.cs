@@ -43,6 +43,12 @@ public partial class Items : SafeComponentBase
     private int? confirmDeleteId;
     private int holderCount;
 
+    // 사용 효과 편집 상태 — 아이템별 인라인 편집 여부 및 입력값
+    // 키: ItemId, 값: 편집 중인 RewardTableId 문자열 (null 표현을 위해 string 사용)
+    private Dictionary<int, string> useEffectEditMap = new();
+    // 사용 효과 저장 피드백 메시지 (키: ItemId)
+    private Dictionary<int, (string Message, bool IsSuccess)> useEffectMessages = new();
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -165,8 +171,53 @@ public partial class Items : SafeComponentBase
         confirmDeleteId = null;
     }
 
+    /// <summary>사용 효과 편집 시작 — 현재 RewardTableId를 입력 필드에 채움</summary>
+    private void StartEditUseEffect(ItemDto item)
+    {
+        // 기존 편집 중이면 값 유지, 새로 시작이면 현재 값으로 초기화
+        useEffectEditMap[item.Id] = item.UseRewardTableId?.ToString() ?? "";
+    }
+
+    /// <summary>사용 효과 편집 취소</summary>
+    private void CancelEditUseEffect(int itemId)
+    {
+        useEffectEditMap.Remove(itemId);
+        useEffectMessages.Remove(itemId);
+    }
+
+    /// <summary>사용 효과 저장 — 입력값을 int?로 파싱하여 PUT 요청</summary>
+    private async Task SaveUseEffect(int itemId)
+    {
+        // 입력값 파싱 — 빈 문자열은 null(보상 없음)으로 처리
+        int? rewardTableId = null;
+        if (useEffectEditMap.TryGetValue(itemId, out var raw) && !string.IsNullOrWhiteSpace(raw))
+        {
+            if (!int.TryParse(raw, out var parsed) || parsed <= 0)
+            {
+                useEffectMessages[itemId] = ("올바른 RewardTable ID를 입력하세요.", false);
+                return;
+            }
+            rewardTableId = parsed;
+        }
+
+        var payload = new { RewardTableId = rewardTableId };
+        var response = await ApiClient.PutAsync(ApiRoutes.AdminItems.UseEffect(itemId), payload);
+
+        if (response.IsSuccessStatusCode)
+        {
+            useEffectMessages[itemId] = ("저장되었습니다.", true);
+            useEffectEditMap.Remove(itemId);
+            // 목록 갱신하여 UseRewardTableId 반영
+            await LoadItems();
+        }
+        else
+        {
+            useEffectMessages[itemId] = ("저장에 실패했습니다.", false);
+        }
+    }
+
     // API 응답 매핑용 로컬 DTO
-    private record ItemDto(int Id, string Name, ItemType ItemType, string Description, AuditLevel AuditLevel, int AnomalyThreshold);
+    private record ItemDto(int Id, string Name, ItemType ItemType, string Description, AuditLevel AuditLevel, int AnomalyThreshold, int? UseRewardTableId = null);
     private record HolderCountDto(int Count);
     private enum ItemType { Currency, Consumable }
     /// <summary>감사 로그 기록 수준 — 서버 Framework.Domain.Enums.AuditLevel와 순서 동일해야 함</summary>

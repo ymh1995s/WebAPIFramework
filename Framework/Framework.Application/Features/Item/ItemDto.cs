@@ -4,7 +4,8 @@ namespace Framework.Application.Features.Item;
 
 // 아이템 조회 응답 DTO
 // 통화 아이템 여부는 ItemType == ItemType.Currency 로 판별
-public record ItemDto(int Id, string Name, ItemType ItemType, string Description, AuditLevel AuditLevel, int AnomalyThreshold);
+// UseRewardTableId: 사용 효과 보상 테이블 ID — null이면 수량 차감만 수행
+public record ItemDto(int Id, string Name, ItemType ItemType, string Description, AuditLevel AuditLevel, int AnomalyThreshold, int? UseRewardTableId = null);
 
 // 아이템 생성 요청 DTO
 public record CreateItemDto(string Name, ItemType ItemType, string Description, AuditLevel AuditLevel, int AnomalyThreshold);

@@ -4,6 +4,7 @@ using Framework.Api.Constants;
 using Framework.Application.Common;
 using Framework.Application.Features.AdPolicy;
 using Framework.Application.Features.AdReward;
+using Framework.Application.Features.ItemUse;
 using Framework.Application.Features.AdminNotification;
 using Framework.Application.Features.AuditLog;
 using Framework.Application.Features.BanLog;
@@ -193,6 +194,11 @@ public static class ServiceExtensions
         services.AddScoped<IRankingService, RankingService>();
         services.AddScoped<IItemMasterService, ItemMasterService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+
+        // 아이템 사용(소모) 서비스 등록
+        // IItemUseEffectExtension은 게임별 선택 등록이므로 여기서 등록하지 않음
+        // (IEnumerable<IItemUseEffectExtension>은 미등록 시 빈 컬렉션으로 주입됨)
+        services.AddScoped<IItemUseService, ItemUseService>();
 
         // 보상 디스패처 등록 — 모든 보상 경로의 단일 진입점
         services.AddScoped<IRewardDispatcher, RewardDispatcher>();

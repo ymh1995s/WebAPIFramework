@@ -89,6 +89,9 @@ public static class ApiRoutes
 
         /// <summary>아이템 보유 유저 수 조회 — 삭제 전 경고 팝업용</summary>
         public static string Holders(int id) => $"{Base}/{id}/holders";
+
+        /// <summary>아이템 사용 효과 RewardTable ID 조회(GET) / 설정(PUT)</summary>
+        public static string UseEffect(int id) => $"{Base}/{id}/use-effect";
     }
 
     // ── 우편 Admin (AdminMailsController: Route = "api/admin/mails") ───────

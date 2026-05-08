@@ -13,4 +13,8 @@ public interface IItemMasterService
     Task<int> GetHolderCountAsync(int id);
     // 아이템 소프트 삭제
     Task DeleteAsync(int id);
+    // 아이템 사용 효과 RewardTable ID 조회 — null이면 보상 없음
+    Task<int?> GetUseRewardTableIdAsync(int itemId);
+    // 아이템 사용 효과 RewardTable ID 설정 — null 전달 시 보상 없음으로 초기화
+    Task SetUseRewardTableIdAsync(int itemId, int? rewardTableId);
 }

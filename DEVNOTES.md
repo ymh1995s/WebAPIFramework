@@ -9,32 +9,34 @@
 
 | 기능 | 설명 |
 |---|---|
-| JWT 인증 | 게스트 로그인(DeviceId), AccessToken/RefreshToken 발급, 로그아웃 |
-| 구글 OAuth 연동 | Google IdToken 검증, 신규 로그인 및 기존 계정 연결, 계정 충돌 감지(409)/해소, 게스트 계정 소프트 딜리트 |
-| 게스트 결제 차단 | `[RequireLinkedAccount]` 필터 — 구글 미연동 계정의 결제 엔드포인트 접근 시 403 반환 (결제 컨트롤러 구현 시 부착 필요) |
-| 랭킹 시스템 | 게임 결과 점수 기록, 상위 N명 랭킹 조회 |
-| 인벤토리 관리 | 플레이어 보유 아이템 조회, 아이템 획득. Gold/Gems는 PlayerItem(ItemId=1/2)으로 관리되므로 인벤토리 조회 시 ItemType.Currency 항목이 재화로 함께 반환됨 |
-| 우편 시스템 | 우편 수신/수령 API, Admin 단건·일괄 발송 |
-| 일일 로그인 보상 | 로그인 시 당일 보상 우편 발송 (이번 달 로그인 횟수 기반, 매월 리셋). 빈 일자는 보상 없음. Current/Next 2슬롯 방식으로 이번 달·다음 달 보상 예약 관리. KST 하루 기준 시각(기본 00:00) Admin 설정 가능 |
+| JWT 인증 | 게스트(DeviceId)/구글 OAuth 로그인, AccessToken/RefreshToken 발급·갱신·로그아웃 |
+| 구글 OAuth 연동 | IdToken 검증, 계정 연결·충돌(409) 처리, 게스트 소프트 딜리트 |
+| 게스트 결제 차단 | `[RequireLinkedAccount]` 필터 — 구글 미연동 계정 결제 403 차단 |
+| 랭킹 시스템 | 게임 결과 점수 기록, 상위 N명 조회 |
+| 인벤토리 관리 | 아이템 획득·조회. Gold/Gems는 Currency-as-Item(ItemId=1/2) → §보상 프레임워크 |
+| 아이템 소모/사용 | Consumable 수량 차감 + 보상 지급. Admin에서 아이템별 사용 효과(RewardTable) 설정 |
+| 우편 시스템 | 우편 수신·수령 API, Admin 단건·일괄 발송 |
+| 일일 로그인 보상 | 로그인 시 당일 보상 우편 발송. Current/Next 2슬롯 방식 → §일일 보상 2슬롯 |
 | 매치메이킹 | SignalR 기반 실시간 매칭, 대기열 관리 |
-| 보상 프레임워크 | 범용 보상 파이프라인 — 모든 보상 경로를 단일 IRewardDispatcher로 통합. 선기록 멱등성, Direct/Mail/Auto 분기, RewardTable 마스터 관리, Admin 수동 지급/우편 발송 통합 페이지 |
-| 아이템 마스터 관리 | Admin CRUD (추가/수정/소프트삭제), 보유 유저 수 확인 |
-| Admin 인증 | X-Admin-Key 헤더 기반 API 접근 제어. Admin 컨트롤러는 `[AdminApiKey]` 필터로 보호 (JWT [Authorize]와 독립). 점검 미들웨어에서 X-Admin-Key 확인 시 503 면제. Admin 로그인 비밀번호는 BCrypt 해시 검증(`AdminPasswordVerifier`, `Admin:PasswordHash` 키) |
-| 시스템 설정 | 점검 모드, 앱 버전, 일일 보상 기준 시각 등 SystemConfig Admin 제어 |
-| 어뷰징 방어 | auth 엔드포인트 Rate Limiting (IP 기준, `RateLimiting:AuthPermitLimit` 설정), 429 발생 시 PlayerId·UserAgent 포함 DB 로그. Admin 보안 감시 — 통합 타임라인(Rate Limit 초과 / 재화 이상치 / 계정 정지 이벤트 병합), IP 집계, 타임라인에서 직접 영구밴 가능. 인게임 API: `game` 정책 PlayerId 기준 120회/분, IAP 검증: `iap-verify` 정책 20회/분 |
-| 점검 모드 | 수동 ON/OFF 및 시각 예약, 미들웨어에서 503 차단, Admin은 점검 중에도 접근 가능 |
-| 계정 탈퇴 | DELETE /api/auth/withdraw, SoftDelete + PII 익명화 처리. Player 행 보존(IapPurchase FK 유지), 게임 진행 데이터 hard delete, 멱등 재호출 204 반환 (H-12 round_20260503) |
-| 클라이언트 앱 버전 체크 | GET /api/version/check, 강제 업데이트 여부 반환, Admin에서 최소/최신 버전 설정 (서버 버전 아님 — 앱스토어 배포 Unity 빌드 기준) |
-| 공지/1회 공지 시스템 | **공지**: `GET /api/notices/latest` 최신 활성 공지 1개 반환. 클라이언트가 NoticeId를 PlayerPrefs에 저장해 1회성 팝업 표시. Admin CRUD. **1회 공지**: Admin에서 전체/특정 플레이어 대상 HUD 텍스트 발송. DB 이력 기록. 클라이언트 접속 시 `GET /api/shouts/active` 1회 호출(폴링 방식) — 만료 시간 내 활성 1회 공지 수신. Admin `/notices`, `/shouts` 페이지 별도 관리 |
-| 플레이어 문의 | POST /api/inquiries 제출, GET /api/inquiries 내 목록 조회. Admin 답변 등록. 소원수리함 형태(자유 텍스트). Blazor 테스트 페이지 포함 |
-| 보상 취소 | 미수령 우편 강제 만료. `POST /api/admin/reward-dispatch/{grantId}/cancel` — 사유 필수, Mail.ExpiresAt 과거 시각으로 갱신 + RewardGrant.IsCancelled 플래그. Admin `/reward-grants` 페이지에서 Mail 지급 건에 취소 버튼 표시. Direct 지급(즉시 반영) 취소는 별도 차감 절차 필요 — 미구현 |
-| 감사 로그 | 재화/아이템 변동 추적. Item.AuditLevel(AnomalyOnly/Full) + AnomalyThreshold 기준으로 저장 범위 차별화. Admin `/audit-logs` 페이지에서 플레이어·아이템·기간·이상치 필터 조회. 현재 훅은 `MailService.ClaimAsync` 적용. Gold/Gems는 Currency-as-Item 전환(ItemId=1/2)으로 감사 로그 기록 가능. Exp는 단조 증가 자원이므로 AuditLog 대상 아님 — 어뷰징 추적은 `RewardGrants(SourceKey="levelup:{N}")`로 위임 |
-| 광고 SSV 보상 | Unity Ads / IronSource SSV(Server Side Verification) 콜백 검증 및 보상 지급. Strategy 패턴으로 모듈화 — 새 네트워크 추가 시 검증기 클래스 1개 + DI 등록 1줄. HMAC-SHA256 서명 검증, 일일 한도 제한, RewardDispatcher 멱등성 보장. Admin `/ad-policies` 페이지에서 PlacementId별 보상 정책 CRUD 관리. 콜백 URL: `GET /api/ads/callback/unity-ads`, `GET /api/ads/callback/ironsource` |
-| 트랜잭션 추상화 | `IUnitOfWork` 인터페이스(Domain) + `UnitOfWork` 구현체(Infrastructure). RewardDispatcher가 IUnitOfWork를 통해 전체 보상 지급을 단일 트랜잭션으로 보장 |
-| 인앱 결제(IAP) | Google Play 영수증 서버 검증 및 보상 지급. Strategy 패턴으로 스토어별 모듈화(현재 Google Play 구현, Apple 예약). OIDC 기반 RTDN(환불 알림) 수신 및 자동 환불 처리. Admin `/iap-products` 상품 관리, `/iap-purchases` 구매 이력 조회. API: `POST /api/iap/google/verify`, `POST /api/iap/google/rtdn`. Rate Limit: iap-rtdn 600회/분 |
-| 레벨/경험치 | `IExpService` — Exp 누적, 임계값 초과 시 자동 레벨업 + 레벨업 보상 지급(`SourceKey="levelup:{level}"`). 다중 레벨업 while 루프. 임계값은 `LevelThresholds` DB 테이블로 외부화 — Admin `/level-thresholds` 페이지에서 CRUD 관리, `ILevelTableProvider`(Singleton 캐시) 통해 런타임 조회 |
-| 스테이지 클리어 [컨텐츠] | `POST /api/stages/{stageId}/complete`. 순차 진행 조건(`RequiredPrevStageId`), 최초 클리어 보상 + 재클리어 보상 감소(decay%), Exp/레벨업 연동. Admin 스테이지 마스터 CRUD + **DEBUG 전용 삭제** (`DELETE /api/admin/stages/{id}` — `#if DEBUG` 컴파일 가드, StageClears 일괄 삭제 후 스테이지 Hard Delete, 선행 조건 FK 자동 SetNull). **`Content/` 영역 분리** — 게임 컨텐츠 코드, Framework 영역에서 참조 금지 |
-| 운영 알림(AdminNotification) | RTDN 환불 등 운영 이슈를 Admin에 즉시 통지. `AdminNotification` 엔티티 + Repository/Service 전 레이어 구현. API: `GET /api/admin/notifications/unread-count`, `GET /api/admin/notifications`, `POST /:id/read`, `POST /:id/unread`, `POST /read-all`. Admin UI: 헤더 `NotificationBell`(30초 폴링), `/admin-notifications` 페이지(필터/페이지네이션/읽음토글). RTDN 환불 시 자동 생성 — `Voided=Critical`, `Canceled=Warning` |
+| 보상 프레임워크 | IRewardDispatcher 단일 진입점. 선기록 멱등성, Direct/Mail/Auto 분기 → §보상 프레임워크 |
+| 아이템 마스터 관리 | Admin CRUD (추가·수정·소프트삭제), 보유 유저 수 확인 |
+| Admin 인증 | X-Admin-Key 헤더 기반 접근 제어. `[AdminApiKey]` 필터, BCrypt 비밀번호 검증 |
+| 시스템 설정 | 점검 모드·앱 버전·일일 보상 기준 시각 Admin 제어 → SERVER_GUIDE.md |
+| 어뷰징 방어 | Rate Limiting IP/PlayerId 이중 파티션, 429 DB 로그. Admin 보안 감시 타임라인 → §auth Rate Limit |
+| 점검 모드 | 수동 ON/OFF·시각 예약, 미들웨어 503 차단 |
+| 계정 탈퇴 | SoftDelete + PII 익명화, 게임 데이터 hard delete, 멱등 재호출 → §계정 탈퇴 정책 |
+| 클라이언트 앱 버전 체크 | 강제 업데이트 여부 반환. Admin에서 최소/최신 버전 설정 |
+| 공지/1회 공지 | 최신 공지 조회·Admin CRUD. 1회 공지(Shout) 전체/특정 플레이어 발송 |
+| 플레이어 문의 | 자유 텍스트 제출·목록 조회. Admin 답변 등록 |
+| 보상 취소 | 미수령 우편 강제 만료. Admin 취소 버튼 (Direct 지급 취소는 미구현) |
+| 감사 로그 | 재화/아이템 수량 변동 추적, 이상탐지 연동. 훅: MailClaim·DispatchDirect·ItemUse. **신규 차감 경로 추가 시 연동 필수** |
+| 광고 SSV 보상 | Unity Ads/IronSource SSV 콜백 검증·보상. Strategy 패턴으로 네트워크 추가 1줄 확장 |
+| 트랜잭션 추상화 | IUnitOfWork — RewardDispatcher가 보상 지급 전체를 단일 트랜잭션으로 보장 |
+| 인앱 결제(IAP) | Google Play 영수증 검증·RTDN 환불. Strategy 패턴 (Apple 미구현) |
+| 레벨/경험치 | Exp 누적·자동 레벨업·레벨업 보상. LevelThresholds DB 외부화 |
+| 스테이지 클리어 [컨텐츠] | 순차 진행·최초/재클리어 보상·Exp 연동. DEBUG 전용 삭제. Content/ 영역 분리 → §Content 영역 |
+| 운영 알림 | RTDN 환불 등 운영 이슈 Admin 즉시 통지. NotificationBell 30초 폴링 |
+| PII 보관기간 정책 | AuditLog 365일·RateLimitLog 90일 자동 삭제. 매일 KST 03:00 실행 → §PII 보관기간 |
 
 ---
 
@@ -217,6 +219,7 @@ PlayerItem.Quantity / Mail.IsClaimed / IapPurchase.Status 등 동시 갱신이 �
 - MailService는 `ex.Entries[0].Entity` 타입 검사로 `Mail.IsClaimed` 충돌(즉시 false 반환, 재시도 무의미) vs `PlayerItem.xmin` 충돌(재시도) 구분
 
 ## [기술 부채] 검토 항목
+- **스테이지 순차성 보장 미구현** — 스테이지는 1번부터 순차적으로 추가되는 구조(RequiredPrevStageId 체인)이므로, 중간 스테이지를 삭제하면 이후 스테이지의 진행 조건 체인이 끊긴다. 현재 DEBUG 삭제 API(`DELETE /api/admin/stages/{id}`)는 FK를 SetNull로만 처리하므로 중간 삭제 후 체인 재연결 로직이 없다. 운영 환경 삭제 기능 도입 시 "삭제 대상 이후 스테이지 RequiredPrevStageId 재연결" 또는 "빈 번호 재정렬" 처리 필요.
 - **일괄 우편 발송 성능** — `MailService.BulkSendAsync`가 전체 플레이어를 메모리 로드 후 단일 트랜잭션으로 N건 INSERT. 유저 수 증가 시 메모리 압박 + DB 락 시간 문제 발생. 배치 분할(500건씩 끊어서 INSERT + SaveChanges) 도입 필요
 - **DiSmokeTests ValidateOnBuild 미적용** — `DiSmokeTests`가 `services.BuildServiceProvider()`를 `ValidateOnBuild`/`ValidateScopes` 없이 호출 + `AddContentServices()` 미호출로 DI 사이클이 형성되지 않아 정적 검증 불가. 처치: `ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }` 적용 + 모든 `Add*Services`/`Add*Repositories` 호출 보강.
 
@@ -231,7 +234,6 @@ PlayerItem.Quantity / Mail.IsClaimed / IapPurchase.Status 등 동시 갱신이 �
 
 
 ## [미구현] 추가 개발 필요 항목
-- **인벤토리 아이템 사용 버튼** — 현재 인벤토리 팝업은 목록 조회만 제공. 소모품(Consumable) 아이템에 대한 사용 기능 미구현. 백엔드 사용 엔드포인트(`POST /api/items/{itemId}/use` 등) 설계 후 Unity 클라이언트 사용 버튼 및 콜백 처리 추가 필요
 - **계정 탈퇴 유예 기간(취소 흐름)** — 현재는 즉시 익명화 처리. 사용자 실수 탈퇴 복구 불가. 향후 출시 후 민원 패턴 따라 BackgroundService로 N일 유예 검토. 도입 시: `WithdrawalScheduledAt` 컬럼 + BackgroundService 1개 + 취소 API 1개. Unity 클라이언트 안내 팝업도 같이.
 - **PII 정리 BackgroundService 다중 인스턴스 안전성** — PostgreSQL advisory lock(`pg_try_advisory_lock`)으로 동시 실행 방지. 단일 컨테이너 운영 시 불필요
 - **DailyLogin 보상 누락 자동 보전 워커** — 2차 트랜잭션(RewardDispatcher 호출) 실패 시 현재는 AdminNotification + 운영자 수동 처리. 자동 보전 워커는 별도 라운드
@@ -244,6 +246,97 @@ PlayerItem.Quantity / Mail.IsClaimed / IapPurchase.Status 등 동시 갱신이 �
 - **로그/APM 도구 연동** [중요도 낮음] — 현재 파일 로그(Serilog) 기반. 유저 증가 시 ELK Stack + Elastic APM 연동 권장 (APM이 ELK 위에서 동작하므로 세트로 도입). 가벼운 대안으로 Seq(컨테이너 1개, .NET 친화적) 또는 Grafana+Loki 가능. Serilog 싱크 추가 + Program.cs 한 줄로 연동 가능
 - **SignalR 허브 Rate Limiting** — `/hubs/matchmaking` 등 SignalR 허브 연결에 대한 Rate Limiting 미구현. HTTP 요청과 달리 앱 백그라운드/포그라운드 전환 시 재연결이 발생해 game 정책 직접 적용 불가. 별도 설계 필요. 구현 시점: 실 서비스 직전 또는 연결 폭주 사례 발생 시
 - **계정 탈퇴 안내 UI (Unity 클라이언트)** — 백엔드 탈퇴 처리(`DELETE /api/auth/withdraw`)와 별개로 클라이언트 탈퇴 화면에 안내 팝업 필수. 법적/마켓 정책 의무 항목·구현 요구사항은 `CLIENT_GUIDE.md` 10번 + 부록 A 참조
+
+### 서버 API 프레임워크 미구현 항목 (2026-05-09 브레인스토밍)
+
+> 아래 항목은 모바일 게임 프레임워크로서 공통 적용되는 서버 API 기반 시스템이다.
+> 현재 프레임워크에 존재하지 않아 다음 게임 프로젝트에 재사용 시 반드시 추가 구현이 필요하다.
+
+---
+
+#### 2. 인게임 상점
+
+**API**: `GET /api/shop`, `POST /api/shop/{productId}/buy`
+
+**목적**: Gold/Gems 등 인게임 재화로 아이템 구매. 현재 재화 차감 경로가 없어 경제 루프 미완성.
+
+**설계 포인트**:
+- `ShopProduct` 테이블 — 상품 ID, 가격(ItemId+수량), 판매 아이템(ItemId+수량), 일일/총 구매 한도
+- 구매 처리: 재화 차감(`PlayerItem.Quantity` 감소) + 상품 지급(`IRewardDispatcher`) 단일 트랜잭션
+- 아이템 소모 로직과 "수량 차감" 공통 모듈 공유 가능
+- Admin 상점 상품 CRUD 페이지 필요
+
+---
+
+#### 3. 아이템 버리기
+
+**API**: `DELETE /api/inventory/{itemId}?quantity=N`
+
+**목적**: 불필요한 아이템 인벤토리에서 제거. Currency(Gold/Gems) 아이템은 버리기 불가 처리 필요.
+
+---
+
+#### 4. 서버 시간 동기화
+
+**API**: `GET /api/time`
+
+**목적**: 클라이언트가 서버 UTC 기준 시각을 조회. 이벤트 타이머, 일일 리셋 기준, 클라이언트 시각 조작 방지에 필수. 구현 난이도 최저 — 응답: `{ "utc": "2026-05-09T00:00:00Z", "kst": "2026-05-09T09:00:00+09:00" }`.
+
+---
+
+#### 5. 플레이어 프로필 수정
+
+**API**: `PUT /api/players/me`
+
+**목적**: 닉네임 변경 등 플레이어 자기 정보 수정. 현재 플레이어가 자기 정보를 변경할 방법이 없음.
+
+**설계 포인트**:
+- 닉네임 중복 체크, 금칙어 필터 연동 고려
+- 변경 이력 관리 여부 결정 필요 (AuditLog 또는 별도 NicknameHistory)
+- 변경 쿨다운(예: 30일 1회) 정책 선택 사항
+
+---
+
+#### 6. 푸시 알림 토큰 등록
+
+**API**: `POST /api/players/push-token`
+
+**목적**: FCM(Android)/APNS(iOS) 디바이스 토큰 서버 저장. 실제 발송 로직은 나중에 추가해도 되나, 토큰 수집은 출시 전부터 시작해야 이후 발송 가능.
+
+**설계 포인트**:
+- `PlayerPushToken` 테이블 — PlayerId, Platform(FCM/APNS), Token, UpdatedAt
+- 플레이어당 최신 토큰 1개 유지 (Upsert)
+- 발송 서비스(Firebase Admin SDK 등)는 별도 라운드
+
+---
+
+#### 7. 쿠폰 시스템
+
+**API**: `POST /api/coupons/redeem`
+
+**목적**: 마케팅/이벤트용 쿠폰 코드로 보상 지급. `IRewardDispatcher` 연동으로 모든 보상 유형 지원 가능.
+
+**설계 포인트**:
+- `Coupon` 테이블 — Code, RewardTableCode, MaxUsageCount, ExpiresAt, IsActive
+- `CouponRedemption` 테이블 — PlayerId, CouponId, RedeemedAt (플레이어당 1회 제한)
+- SourceKey=`coupon:{code}:{playerId}`로 멱등성 보장
+- Admin 쿠폰 발급/관리 페이지 필요
+
+---
+
+#### 구현 우선순위 요약
+
+| 순서 | 항목 | 이유 |
+|---|---|---|
+| 1 | 서버 시간 동기화 | 구현 5분, 효과 즉각 (이벤트/타이머 전제 조건) |
+| 2 | 아이템 소모/사용 | DEVNOTES 기존 미구현 항목, 경제 루프 완성의 첫 단계 |
+| 3 | 인게임 상점 | 아이템 소모와 수량 차감 모듈 공유 — 같이 설계 권장 |
+| 4 | 아이템 버리기 | 상점과 동일 수량 차감 모듈 재사용 |
+| 5 | 플레이어 프로필 수정 | 닉네임 변경 UX 요구 발생 시 |
+| 6 | 쿠폰 시스템 | 출시 마케팅 준비 단계 |
+| 7 | 푸시 알림 토큰 | 토큰 수집은 일찍, 발송 로직은 나중에 |
+
+---
 
 ## 관련 문서
 

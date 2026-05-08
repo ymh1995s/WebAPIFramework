@@ -6,6 +6,9 @@ public static class AuditLogReasons
     // 우편 수령을 통한 아이템 획득
     public const string MailClaim = "MailClaim";
 
+    // 아이템 사용(소모)으로 인한 수량 차감
+    public const string ItemUse = "ItemUse";
+
     // 향후 확장 예정 — 도메인 주석 기준 미구현
     // public const string AdminGrant = "AdminGrant";
     // public const string ShopPurchase = "ShopPurchase";

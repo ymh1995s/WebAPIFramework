@@ -331,6 +331,15 @@ public class AppDbContext : DbContext
             .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Item: UseRewardTableId nullable FK → RewardTables
+        // 사용 효과 보상 테이블 — null이면 수량 차감만 수행, 참조 테이블 삭제 시 null로 초기화
+        modelBuilder.Entity<Item>()
+            .HasOne<RewardTable>()
+            .WithMany()
+            .HasForeignKey(i => i.UseRewardTableId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
+
         // DailyRewardSlot: ItemCount 기본값 0
         modelBuilder.Entity<DailyRewardSlot>()
             .Property(s => s.ItemCount)

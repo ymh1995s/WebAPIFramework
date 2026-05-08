@@ -30,4 +30,7 @@ public static class SourceKeys
 
     // 스테이지 Exp 지급 (재클리어/최초 무관 단일 키)
     public static string StageExp(int stageId) => $"stage:{stageId}";
+
+    // 아이템 사용 보상 — 클라이언트 요청 ID로 멱등성 보장 (형식: itemuse:{playerId}:{clientRequestId})
+    public static string ItemUse(int playerId, string clientRequestId) => $"itemuse:{playerId}:{clientRequestId}";
 }

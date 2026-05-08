@@ -102,6 +102,7 @@
                     <th>설명</th>
                     <th>감사 레벨 <HelpIcon Text="Full: 모든 변동 기록 / AnomalyOnly: 이상치 임계값 초과분만 기록" /></th>
                     <th>이상치 임계값 <HelpIcon Text="1회 변동량이 이 값을 초과하면 이상치로 기록됩니다. 0이면 검사 안 함" /></th>
+                    <th>사용 효과 <HelpIcon Text="아이템 사용 시 지급할 RewardTable ID. 비워두면 수량 차감만 수행합니다." /></th>
                     <th></th>
                 </tr>
             </thead>
@@ -132,6 +133,8 @@
                                 </select>
                             </td>
                             <td><input type="number" class="form-control form-control-sm" @bind="editAnomalyThreshold" /></td>
+                            <!-- 편집 모드에서는 사용 효과 셀을 읽기 전용으로 표시 — 별도 편집 영역 사용 -->
+                            <td class="text-muted">@(item.UseRewardTableId?.ToString() ?? "-")</td>
                             <td>
                                 <button class="btn btn-success btn-sm me-1" @onclick="() => SaveEdit(item.Id)">저장</button>
                                 <button class="btn btn-secondary btn-sm" @onclick="CancelEdit">취소</button>
@@ -144,6 +147,34 @@
                             <td>@item.Description</td>
                             <td>@item.AuditLevel</td>
                             <td>@item.AnomalyThreshold</td>
+                            <!-- 사용 효과 인라인 편집 영역 -->
+                            <td>
+                                @if (useEffectEditMap.ContainsKey(item.Id))
+                                {
+                                    <!-- 편집 중 상태 — 입력 필드 표시 -->
+                                    <div class="d-flex gap-1 align-items-center">
+                                        <input type="number" class="form-control form-control-sm" style="width:90px;"
+                                               placeholder="테이블 ID"
+                                               @bind="useEffectEditMap[item.Id]" />
+                                        <button class="btn btn-success btn-sm" @onclick="() => SaveUseEffect(item.Id)">저장</button>
+                                        <button class="btn btn-secondary btn-sm" @onclick="() => CancelEditUseEffect(item.Id)">취소</button>
+                                    </div>
+                                    @if (useEffectMessages.TryGetValue(item.Id, out var msg))
+                                    {
+                                        <small class="@(msg.IsSuccess ? "text-success" : "text-danger")">@msg.Message</small>
+                                    }
+                                }
+                                else
+                                {
+                                    <!-- 보기 모드 — 현재 값 + 편집 버튼 -->
+                                    <span class="me-1">@(item.UseRewardTableId?.ToString() ?? "-")</span>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => StartEditUseEffect(item)">편집</button>
+                                    @if (useEffectMessages.TryGetValue(item.Id, out var savedMsg))
+                                    {
+                                        <small class="@(savedMsg.IsSuccess ? "text-success" : "text-danger") ms-1">@savedMsg.Message</small>
+                                    }
+                                }
+                            </td>
                             <td>
                                 <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => StartEdit(item)">수정</button>
                                 <button class="btn btn-outline-danger btn-sm" @onclick="() => RequestDelete(item.Id)">삭제</button>

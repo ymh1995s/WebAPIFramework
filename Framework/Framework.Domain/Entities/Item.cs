@@ -19,4 +19,7 @@ public class Item
     // 0이면 이상치 검사를 하지 않음 (AnomalyOnly일 때 사실상 로그 비기록)
     public int AnomalyThreshold { get; set; } = 0;
 
+    // 아이템 사용 시 지급할 보상 테이블 ID — null이면 수량 차감만 수행 (보상 없음)
+    public int? UseRewardTableId { get; set; }
+
 }

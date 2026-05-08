@@ -1059,6 +1059,14 @@ Retry-After: 30
 
 ---
 
+# 부록 B-2 — 서버 구현 완료, 클라이언트 연동 필요
+
+| 기능 | API | 클라이언트 할 일 |
+|---|---|---|
+| **아이템 사용** | `POST /api/items/{itemId}/use` — Body: `{ "clientRequestId": "<UUID>" }` | 인벤토리 팝업에 Consumable 아이템 대상 사용 버튼 추가. clientRequestId는 `Guid.NewGuid().ToString()`으로 생성. 응답: 200(성공) / 400(수량 부족·아이템 없음) / 409(중복 요청) / 422(보상 테이블 오류) / 500(보상 지급 실패) |
+
+---
+
 # 부록 C — DeviceId / IdToken / 토큰 저장 가이드
 
 ## DeviceId

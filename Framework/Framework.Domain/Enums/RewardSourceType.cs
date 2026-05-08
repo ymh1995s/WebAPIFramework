@@ -41,4 +41,7 @@ public enum RewardSourceType
 
     // 시즌 종료 랭킹 보상
     SeasonReward = 11,
+
+    // 아이템 사용(소모) 보상 — 아이템 수량 차감 후 UseRewardTableId 참조 보상 지급
+    ItemUse = 12,
 }

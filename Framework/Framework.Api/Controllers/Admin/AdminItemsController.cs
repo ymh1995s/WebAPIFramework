@@ -1,4 +1,5 @@
 using Framework.Api.Filters;
+using Framework.Api.Requests;
 using Framework.Application.Common;
 using Framework.Application.Features.Item;
 using Microsoft.AspNetCore.Mvc;
@@ -52,6 +53,22 @@ public class AdminItemsController : ControllerBase
     public async Task<IActionResult> Delete(int id)
     {
         await _itemMasterService.DeleteAsync(id);
+        return NoContent();
+    }
+
+    // 아이템 사용 효과 RewardTable ID 조회
+    [HttpGet("{id}/use-effect")]
+    public async Task<IActionResult> GetUseEffect(int id)
+    {
+        var rewardTableId = await _itemMasterService.GetUseRewardTableIdAsync(id);
+        return Ok(new { RewardTableId = rewardTableId });
+    }
+
+    // 아이템 사용 효과 RewardTable ID 설정 — null 전달 시 보상 없음으로 초기화
+    [HttpPut("{id}/use-effect")]
+    public async Task<IActionResult> SetUseEffect(int id, [FromBody] SetUseEffectRequest request)
+    {
+        await _itemMasterService.SetUseRewardTableIdAsync(id, request.RewardTableId);
         return NoContent();
     }
 }

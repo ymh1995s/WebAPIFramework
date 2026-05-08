@@ -110,11 +110,12 @@ public partial class AuditLogs : SafeComponentBase
         yield return ("페이지 크기", pageSize.ToString());
     }
 
-    /// <summary>사유(Reason) 값에 따른 Bootstrap 배지 색상 클래스 반환 — 현재 구현된 값: MailClaim</summary>
+    /// <summary>사유(Reason) 값에 따른 Bootstrap 배지 색상 클래스 반환 — 현재 구현된 값: MailClaim, ItemUse</summary>
     private static string ReasonBadgeClass(string reason) => reason switch
     {
         // 현재 구현된 사유 값
         AuditLogReasons.MailClaim => "bg-primary",
+        AuditLogReasons.ItemUse   => "bg-info",
         // 도메인 주석 기준 예정 값 (미구현)
         "AdminGrant"   => "bg-warning text-dark",
         "ShopPurchase" => "bg-success",

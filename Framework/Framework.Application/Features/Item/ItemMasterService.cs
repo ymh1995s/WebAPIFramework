@@ -16,7 +16,7 @@ public class ItemMasterService : IItemMasterService
     public async Task<List<ItemDto>> GetAllAsync()
     {
         var items = await _itemRepository.GetAllAsync();
-        return items.Select(i => new ItemDto(i.Id, i.Name, i.ItemType, i.Description, i.AuditLevel, i.AnomalyThreshold)).ToList();
+        return items.Select(i => new ItemDto(i.Id, i.Name, i.ItemType, i.Description, i.AuditLevel, i.AnomalyThreshold, i.UseRewardTableId)).ToList();
     }
 
     // 새 아이템 생성
@@ -32,7 +32,7 @@ public class ItemMasterService : IItemMasterService
         };
         await _itemRepository.AddAsync(item);
         await _itemRepository.SaveChangesAsync();
-        return new ItemDto(item.Id, item.Name, item.ItemType, item.Description, item.AuditLevel, item.AnomalyThreshold);
+        return new ItemDto(item.Id, item.Name, item.ItemType, item.Description, item.AuditLevel, item.AnomalyThreshold, item.UseRewardTableId);
     }
 
     // 아이템 수정
@@ -63,6 +63,25 @@ public class ItemMasterService : IItemMasterService
             ?? throw new KeyNotFoundException($"아이템 ID {id}를 찾을 수 없습니다.");
 
         item.IsDeleted = true;
+        _itemRepository.Update(item);
+        await _itemRepository.SaveChangesAsync();
+    }
+
+    // 아이템 사용 효과 RewardTable ID 조회 — null이면 보상 없음
+    public async Task<int?> GetUseRewardTableIdAsync(int itemId)
+    {
+        var item = await _itemRepository.GetByIdAsync(itemId)
+            ?? throw new KeyNotFoundException($"아이템 ID {itemId}를 찾을 수 없습니다.");
+        return item.UseRewardTableId;
+    }
+
+    // 아이템 사용 효과 RewardTable ID 설정 — null 전달 시 보상 없음으로 초기화
+    public async Task SetUseRewardTableIdAsync(int itemId, int? rewardTableId)
+    {
+        var item = await _itemRepository.GetByIdAsync(itemId)
+            ?? throw new KeyNotFoundException($"아이템 ID {itemId}를 찾을 수 없습니다.");
+
+        item.UseRewardTableId = rewardTableId;
         _itemRepository.Update(item);
         await _itemRepository.SaveChangesAsync();
     }
