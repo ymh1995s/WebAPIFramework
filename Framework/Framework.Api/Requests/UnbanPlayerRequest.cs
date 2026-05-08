@@ -4,5 +4,4 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Framework.Api.Requests;
 
-// [property:] 타겟 명시 — record positional parameter에서 property에 어트리뷰트 적용 (MVC 모델 검증 동작)
-public record UnbanPlayerRequest([property: MaxLength(500)] string? Reason = null);
+public record UnbanPlayerRequest([MaxLength(500)] string? Reason = null);

@@ -217,7 +217,6 @@ PlayerItem.Quantity / Mail.IsClaimed / IapPurchase.Status 등 동시 갱신이 �
 - MailService는 `ex.Entries[0].Entity` 타입 검사로 `Mail.IsClaimed` 충돌(즉시 false 반환, 재시도 무의미) vs `PlayerItem.xmin` 충돌(재시도) 구분
 
 ## [기술 부채] 검토 항목
-- **[크래쉬] 벤(Ban) 실행 시 서버 크래쉬** — Admin에서 플레이어 영구밴 처리 시 프로그램이 비정상 종료됨. 원인 미분석. 벤 기능 사용 금지(운영 중단 위험). 수정 전까지 밴 처리는 직접 DB 조작으로 대체.
 - **일괄 우편 발송 성능** — `MailService.BulkSendAsync`가 전체 플레이어를 메모리 로드 후 단일 트랜잭션으로 N건 INSERT. 유저 수 증가 시 메모리 압박 + DB 락 시간 문제 발생. 배치 분할(500건씩 끊어서 INSERT + SaveChanges) 도입 필요
 - **DiSmokeTests ValidateOnBuild 미적용** — `DiSmokeTests`가 `services.BuildServiceProvider()`를 `ValidateOnBuild`/`ValidateScopes` 없이 호출 + `AddContentServices()` 미호출로 DI 사이클이 형성되지 않아 정적 검증 불가. 처치: `ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }` 적용 + 모든 `Add*Services`/`Add*Repositories` 호출 보강.
 
