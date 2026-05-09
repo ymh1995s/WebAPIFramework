@@ -27,4 +27,8 @@ public static class AdminNotificationDedupKeys
     // PII 보관기간 정리 서비스 장기 미실행 알림 — 날짜(UTC date) 기준 1일 1회 중복 차단
     public static string PiiRetentionStalled(DateOnly date)
         => $"pii-retention-stalled:{date:yyyy-MM-dd}";
+
+    // BackgroundService 예외 재시작 알림 — 서비스 이름 + UTC 시각(시간 단위) 기준 시간당 1회 중복 차단
+    public static string BackgroundServiceFailure(string serviceName, DateTime utc)
+        => $"bgservice-fail:{serviceName}:{utc:yyyy-MM-dd}:{utc:HH}";
 }

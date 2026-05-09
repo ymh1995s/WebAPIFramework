@@ -10,6 +10,7 @@ namespace Framework.Api.BackgroundServices;
 // IAP consume 재시도 백그라운드 서비스
 // Granted 상태이나 ConsumedAt이 null인 소모성 구매를 주기적으로 폴링하여 consume 재시도
 // 지수 백오프: 2^ConsumeAttempts 분 대기 후 재시도. MaxAttempts 초과 시 AdminNotification + 중단
+// [자동 재시작] unhandled 예외 발생 시 Critical AdminNotification 발송 후 RestartDelay 후 재시작
 public class IapConsumeRetryService : BackgroundService
 {
     // consume 재시도 최대 횟수 — 초과 시 AdminNotification 발송 후 중단
@@ -17,6 +18,12 @@ public class IapConsumeRetryService : BackgroundService
 
     // 폴링 주기 — 5분마다 pending consume 조회
     private static readonly TimeSpan PollingInterval = TimeSpan.FromMinutes(5);
+
+    // 서비스 식별자 — AdminNotification DedupKey 및 로그 메시지에 사용
+    private const string ServiceName = "IapConsumeRetryService";
+
+    // 예외 발생 후 재시작까지 대기 시간 — 무한 재시도 (consume 영구 포기 금지)
+    private static readonly TimeSpan RestartDelay = TimeSpan.FromMinutes(1);
 
     // BackgroundService는 Singleton 수명 — Scoped 서비스(DB 등) 사용 시 IServiceScopeFactory로 스코프 생성
     private readonly IServiceScopeFactory _scopeFactory;
@@ -28,17 +35,81 @@ public class IapConsumeRetryService : BackgroundService
         _logger = logger;
     }
 
+    // 백그라운드 실행 진입점 — 외곽 보호 루프로 unhandled 예외 발생 시 재시작 보장
+    // 서버 시작 1분 대기 후 ExecuteIterationAsync를 반복 호출
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // 서버 시작 직후 즉시 실행 방지 — 다른 Scoped 서비스 준비 완료 대기
-        await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+        // 서버 시작 직후 즉시 실행 방지 — 다른 Scoped 서비스 준비 완료 대기 (1회만 실행)
+        try
+        {
+            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // 초기 대기 중 셧다운 신호 수신 — 바로 종료
+            return;
+        }
 
-        // 취소 신호를 받을 때까지 폴링 반복
+        // 외곽 보호 루프 — 내부 예외로 서비스가 멈추지 않도록 감싸는 안전망
         while (!stoppingToken.IsCancellationRequested)
         {
-            await ProcessPendingConsumesAsync(stoppingToken);
-            await Task.Delay(PollingInterval, stoppingToken);
+            try
+            {
+                await ExecuteIterationAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // 정상 셧다운 신호 — 루프 종료
+                break;
+            }
+            catch (Exception ex)
+            {
+                // unhandled 예외 발생 — 로그 기록 후 AdminNotification 발송, RestartDelay 후 재시작
+                _logger.LogError(ex,
+                    "BackgroundService '{ServiceName}' 예외로 정지, {Delay}초 후 재시작",
+                    ServiceName, RestartDelay.TotalSeconds);
+
+                try
+                {
+                    // AdminNotification은 Scoped — 별도 스코프에서 resolve
+                    using var scope = _scopeFactory.CreateScope();
+                    var notifications = scope.ServiceProvider.GetRequiredService<IAdminNotificationService>();
+                    await notifications.CreateAsync(
+                        category: AdminNotificationCategory.BackgroundServiceFailure,
+                        severity: AdminNotificationSeverity.Critical,
+                        title: $"백그라운드 서비스 예외 — {ServiceName}",
+                        message: $"예외: {ex.Message}. {RestartDelay.TotalSeconds}초 후 재시작.",
+                        relatedEntityType: "BackgroundService",
+                        relatedEntityId: null,
+                        dedupKey: AdminNotificationDedupKeys.BackgroundServiceFailure(ServiceName, DateTime.UtcNow)
+                    );
+                }
+                catch (Exception notifyEx)
+                {
+                    // 알림 발송 실패는 로그만 기록 — 외곽 루프 중단 방지
+                    _logger.LogError(notifyEx, "BackgroundService 예외 알림 발송 실패");
+                }
+
+                try
+                {
+                    await Task.Delay(RestartDelay, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    // 재시작 대기 중 셧다운 신호 수신 — 루프 종료
+                    break;
+                }
+            }
         }
+    }
+
+    // 단일 iteration 실행 — pending consume 처리 후 PollingInterval 대기
+    // ExecuteAsync 외곽 보호 루프에서 반복 호출됨
+    private async Task ExecuteIterationAsync(CancellationToken stoppingToken)
+    {
+        await ProcessPendingConsumesAsync(stoppingToken);
+        // 취소 시 OperationCanceledException이 외곽 보호 루프로 전파됨
+        await Task.Delay(PollingInterval, stoppingToken);
     }
 
     // pending consume 일괄 처리 — 요청마다 새 스코프 생성하여 Scoped 서비스 주입

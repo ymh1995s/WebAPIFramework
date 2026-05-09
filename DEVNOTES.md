@@ -59,6 +59,15 @@
 
 ## [설계 결정]
 
+### BackgroundService 자동 재시작 (2026-05-09)
+
+`PiiRetentionCleanupService` / `IapConsumeRetryService`의 `ExecuteAsync` 외곽에 try/while 보호 패턴 직접 적용. unhandled 예외 발생 시 Critical AdminNotification 발송 후 1분 후 재시작.
+
+- **B안 채택 근거**: 1인 운영 환경. BackgroundService 현재 2개라 베이스 클래스 추상화 가성비 낮음. 6개월 뒤 본인 재방문 시 흐름 직관성 우선
+- **정책**: RestartDelay 1분 고정 / 무한 재시도 (PII는 영구 포기 금지) / DedupKey `bgservice-fail:{name}:{utcDate}:{utcHour}` — 시간당 1회 알림
+- **OperationCanceledException 분리**: `stoppingToken.IsCancellationRequested`인 경우만 정상 셧다운 break. 내부 자체 토큰 cancel은 일반 예외로 처리
+- **향후 BackgroundService 5개 이상 시**: 공용 베이스 클래스(`ResilientBackgroundService`)로 리팩토링 검토
+
 ### 외부 API 타임아웃·서킷브레이커 (2026-05-09)
 
 Google Play IAP / Google OAuth 외부 호출에 Polly v8 복원력 파이프라인 3종 적용.
@@ -266,7 +275,6 @@ PlayerItem.Quantity / Mail.IsClaimed / IapPurchase.Status 등 동시 갱신이 �
 - **계정 탈퇴 안내 UI (Unity 클라이언트)** — 백엔드 탈퇴 처리(`DELETE /api/auth/withdraw`)와 별개로 클라이언트 탈퇴 화면에 안내 팝업 필수. 법적/마켓 정책 의무 항목·구현 요구사항은 `CLIENT_GUIDE.md` 10번 + 부록 A 참조
 
 ### 라이브 안정성 — 서버 크래시·thread 고갈 방어 (라이브 직전 일괄 처리)
-- **BackgroundService 예외 후 자동 재시작** — `PiiRetentionCleanupService` 등이 예외 던지면 .NET BackgroundService는 조용히 멈추고 재시작 안 함. 외부에서는 서버가 살아있는 것처럼 보이나 정리 작업 영구 정지. `ExecuteAsync` 내부 try-catch + 재시작 루프 또는 IHostApplicationLifetime을 통한 명시적 처리 필요
 - **AppDomain.UnhandledException 최후 로깅** — 정말로 잡지 못한 예외로 프로세스가 죽기 직전 마지막 로그 hook. `AppDomain.CurrentDomain.UnhandledException` 핸들러 등록 + Serilog Flush 강제로 로그 누락 방지
 
 

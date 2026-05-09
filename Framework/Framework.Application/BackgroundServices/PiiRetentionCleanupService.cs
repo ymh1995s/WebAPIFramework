@@ -20,6 +20,7 @@ namespace Framework.Application.BackgroundServices;
 // [단일 인스턴스 가정] advisory lock 미적용 — 복수 인스턴스 환경에서는 advisory lock 도입 필요
 // [헬스체크] 실행 결과를 PiiRetentionHealthState에 기록 → PiiRetentionHealthCheck가 /health에 노출
 // [장기 미실행 알림] UnhealthyThresholdHours 초과 시 AdminNotification 발송 (1일 1회 중복 차단)
+// [자동 재시작] unhandled 예외 발생 시 Critical AdminNotification 발송 후 RestartDelay 후 재시작
 public class PiiRetentionCleanupService : BackgroundService
 {
     // BackgroundService는 Singleton 수명 — Scoped 서비스(DB, AdminNotificationService 등) 사용 시 IServiceScopeFactory 필수
@@ -32,6 +33,12 @@ public class PiiRetentionCleanupService : BackgroundService
 
     // 테스트 가능한 시간 추상화 — 단위 테스트에서 TimeProvider.Fixed()로 교체 가능
     private readonly TimeProvider _timeProvider;
+
+    // 서비스 식별자 — AdminNotification DedupKey 및 로그 메시지에 사용
+    private const string ServiceName = "PiiRetentionCleanupService";
+
+    // 예외 발생 후 재시작까지 대기 시간 — PII는 영구 포기 금지이므로 무한 재시도
+    private static readonly TimeSpan RestartDelay = TimeSpan.FromMinutes(1);
 
     public PiiRetentionCleanupService(
         IServiceScopeFactory scopeFactory,
@@ -47,36 +54,92 @@ public class PiiRetentionCleanupService : BackgroundService
         _timeProvider = timeProvider;
     }
 
-    // 백그라운드 실행 진입점 — 시작 딜레이 후 KST 기준 매일 1회 정리 반복
+    // 백그라운드 실행 진입점 — 외곽 보호 루프로 unhandled 예외 발생 시 재시작 보장
+    // 서버 시작 1분 대기 후 ExecuteIterationAsync를 반복 호출
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // 서버 시작 직후 즉시 실행 방지 — 다른 Scoped 서비스 초기화 완료 대기
-        await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+        // 서버 시작 직후 즉시 실행 방지 — 다른 Scoped 서비스 초기화 완료 대기 (1회만 실행)
+        try
+        {
+            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // 초기 대기 중 셧다운 신호 수신 — 바로 종료
+            return;
+        }
 
+        // 외곽 보호 루프 — 내부 예외로 서비스가 멈추지 않도록 감싸는 안전망
         while (!stoppingToken.IsCancellationRequested)
         {
-            // 다음 KST DailyRunHourKst:00까지 대기
-            var delay = CalculateNextRunDelay(_options.Value.DailyRunHourKst);
-            _logger.LogInformation(
-                "PiiRetentionCleanup 다음 실행 예정 — {Delay:hh\\:mm\\:ss} 후 (KST {Hour}:00)",
-                delay, _options.Value.DailyRunHourKst);
-
             try
             {
-                await Task.Delay(delay, stoppingToken);
+                await ExecuteIterationAsync(stoppingToken);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                // 서비스 종료 신호 — 정상 종료
+                // 정상 셧다운 신호 — 루프 종료
                 break;
             }
+            catch (Exception ex)
+            {
+                // unhandled 예외 발생 — 로그 기록 후 AdminNotification 발송, RestartDelay 후 재시작
+                _logger.LogError(ex,
+                    "BackgroundService '{ServiceName}' 예외로 정지, {Delay}초 후 재시작",
+                    ServiceName, RestartDelay.TotalSeconds);
 
-            // 취소 신호 도착 시 정리 작업 건너뜀
-            if (stoppingToken.IsCancellationRequested) break;
+                try
+                {
+                    // AdminNotification은 Scoped — 별도 스코프에서 resolve
+                    using var scope = _scopeFactory.CreateScope();
+                    var notifications = scope.ServiceProvider.GetRequiredService<IAdminNotificationService>();
+                    await notifications.CreateAsync(
+                        category: AdminNotificationCategory.BackgroundServiceFailure,
+                        severity: AdminNotificationSeverity.Critical,
+                        title: $"백그라운드 서비스 예외 — {ServiceName}",
+                        message: $"예외: {ex.Message}. {RestartDelay.TotalSeconds}초 후 재시작.",
+                        relatedEntityType: "BackgroundService",
+                        relatedEntityId: null,
+                        dedupKey: AdminNotificationDedupKeys.BackgroundServiceFailure(ServiceName, DateTime.UtcNow)
+                    );
+                }
+                catch (Exception notifyEx)
+                {
+                    // 알림 발송 실패는 로그만 기록 — 외곽 루프 중단 방지
+                    _logger.LogError(notifyEx, "BackgroundService 예외 알림 발송 실패");
+                }
 
-            // 정리 실행 — 예외 throw 금지, 로그만 기록 후 다음 주기로 넘어감
-            await RunCleanupAsync(stoppingToken);
+                try
+                {
+                    await Task.Delay(RestartDelay, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    // 재시작 대기 중 셧다운 신호 수신 — 루프 종료
+                    break;
+                }
+            }
         }
+    }
+
+    // 단일 iteration 실행 — KST DailyRunHourKst:00까지 대기 후 정리 수행
+    // ExecuteAsync 외곽 보호 루프에서 반복 호출됨
+    private async Task ExecuteIterationAsync(CancellationToken stoppingToken)
+    {
+        // 다음 KST DailyRunHourKst:00까지 대기
+        var delay = CalculateNextRunDelay(_options.Value.DailyRunHourKst);
+        _logger.LogInformation(
+            "PiiRetentionCleanup 다음 실행 예정 — {Delay:hh\\:mm\\:ss} 후 (KST {Hour}:00)",
+            delay, _options.Value.DailyRunHourKst);
+
+        // 취소 시 OperationCanceledException이 외곽 보호 루프로 전파됨
+        await Task.Delay(delay, stoppingToken);
+
+        // 취소 신호 도착 시 정리 작업 건너뜀
+        if (stoppingToken.IsCancellationRequested) return;
+
+        // 정리 실행 — 내부 try-catch로 예외를 삼켜 다음 주기로 이어감
+        await RunCleanupAsync(stoppingToken);
     }
 
     // 다음 KST targetHour:00 까지의 대기 시간 계산
