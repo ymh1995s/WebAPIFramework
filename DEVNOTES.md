@@ -59,6 +59,25 @@
 
 ## [설계 결정]
 
+### 외부 API 타임아웃·서킷브레이커 (2026-05-09)
+
+Google Play IAP / Google OAuth 외부 호출에 Polly v8 복원력 파이프라인 3종 적용.
+
+| 파이프라인 키 | 타임아웃 | 재시도 | 서킷 임계 | OPEN 지속 |
+|---|---|---|---|---|
+| `external-iap-verify` | 10s | 0회 | 30초내 5회 실패 | 30s |
+| `external-iap-consume` | 15s | 2회 (지수 백오프 1s) | 30초내 5회 실패 | 60s |
+| `external-google-auth` | 5s | 0회 | 30초내 5회 실패 | 30s |
+
+- **D-1** `Polly.Core` + `Microsoft.Extensions.Resilience` 사용 (DI 통합). `Polly.Testing` 테스트용
+- **D-2** IAP 검증 재시도 0회 — 사용자 대기 중 자동 재시도는 UX 묶임 가중
+- **D-3** RTDN JWKS 인프라 장애 → 503 반환 (기존 200으로 삼키는 catch 바깥에서 처리)
+- **D-4** `Google:VerifyTimeoutSeconds` 제거 → `ExternalApi:GoogleAuth:TimeoutSeconds`로 이전
+- **D-5** 비상 정지 스위치 `ExternalApi:Enabled=false` → Polly 파이프라인 no-op 통과
+- **D-6** `IOptions<ExternalApiOptions>` 패턴 — PiiRetention과 동일 재배포 정책
+- **R-2** 서킷 상태 프로세스 로컬 — 단일 인스턴스 운영이므로 수용
+- **R-3** `GooglePubSubAuthenticator` static→instance 변경 — 첫 RTDN 시 JWKS 재페치 1회 인지
+
 ### Framework.Domain/Common 도입 (2026-05-07)
 
 Feature마다 산재하던 Result 패턴·예외 계층을 단일 지점으로 통합. `Framework.Domain/Common/` 하위 폴더로 편입. `Result<T>` / `Error`, `DomainException` 추상 베이스, `Guard` 헬퍼를 담는다.
@@ -247,11 +266,8 @@ PlayerItem.Quantity / Mail.IsClaimed / IapPurchase.Status 등 동시 갱신이 �
 - **계정 탈퇴 안내 UI (Unity 클라이언트)** — 백엔드 탈퇴 처리(`DELETE /api/auth/withdraw`)와 별개로 클라이언트 탈퇴 화면에 안내 팝업 필수. 법적/마켓 정책 의무 항목·구현 요구사항은 `CLIENT_GUIDE.md` 10번 + 부록 A 참조
 
 ### 라이브 안정성 — 서버 크래시·thread 고갈 방어 (라이브 직전 일괄 처리)
-- **외부 API 타임아웃·서킷브레이커** — Google Play / Unity Ads / IronSource SSV 등 외부 호출에 명시적 타임아웃 없으면 응답 지연 시 thread pool 고갈로 서버 응답 불능. HttpClient `Timeout` 설정 + Polly `AddTransientHttpErrorPolicy` 적용 필요. (REVIEW_REPORT M-18, M-19 동일 항목)
 - **BackgroundService 예외 후 자동 재시작** — `PiiRetentionCleanupService` 등이 예외 던지면 .NET BackgroundService는 조용히 멈추고 재시작 안 함. 외부에서는 서버가 살아있는 것처럼 보이나 정리 작업 영구 정지. `ExecuteAsync` 내부 try-catch + 재시작 루프 또는 IHostApplicationLifetime을 통한 명시적 처리 필요
-- **TaskScheduler.UnobservedTaskException 핸들러** — `_ = SomeAsync()` 같은 fire-and-forget 패턴에서 예외 발생 시 GlobalExceptionHandler 우회로 무시됨. Program.cs에 `TaskScheduler.UnobservedTaskException += ...` 핸들러 등록 + Serilog 로깅 필요
 - **AppDomain.UnhandledException 최후 로깅** — 정말로 잡지 못한 예외로 프로세스가 죽기 직전 마지막 로그 hook. `AppDomain.CurrentDomain.UnhandledException` 핸들러 등록 + Serilog Flush 강제로 로그 누락 방지
-- **DB 커넥션 풀 고갈 모니터링** — 트랜잭션 누수 시 풀이 고갈되어 모든 요청 대기·502/504 폭주. Npgsql의 `MaxPoolSize` 명시 + `Database` HealthCheck에서 풀 사용률 노출 또는 별도 메트릭 수집 필요
 
 
 ---

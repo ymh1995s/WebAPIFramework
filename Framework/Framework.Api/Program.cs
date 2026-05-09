@@ -99,6 +99,9 @@ builder.Services.AddTutorialServices();       // 튜토리얼 진행 서비스
 // ── 인증 / 보안 ───────────────────────────────────────────────
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddRateLimitingServices(builder.Configuration);
+
+// 외부 API 복원력 파이프라인 등록 — Polly 타임아웃·재시도·서킷브레이커 (ExternalApi 섹션)
+builder.Services.AddResilience(builder.Configuration);
 builder.Services.AddMemoryCache();          // 점검 모드 등 설정 캐시
 
 // Admin Key 검증기 — Singleton: 시작 시점 1회 인코딩, 타이밍 공격 방어

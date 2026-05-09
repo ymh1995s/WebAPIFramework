@@ -3,9 +3,12 @@ using Framework.Api.Extensions;
 using Framework.Api.Filters;
 using Framework.Api.ProblemDetails;
 using Framework.Application.Features.Iap;
+using Framework.Application.Features.Iap.Exceptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Polly.CircuitBreaker;
+using Polly.Timeout;
 
 namespace Framework.Api.Controllers.Player;
 
@@ -54,6 +57,34 @@ public class IapPurchaseController : ControllerBase
                 purchaseId = result.PurchaseId
             });
         }
+        catch (TimeoutRejectedException)
+        {
+            // Polly 타임아웃 초과 — Google Play API 응답 지연으로 서비스 불가
+            // 클라이언트는 잠시 후 재시도 권고
+            _logger.LogWarning(
+                "IAP 검증 타임아웃 — PlayerId: {PlayerId}, ProductId: {ProductId}",
+                playerId, request.ProductId);
+            return Problem(
+                title: "IAP 검증 서비스 응답 지연",
+                detail: "외부 스토어 검증 서버 응답 지연으로 처리할 수 없습니다. 잠시 후 다시 시도해주세요.",
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                type: "https://framework.api/errors/iap-verify-timeout",
+                extensions: new Dictionary<string, object?> { ["errorCode"] = ErrorCodes.IapVerifyTimeout });
+        }
+        catch (BrokenCircuitException)
+        {
+            // 서킷브레이커 OPEN — Google Play API 연속 장애 상태
+            // 서킷 OPEN 중에는 즉시 차단하여 thread pool 보호
+            _logger.LogWarning(
+                "IAP 검증 서킷브레이커 OPEN — PlayerId: {PlayerId}, ProductId: {ProductId}",
+                playerId, request.ProductId);
+            return Problem(
+                title: "IAP 검증 서비스 일시 불가",
+                detail: "외부 스토어 검증 서버 장애로 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요.",
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                type: "https://framework.api/errors/iap-verify-unavailable",
+                extensions: new Dictionary<string, object?> { ["errorCode"] = ErrorCodes.IapVerifyUnavailable });
+        }
         catch (IapProductNotFoundException ex)
         {
             // 등록되지 않은 상품 ID — 404 반환
@@ -96,7 +127,6 @@ public class IapPurchaseController : ControllerBase
         catch (IapVerifierException ex)
         {
             // 외부 Google Play API 오류 — 의존 서비스 장애이므로 502 BadGateway 반환 (M-22)
-            // Unity 클라이언트 미작성 시점이므로 호환성 부담 없음
             _logger.LogError(
                 ex,
                 "IAP 스토어 API 오류 — PlayerId: {PlayerId}, ProductId: {ProductId}",
@@ -112,7 +142,6 @@ public class IapPurchaseController : ControllerBase
         {
             // verify 동시성 충돌 한도(3회) 초과 — 503 서비스 불가 반환
             // AdminNotification(Critical)은 서비스 계층에서 이미 발송됨
-            // 클라이언트는 잠시 후 재시도 권고 (재시도 시 이미 처리된 경우 AlreadyGranted 응답)
             return Problem(
                 title: "IAP verify 처리 지연",
                 detail: "현재 동시 처리로 인해 verify를 완료할 수 없습니다. 잠시 후 다시 시도해주세요.",

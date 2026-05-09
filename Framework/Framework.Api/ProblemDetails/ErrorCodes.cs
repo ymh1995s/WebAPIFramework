@@ -26,6 +26,12 @@ public static class ErrorCodes
     // IAP verify 동시성 충돌 한도 초과 — 503 응답, 클라이언트 재시도 권고
     public const string IapVerifyConcurrencyExhausted = "IAP_VERIFY_CONCURRENCY_EXHAUSTED";
 
+    // IAP 검증 타임아웃 — Polly TimeoutRejectedException → 503
+    public const string IapVerifyTimeout = "IAP_VERIFY_TIMEOUT";
+
+    // IAP 검증 서비스 불가 — Polly BrokenCircuitException → 503
+    public const string IapVerifyUnavailable = "IAP_VERIFY_UNAVAILABLE";
+
     // 인게임 상점 구매 관련 오류
     public const string ShopProductNotFound = "SHOP_PRODUCT_NOT_FOUND";
     public const string ShopNotEnoughCurrency = "SHOP_NOT_ENOUGH_CURRENCY";

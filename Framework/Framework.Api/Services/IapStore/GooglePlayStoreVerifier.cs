@@ -1,6 +1,8 @@
 using System.Text.Json;
+using Framework.Api.Extensions;
 using Framework.Application.Features.Iap;
 using Framework.Domain.Enums;
+using Polly.Registry;
 using IapStoreEnum = Framework.Domain.Enums.IapStore;
 
 namespace Framework.Api.Services.IapStore;
@@ -8,24 +10,44 @@ namespace Framework.Api.Services.IapStore;
 // Google Play Store 영수증 검증기 — IIapStoreVerifier Strategy 구현체
 // Google Play Developer API (purchases.products.get)를 호출하여 구매 유효성 확인
 // AndroidPublisherService 초기화는 GooglePlayClientFactory에 위임 — Consumer와 중복 제거
+// Polly "external-iap-verify" 파이프라인으로 타임아웃·서킷브레이커 적용
 public class GooglePlayStoreVerifier : IIapStoreVerifier
 {
     // 이 검증기가 담당하는 스토어
     public IapStoreEnum Store => IapStoreEnum.Google;
 
     private readonly GooglePlayClientFactory _clientFactory;
+    private readonly ResiliencePipelineProvider<string> _pipelineProvider;
     private readonly ILogger<GooglePlayStoreVerifier> _logger;
 
-    public GooglePlayStoreVerifier(GooglePlayClientFactory clientFactory, ILogger<GooglePlayStoreVerifier> logger)
+    public GooglePlayStoreVerifier(
+        GooglePlayClientFactory clientFactory,
+        ResiliencePipelineProvider<string> pipelineProvider,
+        ILogger<GooglePlayStoreVerifier> logger)
     {
         _clientFactory = clientFactory;
+        _pipelineProvider = pipelineProvider;
         _logger = logger;
     }
 
     // Google Play 구매 영수증 검증
     // productId: 스토어 SKU, purchaseToken: Google 발급 결제 토큰
     // 검증 성공 시 IapReceiptVerified 반환, 실패 시 예외 발생
+    // Polly "external-iap-verify" 파이프라인이 타임아웃(10s)·서킷브레이커를 담당
     public async Task<IapReceiptVerified> VerifyAsync(string productId, string purchaseToken)
+    {
+        // Polly 파이프라인 로드 — DI에서 키로 조회
+        var pipeline = _pipelineProvider.GetPipeline(ResilienceExtensions.IapVerifyKey);
+
+        return await pipeline.ExecuteAsync(async ct =>
+        {
+            return await VerifyInternalAsync(productId, purchaseToken, ct);
+        });
+    }
+
+    // 실제 Google Play API 호출 — Polly 콜백 내부 실행
+    private async Task<IapReceiptVerified> VerifyInternalAsync(
+        string productId, string purchaseToken, CancellationToken ct)
     {
         // GooglePlayClientFactory에서 PackageName 및 API 클라이언트 로드
         var packageName = _clientFactory.GetPackageName();
@@ -43,8 +65,9 @@ public class GooglePlayStoreVerifier : IIapStoreVerifier
             // (2) [핵심] Google Play Developer API 호출 — 영수증 진위 검증의 본체
             // 호출: GET /androidpublisher/v3/applications/{pkg}/purchases/products/{sku}/tokens/{token}
             // 위조 토큰은 Google이 404로 응답. 검증의 권한자는 Google이며 우리 서버는 응답을 신뢰.
+            // R-1 대응: Google SDK ExecuteAsync가 CancellationToken을 지원하지 않으므로 WaitAsync로 래핑
             var request = service.Purchases.Products.Get(packageName, productId, purchaseToken);
-            var productPurchase = await request.ExecuteAsync();
+            var productPurchase = await request.ExecuteAsync().WaitAsync(ct);
 
             // purchaseState 검증: 0 = 구매 완료, 1 = 취소, 2 = 보류 중
             if (productPurchase.PurchaseState != 0)
@@ -125,9 +148,10 @@ public class GooglePlayStoreVerifier : IIapStoreVerifier
                 IapStoreEnum.Google,
                 $"Google Play API 오류: {apiEx.Message}");
         }
-        catch (Exception ex) when (ex is not IapVerifierException)
+        catch (Exception ex) when (ex is not IapVerifierException and not OperationCanceledException)
         {
             // 파일 읽기 실패, 네트워크 오류 등 예기치 않은 예외
+            // OperationCanceledException은 Polly 타임아웃 신호 — 그대로 전파하여 TimeoutRejectedException으로 변환되도록
             _logger.LogError(
                 ex,
                 "Google Play 검증기 예기치 않은 오류 — ProductId: {ProductId}",

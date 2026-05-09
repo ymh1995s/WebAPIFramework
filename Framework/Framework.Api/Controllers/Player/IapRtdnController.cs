@@ -6,12 +6,16 @@ using Framework.Api.Services.IapStore;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Polly.CircuitBreaker;
+using Polly.Timeout;
 
 namespace Framework.Api.Controllers.Player;
 
 // Google Play RTDN(Real-time Developer Notifications) 수신 컨트롤러
 // [중요] AllowAnonymous — Google Pub/Sub 서버가 직접 호출, JWT 인증 불가
-// [중요] 모든 응답은 반드시 200 OK — Pub/Sub은 비-200 응답 시 최대 7일간 재시도
+// [중요] 기본 정책: 비-200 응답 시 최대 7일간 재시도 → 도메인 오류는 200 반환
+// [D-3 예외] JWKS fetch 인프라 장애(타임아웃·서킷 OPEN)는 503 반환
+//   — 기존 401은 영구거부로 오해될 수 있어 503으로 변경. Pub/Sub은 503도 일정 시간 재시도함.
 [AllowAnonymous]
 [ApiController]
 [Route("api/iap/google")]
@@ -41,24 +45,50 @@ public class IapRtdnController : ControllerBase
     [HttpPost("rtdn")]
     public async Task<IActionResult> ReceiveRtdn([FromBody] PubSubPushRequest request)
     {
+        // 1단계: OIDC 토큰 검증 — Google Pub/Sub 서버가 보낸 요청인지 확인
+        // JWKS fetch 인프라 장애(BrokenCircuitException/TimeoutRejectedException)는 예외 전파
+        var authHeader = HttpContext.Request.Headers.Authorization.ToString();
+
+        bool isValid;
         try
         {
-            // 1단계: OIDC 토큰 검증 — Google Pub/Sub 서버가 보낸 요청인지 확인
-            var authHeader = HttpContext.Request.Headers.Authorization.ToString();
-            var isValid = await _authenticator.ValidateAsync(authHeader);
+            isValid = await _authenticator.ValidateAsync(authHeader);
+        }
+        catch (BrokenCircuitException ex)
+        {
+            // [D-3] JWKS fetch 서킷브레이커 OPEN — Google 서버 장애. 503 반환하여 Pub/Sub 재시도 유도
+            _logger.LogError(ex, "RTDN OIDC JWKS 서킷브레이커 OPEN — 503 반환. Pub/Sub이 재시도할 것임");
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new { ok = false, reason = "auth_infra_unavailable" });
+        }
+        catch (TimeoutRejectedException ex)
+        {
+            // [D-3] JWKS fetch 타임아웃 — 인프라 장애. 503 반환하여 Pub/Sub 재시도 유도
+            _logger.LogError(ex, "RTDN OIDC JWKS 타임아웃 — 503 반환. Pub/Sub이 재시도할 것임");
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new { ok = false, reason = "auth_infra_unavailable" });
+        }
+        catch (Exception ex)
+        {
+            // 그 외 JWKS 인프라 오류 — 503 반환
+            _logger.LogError(ex, "RTDN OIDC JWKS 예기치 않은 인프라 오류 — 503 반환");
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new { ok = false, reason = "auth_infra_unavailable" });
+        }
 
-            if (!isValid)
-            {
-                // [중요] 검증 실패에도 200 반환 — Pub/Sub 재시도 루프 방지
-                // 악의적 위조 요청이 재시도될 경우 서버 부하 유발 위험이 있으므로
-                // 내부적으로는 경고 로그를 남겨 보안 감시가 가능하도록 함
-                _logger.LogWarning(
-                    "RTDN OIDC 검증 실패 — IP: {Ip}, Subscription: {Sub}",
-                    HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    request.Subscription);
-                return Ok(new { ok = false, reason = "auth_failed" });
-            }
+        if (!isValid)
+        {
+            // [중요] 검증 실패에도 200 반환 — Pub/Sub 재시도 루프 방지
+            // 토큰 자체가 잘못된 경우(위조·만료)는 재시도해도 동일하게 실패 → 200으로 종료
+            _logger.LogWarning(
+                "RTDN OIDC 검증 실패 — IP: {Ip}, Subscription: {Sub}",
+                HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                request.Subscription);
+            return Ok(new { ok = false, reason = "auth_failed" });
+        }
 
+        try
+        {
             // 2단계: Pub/Sub 메시지의 Data 필드를 base64 디코딩 → UTF-8 문자열
             byte[] decodedBytes;
             try

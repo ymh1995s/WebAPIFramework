@@ -10,6 +10,7 @@
   <ItemGroup>
     <!-- xUnit v3 stable (3.2.2) + Microsoft Testing Platform -->
     <!-- net8.0 TFM 기준이나 net10.0 상위 호환 동작 확인 -->
+    <PackageReference Include="Polly.Testing" Version="8.6.6" />
     <PackageReference Include="xunit.v3" Version="3.2.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
