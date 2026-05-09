@@ -37,6 +37,9 @@
 | 스테이지 클리어 [컨텐츠] | 순차 진행·최초/재클리어 보상·Exp 연동. DEBUG 전용 삭제. Content/ 영역 분리 → §Content 영역 |
 | 운영 알림 | RTDN 환불 등 운영 이슈 Admin 즉시 통지. NotificationBell 30초 폴링 |
 | PII 보관기간 정책 | AuditLog 365일·RateLimitLog 90일 자동 삭제. 매일 KST 03:00 실행 → §PII 보관기간 |
+| 서버 시간 동기화 | `GET /api/time` — UTC/KST/UnixMs 반환. 익명, Game RateLimit, Cache-Control: no-store |
+| 인게임 상점 | `GET /api/shop` 목록 조회 + `POST /api/shop/{id}/buy` 재화 차감·보상 지급. Admin CRUD. 일일/총 한도, 멱등성(ClientRequestId) |
+| 튜토리얼 진행 상태 | `GET /api/tutorial` 전체 키-값 맵 조회 + `PUT /api/tutorial/{key}` upsert. 플레이어당 200행·key 128자·value 512자 상한. 서버는 key-value 창고만 담당, 시나리오 해석은 클라이언트 전담 |
 
 ---
 
@@ -247,94 +250,6 @@ PlayerItem.Quantity / Mail.IsClaimed / IapPurchase.Status 등 동시 갱신이 �
 - **SignalR 허브 Rate Limiting** — `/hubs/matchmaking` 등 SignalR 허브 연결에 대한 Rate Limiting 미구현. HTTP 요청과 달리 앱 백그라운드/포그라운드 전환 시 재연결이 발생해 game 정책 직접 적용 불가. 별도 설계 필요. 구현 시점: 실 서비스 직전 또는 연결 폭주 사례 발생 시
 - **계정 탈퇴 안내 UI (Unity 클라이언트)** — 백엔드 탈퇴 처리(`DELETE /api/auth/withdraw`)와 별개로 클라이언트 탈퇴 화면에 안내 팝업 필수. 법적/마켓 정책 의무 항목·구현 요구사항은 `CLIENT_GUIDE.md` 10번 + 부록 A 참조
 
-### 서버 API 프레임워크 미구현 항목 (2026-05-09 브레인스토밍)
-
-> 아래 항목은 모바일 게임 프레임워크로서 공통 적용되는 서버 API 기반 시스템이다.
-> 현재 프레임워크에 존재하지 않아 다음 게임 프로젝트에 재사용 시 반드시 추가 구현이 필요하다.
-
----
-
-#### 2. 인게임 상점
-
-**API**: `GET /api/shop`, `POST /api/shop/{productId}/buy`
-
-**목적**: Gold/Gems 등 인게임 재화로 아이템 구매. 현재 재화 차감 경로가 없어 경제 루프 미완성.
-
-**설계 포인트**:
-- `ShopProduct` 테이블 — 상품 ID, 가격(ItemId+수량), 판매 아이템(ItemId+수량), 일일/총 구매 한도
-- 구매 처리: 재화 차감(`PlayerItem.Quantity` 감소) + 상품 지급(`IRewardDispatcher`) 단일 트랜잭션
-- 아이템 소모 로직과 "수량 차감" 공통 모듈 공유 가능
-- Admin 상점 상품 CRUD 페이지 필요
-
----
-
-#### 3. 아이템 버리기
-
-**API**: `DELETE /api/inventory/{itemId}?quantity=N`
-
-**목적**: 불필요한 아이템 인벤토리에서 제거. Currency(Gold/Gems) 아이템은 버리기 불가 처리 필요.
-
----
-
-#### 4. 서버 시간 동기화
-
-**API**: `GET /api/time`
-
-**목적**: 클라이언트가 서버 UTC 기준 시각을 조회. 이벤트 타이머, 일일 리셋 기준, 클라이언트 시각 조작 방지에 필수. 구현 난이도 최저 — 응답: `{ "utc": "2026-05-09T00:00:00Z", "kst": "2026-05-09T09:00:00+09:00" }`.
-
----
-
-#### 5. 플레이어 프로필 수정
-
-**API**: `PUT /api/players/me`
-
-**목적**: 닉네임 변경 등 플레이어 자기 정보 수정. 현재 플레이어가 자기 정보를 변경할 방법이 없음.
-
-**설계 포인트**:
-- 닉네임 중복 체크, 금칙어 필터 연동 고려
-- 변경 이력 관리 여부 결정 필요 (AuditLog 또는 별도 NicknameHistory)
-- 변경 쿨다운(예: 30일 1회) 정책 선택 사항
-
----
-
-#### 6. 푸시 알림 토큰 등록
-
-**API**: `POST /api/players/push-token`
-
-**목적**: FCM(Android)/APNS(iOS) 디바이스 토큰 서버 저장. 실제 발송 로직은 나중에 추가해도 되나, 토큰 수집은 출시 전부터 시작해야 이후 발송 가능.
-
-**설계 포인트**:
-- `PlayerPushToken` 테이블 — PlayerId, Platform(FCM/APNS), Token, UpdatedAt
-- 플레이어당 최신 토큰 1개 유지 (Upsert)
-- 발송 서비스(Firebase Admin SDK 등)는 별도 라운드
-
----
-
-#### 7. 쿠폰 시스템
-
-**API**: `POST /api/coupons/redeem`
-
-**목적**: 마케팅/이벤트용 쿠폰 코드로 보상 지급. `IRewardDispatcher` 연동으로 모든 보상 유형 지원 가능.
-
-**설계 포인트**:
-- `Coupon` 테이블 — Code, RewardTableCode, MaxUsageCount, ExpiresAt, IsActive
-- `CouponRedemption` 테이블 — PlayerId, CouponId, RedeemedAt (플레이어당 1회 제한)
-- SourceKey=`coupon:{code}:{playerId}`로 멱등성 보장
-- Admin 쿠폰 발급/관리 페이지 필요
-
----
-
-#### 구현 우선순위 요약
-
-| 순서 | 항목 | 이유 |
-|---|---|---|
-| 1 | 서버 시간 동기화 | 구현 5분, 효과 즉각 (이벤트/타이머 전제 조건) |
-| 2 | 아이템 소모/사용 | DEVNOTES 기존 미구현 항목, 경제 루프 완성의 첫 단계 |
-| 3 | 인게임 상점 | 아이템 소모와 수량 차감 모듈 공유 — 같이 설계 권장 |
-| 4 | 아이템 버리기 | 상점과 동일 수량 차감 모듈 재사용 |
-| 5 | 플레이어 프로필 수정 | 닉네임 변경 UX 요구 발생 시 |
-| 6 | 쿠폰 시스템 | 출시 마케팅 준비 단계 |
-| 7 | 푸시 알림 토큰 | 토큰 수집은 일찍, 발송 로직은 나중에 |
 
 ---
 

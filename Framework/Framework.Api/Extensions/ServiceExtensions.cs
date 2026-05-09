@@ -30,6 +30,7 @@ using Framework.Application.Features.RewardGrant;
 using Framework.Application.Features.RewardTable;
 using Framework.Application.Features.SystemConfig;
 using Framework.Application.Features.Exp;
+using Framework.Application.Features.Tutorial;
 using Framework.Application.Content.Stage;
 using Framework.Domain.Constants;
 using Framework.Domain.Entities;
@@ -300,6 +301,20 @@ public static class ServiceExtensions
         // consume 재시도 백그라운드 서비스 — 일시실패 건 폴링 + 지수 백오프 재시도
         services.AddHostedService<IapConsumeRetryService>();
 
+        return services;
+    }
+
+    // 저장소 등록 — 튜토리얼 진행 상태
+    public static IServiceCollection AddTutorialRepositories(this IServiceCollection services)
+    {
+        services.AddScoped<ITutorialProgressRepository, TutorialProgressRepository>();
+        return services;
+    }
+
+    // 서비스 등록 — 튜토리얼 진행 상태
+    public static IServiceCollection AddTutorialServices(this IServiceCollection services)
+    {
+        services.AddScoped<ITutorialService, TutorialService>();
         return services;
     }
 

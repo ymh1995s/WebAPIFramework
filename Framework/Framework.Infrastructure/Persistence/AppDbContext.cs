@@ -75,6 +75,9 @@ public class AppDbContext : DbContext
     // 인게임 상점 상품 마스터 테이블 — 재화로 구매 가능한 상품 정의
     public DbSet<ShopProduct> ShopProducts { get; set; }
 
+    // 튜토리얼 진행 상태 테이블 — 플레이어별 key-value 저장소
+    public DbSet<TutorialProgress> TutorialProgresses { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // SystemConfig: Key를 PK로 사용
@@ -641,6 +644,36 @@ public class AppDbContext : DbContext
         // ShopProduct: SortOrder 인덱스 — 클라이언트 상점 목록 조회 최적화
         modelBuilder.Entity<ShopProduct>()
             .HasIndex(p => p.SortOrder);
+
+        // ─────────────────────────────────────────────
+        // 튜토리얼 진행 상태 — TutorialProgress 설정
+        // ─────────────────────────────────────────────
+
+        // TutorialProgress → Player (N:1) — 플레이어 삭제 시 진행 데이터도 함께 삭제
+        modelBuilder.Entity<TutorialProgress>()
+            .HasOne(t => t.Player)
+            .WithMany()
+            .HasForeignKey(t => t.PlayerId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // TutorialProgress: UNIQUE(PlayerId, Key) — 동일 플레이어+키 중복 방지
+        modelBuilder.Entity<TutorialProgress>()
+            .HasIndex(t => new { t.PlayerId, t.Key })
+            .IsUnique();
+
+        // TutorialProgress: Key 최대 길이 128자
+        modelBuilder.Entity<TutorialProgress>()
+            .Property(t => t.Key)
+            .HasMaxLength(128);
+
+        // TutorialProgress: Value 최대 길이 512자
+        modelBuilder.Entity<TutorialProgress>()
+            .Property(t => t.Value)
+            .HasMaxLength(512);
+
+        // TutorialProgress: PlayerId 인덱스 — 전체 조회 최적화
+        modelBuilder.Entity<TutorialProgress>()
+            .HasIndex(t => t.PlayerId);
 
         // LevelThreshold: Level을 PK로 사용
         modelBuilder.Entity<LevelThreshold>().HasKey(t => t.Level);

@@ -93,6 +93,8 @@ builder.Services.AddMatchmakingServices(builder.Configuration); // 매치메이�
 builder.Services.AddAdRewardServices();      // 광고 SSV (UnityAds, IronSource)
 builder.Services.AddIapServices();           // 인앱결제 (Google Play)
 builder.Services.AddContentServices();       // 게임 컨텐츠 (스테이지 등)
+builder.Services.AddTutorialRepositories();  // 튜토리얼 진행 저장소
+builder.Services.AddTutorialServices();       // 튜토리얼 진행 서비스
 
 // ── 인증 / 보안 ───────────────────────────────────────────────
 builder.Services.AddJwtAuthentication(builder.Configuration);
