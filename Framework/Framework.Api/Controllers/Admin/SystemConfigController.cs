@@ -1,5 +1,7 @@
+using System.Text.RegularExpressions;
 using Framework.Api.Filters;
 using Framework.Application.Features.SystemConfig;
+using Framework.Domain.Constants;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Framework.Api.Controllers.Admin;
@@ -117,4 +119,44 @@ public class SystemConfigController : ControllerBase
         await _systemConfigService.SetDailyRewardDefaultItemCountAsync(dto.ItemCount);
         return Ok();
     }
+
+    // ─── RemoteConfig (client.*) ─────────────────────────────────────────────
+
+    // "client." 접두사로 시작하는 모든 설정 목록 조회 (prefix 포함 원본 키)
+    [HttpGet("client-configs")]
+    public async Task<IActionResult> GetClientConfigs()
+    {
+        var configs = await _systemConfigService.GetClientConfigsAsync();
+        return Ok(configs);
+    }
+
+    // 클라이언트 설정 키-값 저장 — key는 "client." 접두사를 제거한 순수 키
+    // 서버에서 접두사를 자동 부착 및 키 형식 검증 수행
+    [HttpPut("client-configs/{key}")]
+    public async Task<IActionResult> SetClientConfig(string key, [FromBody] SetClientConfigDto dto)
+    {
+        // 키 형식 검증: 소문자 알파벳 시작, 소문자/숫자/밑줄/점 허용
+        if (!ClientConfigKeyRegex.IsMatch(key))
+            return BadRequest("키 형식이 올바르지 않습니다. 소문자로 시작하고 소문자, 숫자, _, . 만 허용됩니다.");
+
+        // "client." 접두사를 붙여 실제 저장 키 생성
+        var fullKey = SystemConfigKeys.ClientConfigPrefix + key;
+        await _systemConfigService.SetClientConfigAsync(fullKey, dto.Value);
+        return Ok();
+    }
+
+    // 클라이언트 설정 키 삭제 — key는 "client." 접두사를 제거한 순수 키
+    [HttpDelete("client-configs/{key}")]
+    public async Task<IActionResult> DeleteClientConfig(string key)
+    {
+        var fullKey = SystemConfigKeys.ClientConfigPrefix + key;
+        await _systemConfigService.DeleteClientConfigAsync(fullKey);
+        return Ok();
+    }
+
+    // 클라이언트 설정 키 형식 검증 정규식 — 소문자 시작, 소문자/숫자/밑줄/점 허용
+    private static readonly Regex ClientConfigKeyRegex = new(@"^[a-z][a-z0-9_.]*$", RegexOptions.Compiled);
 }
+
+// 클라이언트 설정 저장 요청 DTO
+public record SetClientConfigDto(string Value);

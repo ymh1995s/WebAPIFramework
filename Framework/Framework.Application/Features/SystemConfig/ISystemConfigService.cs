@@ -48,4 +48,15 @@ public interface ISystemConfigService
     Task<int> GetDailyRewardDefaultItemCountAsync();
     // 기본 보상 아이템 수량 저장
     Task SetDailyRewardDefaultItemCountAsync(int count);
+
+    // ─── RemoteConfig ────────────────────────────────────────────────────────
+
+    // "client." 접두사로 시작하는 모든 설정 항목 조회 — Admin용 (prefix 포함 원본 키 반환)
+    Task<IReadOnlyList<ClientConfigDto>> GetClientConfigsAsync();
+    // 클라이언트 설정 키-값 저장 (key는 "client." 접두사 포함 전체 키)
+    Task SetClientConfigAsync(string key, string value);
+    // 클라이언트 설정 키 삭제 (없으면 아무 작업도 하지 않음)
+    Task DeleteClientConfigAsync(string key);
+    // "client." 접두사를 제거한 키-값 사전 반환 — 클라이언트 API용
+    Task<IDictionary<string, string>> GetClientConfigsStrippedAsync();
 }

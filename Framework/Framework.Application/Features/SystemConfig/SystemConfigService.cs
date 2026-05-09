@@ -176,4 +176,38 @@ public class SystemConfigService : ISystemConfigService
 
         return start.HasValue && end.HasValue && now >= start.Value && now <= end.Value;
     }
+
+    // ─── RemoteConfig ────────────────────────────────────────────────────────
+
+    // "client." 접두사로 시작하는 모든 설정 항목을 DTO 목록으로 반환 (Admin용 — prefix 포함 원본 키)
+    public async Task<IReadOnlyList<ClientConfigDto>> GetClientConfigsAsync()
+    {
+        var configs = await _repository.GetByPrefixAsync(SystemConfigKeys.ClientConfigPrefix);
+        return configs.Select(c => new ClientConfigDto(c.Key, c.Value)).ToList();
+    }
+
+    // 클라이언트 설정 저장 — key는 "client." 접두사를 포함한 전체 키여야 함
+    public async Task SetClientConfigAsync(string key, string value)
+    {
+        await _repository.SetValueAsync(key, value);
+        await _repository.SaveChangesAsync();
+    }
+
+    // 클라이언트 설정 키 삭제 — 없으면 아무 작업도 하지 않음
+    public async Task DeleteClientConfigAsync(string key)
+    {
+        await _repository.DeleteAsync(key);
+        await _repository.SaveChangesAsync();
+    }
+
+    // "client." 접두사를 제거하고 키-값 사전으로 반환 — Unity 클라이언트 API용
+    public async Task<IDictionary<string, string>> GetClientConfigsStrippedAsync()
+    {
+        var configs = await _repository.GetByPrefixAsync(SystemConfigKeys.ClientConfigPrefix);
+        // "client.feature_flag" → "feature_flag" 형식으로 키를 변환하여 반환
+        return configs.ToDictionary(
+            c => c.Key[SystemConfigKeys.ClientConfigPrefix.Length..],
+            c => c.Value
+        );
+    }
 }

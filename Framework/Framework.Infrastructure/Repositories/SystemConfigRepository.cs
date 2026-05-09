@@ -32,6 +32,20 @@ public class SystemConfigRepository : ISystemConfigRepository
             config.Value = value;
     }
 
+    // 특정 접두사로 시작하는 모든 설정 항목 목록 반환 (예: "client." 접두사의 RemoteConfig 항목)
+    public async Task<IReadOnlyList<SystemConfig>> GetByPrefixAsync(string prefix)
+        => await _context.SystemConfigs
+            .Where(c => c.Key.StartsWith(prefix))
+            .ToListAsync();
+
+    // 특정 Key 삭제 — 없으면 아무 작업도 하지 않음
+    public async Task DeleteAsync(string key)
+    {
+        var config = await _context.SystemConfigs.FindAsync(key);
+        if (config is not null)
+            _context.SystemConfigs.Remove(config);
+    }
+
     // 변경사항 저장
     public async Task SaveChangesAsync()
         => await _context.SaveChangesAsync();

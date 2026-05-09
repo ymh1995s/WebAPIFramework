@@ -55,18 +55,28 @@ public partial class SystemSettings : SafeComponentBase
     // 아이템 목록 (기본 보상 설정 드롭다운용)
     private List<ItemOption> itemList = new();
 
+    // ─── RemoteConfig 상태 ──────────────────────────
+    // 현재 등록된 클라이언트 설정 목록 (prefix 포함 원본 키)
+    private List<ClientConfigItem> clientConfigs = new();
+    // 새 항목 추가 입력 필드 — "client." 접두사 없는 순수 키
+    private string newClientConfigKey = "";
+    private string newClientConfigValue = "";
+    private string? clientConfigMessage;
+    private bool clientConfigSuccess;
+
     private string? errorMessage;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            // 페이지 진입 시 설정값과 일일 보상 설정을 병렬 로드
+            // 페이지 진입 시 설정값과 일일 보상 설정, RemoteConfig를 병렬 로드
             await Task.WhenAll(
                 SafeExecute(LoadSettings, msg => errorMessage = msg),
                 SafeExecute(LoadBoundaryAsync, msg => boundaryMessage = msg),
                 SafeExecute(LoadDefaultRewardAsync, msg => defaultRewardMessage = msg),
-                SafeExecute(LoadItemsAsync, msg => errorMessage = msg)
+                SafeExecute(LoadItemsAsync, msg => errorMessage = msg),
+                SafeExecute(LoadClientConfigs, msg => clientConfigMessage = msg)
             );
             StateHasChanged();
         }
@@ -351,6 +361,78 @@ public partial class SystemSettings : SafeComponentBase
         itemList = await client.GetFromJsonAsync<List<ItemOption>>(ApiRoutes.AdminItems.Collection) ?? new();
     }
 
+    /// <summary>RemoteConfig 항목 목록 조회 — 페이지 진입 시 및 변경 후 호출</summary>
+    private async Task LoadClientConfigs()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var result = await client.GetFromJsonAsync<List<ClientConfigItem>>(ApiRoutes.SystemConfig.ClientConfigs);
+        clientConfigs = result ?? new();
+    }
+
+    /// <summary>클라이언트 설정 추가 또는 수정 — 입력 필드의 순수 키(prefix 없음)로 PUT 요청</summary>
+    private async Task AddClientConfig()
+    {
+        clientConfigMessage = null;
+
+        // 입력값 유효성 확인
+        if (string.IsNullOrWhiteSpace(newClientConfigKey))
+        {
+            clientConfigMessage = "키를 입력해주세요.";
+            clientConfigSuccess = false;
+            return;
+        }
+
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        // 순수 키를 URL 경로에 삽입 — 서버에서 "client." 접두사 자동 부착
+        var response = await client.PutAsJsonAsync(
+            ApiRoutes.SystemConfig.ClientConfigByKey(newClientConfigKey),
+            new { Value = newClientConfigValue }
+        );
+
+        if (response.IsSuccessStatusCode)
+        {
+            clientConfigMessage = $"'{newClientConfigKey}' 항목이 저장되었습니다.";
+            clientConfigSuccess = true;
+            newClientConfigKey = "";
+            newClientConfigValue = "";
+            // 저장 후 목록 갱신
+            await SafeExecute(LoadClientConfigs, msg => clientConfigMessage = msg);
+        }
+        else
+        {
+            // 서버 측 키 형식 오류 등 BadRequest 메시지 표시
+            var errorBody = await response.Content.ReadAsStringAsync();
+            clientConfigMessage = string.IsNullOrEmpty(errorBody) ? "저장에 실패했습니다." : errorBody;
+            clientConfigSuccess = false;
+        }
+    }
+
+    /// <summary>클라이언트 설정 삭제 — fullKey("client." 포함)에서 접두사를 제거하여 DELETE 요청</summary>
+    private async Task DeleteClientConfig(string fullKey)
+    {
+        clientConfigMessage = null;
+
+        // "client." 접두사를 제거하여 순수 키 추출
+        const string prefix = "client.";
+        var pureKey = fullKey.StartsWith(prefix) ? fullKey[prefix.Length..] : fullKey;
+
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var response = await client.DeleteAsync(ApiRoutes.SystemConfig.ClientConfigByKey(pureKey));
+
+        if (response.IsSuccessStatusCode)
+        {
+            clientConfigMessage = $"'{fullKey}' 항목이 삭제되었습니다.";
+            clientConfigSuccess = true;
+            // 삭제 후 목록 갱신
+            await SafeExecute(LoadClientConfigs, msg => clientConfigMessage = msg);
+        }
+        else
+        {
+            clientConfigMessage = "삭제에 실패했습니다.";
+            clientConfigSuccess = false;
+        }
+    }
+
     // ─── API 응답 매핑용 로컬 DTO ───────────────────
     private record ToggleDto(bool Enabled);
     private record StatusDto(bool IsUnderMaintenance);
@@ -363,4 +445,7 @@ public partial class SystemSettings : SafeComponentBase
 
     // 아이템 드롭다운 옵션
     private record ItemOption(int Id, string Name, string Type, bool IsDeleted);
+
+    // RemoteConfig 항목 — GET /api/admin/systemconfig/client-configs 응답 매핑
+    private record ClientConfigItem(string Key, string Value);
 }

@@ -35,4 +35,8 @@ public static class SystemConfigKeys
 
     // 기본 보상 아이템 수량 (기본값 0 = 미발송)
     public const string DailyRewardDefaultItemCount = "daily_reward_default_item_count";
+
+    // RemoteConfig 클라이언트 전용 키 접두사 — 이 접두사로 시작하는 모든 키는 클라이언트에 노출됨
+    // 키 형식 예: "client.feature_flag", "client.max_level"
+    public const string ClientConfigPrefix = "client.";
 }

@@ -40,6 +40,7 @@
 | 서버 시간 동기화 | `GET /api/time` — UTC/KST/UnixMs 반환. 익명, Game RateLimit, Cache-Control: no-store |
 | 인게임 상점 | `GET /api/shop` 목록 조회 + `POST /api/shop/{id}/buy` 재화 차감·보상 지급. Admin CRUD. 일일/총 한도, 멱등성(ClientRequestId) |
 | 튜토리얼 진행 상태 | `GET /api/tutorial` 전체 키-값 맵 조회 + `PUT /api/tutorial/{key}` upsert. 플레이어당 200행·key 128자·value 512자 상한. 서버는 key-value 창고만 담당, 시나리오 해석은 클라이언트 전담 |
+| RemoteConfig | `GET /api/remoteconfig` (AllowAnonymous) — `client.` prefix 키만 필터해 prefix 제거 후 `{ "values": {...} }` 반환. SystemConfig 테이블 공용. Admin `/system-settings` 페이지에서 CRUD 관리 |
 
 ---
 

@@ -183,6 +183,12 @@ public static class ApiRoutes
 
         /// <summary>월 28회 초과 시 기본 보상 설정 조회(GET) / 저장(PUT)</summary>
         public const string DailyRewardDefault = $"{Base}/daily-reward-default";
+
+        /// <summary>클라이언트 설정 전체 목록 조회(GET) — prefix 포함 원본 키 반환</summary>
+        public const string ClientConfigs = $"{Base}/client-configs";
+
+        /// <summary>클라이언트 설정 단건 저장(PUT) / 삭제(DELETE) — key는 "client." 제거한 순수 키</summary>
+        public static string ClientConfigByKey(string key) => $"{Base}/client-configs/{Uri.EscapeDataString(key)}";
     }
 
     // ── 공지 Admin (AdminNoticesController: Route = "api/admin/notices") ────

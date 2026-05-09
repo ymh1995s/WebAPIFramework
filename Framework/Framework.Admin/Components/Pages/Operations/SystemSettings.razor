@@ -155,6 +155,68 @@ else
             <p class="mt-2 @(defaultRewardSuccess ? "text-success" : "text-danger")">@defaultRewardMessage</p>
         }
     </section>
+
+    <!-- RemoteConfig — 클라이언트 설정 관리 -->
+    <section class="mb-5">
+        <h4>RemoteConfig (클라이언트 설정)</h4>
+        <p class="text-muted small">
+            Unity 클라이언트가 앱 실행 시 <code>GET /api/remoteconfig</code>로 조회하는 설정값을 관리합니다.
+            키는 <code>client.</code> 접두사 없이 입력하세요. (예: <code>feature_flag</code>, <code>max_level</code>)
+        </p>
+
+        <!-- 새 항목 추가 폼 -->
+        <div class="d-flex gap-2 align-items-end mb-3 flex-wrap">
+            <div>
+                <label class="form-label">키</label>
+                <input type="text" class="form-control" placeholder="예: feature_flag"
+                       style="min-width:200px;"
+                       @bind="newClientConfigKey" />
+            </div>
+            <div>
+                <label class="form-label">값</label>
+                <input type="text" class="form-control" placeholder="예: true"
+                       style="min-width:200px;"
+                       @bind="newClientConfigValue" />
+            </div>
+            <button class="btn btn-primary" @onclick="AddClientConfig">추가 / 수정</button>
+        </div>
+        @if (clientConfigMessage != null)
+        {
+            <p class="mb-2 @(clientConfigSuccess ? "text-success" : "text-danger")">@clientConfigMessage</p>
+        }
+
+        <!-- 현재 등록된 항목 목록 -->
+        @if (clientConfigs.Count == 0)
+        {
+            <p class="text-muted small">등록된 클라이언트 설정이 없습니다.</p>
+        }
+        else
+        {
+            <table class="table table-sm table-bordered" style="max-width:600px;">
+                <thead class="table-light">
+                    <tr>
+                        <th>키 (full)</th>
+                        <th>값</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var cfg in clientConfigs)
+                    {
+                        <tr>
+                            <td><code>@cfg.Key</code></td>
+                            <td>@cfg.Value</td>
+                            <td>
+                                <!-- "client." 접두사를 제거한 순수 키를 DELETE 경로에 사용 -->
+                                <button class="btn btn-outline-danger btn-sm"
+                                        @onclick="() => DeleteClientConfig(cfg.Key)">삭제</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
 }
 
 @if (errorMessage != null)
