@@ -97,6 +97,15 @@ GET /api/version/check?version={Application.version}
 - `isForceUpdate=true` → 스토어 이동 다이얼로그 표시 (게임 진입 차단)
 - `isForceUpdate=false` → 다음 단계로
 
+**스토어 URL 설정**
+- `Assets/@Scripts/Config/GameConfig.cs`의 `ANDROID_STORE_URL` / `IOS_STORE_URL` 상수에 실제 스토어 링크를 입력한다
+- 배포 전 반드시 교체 필요 (현재 빈 문자열 플레이스홀더)
+- 예시:
+  ```csharp
+  public const string ANDROID_STORE_URL = "https://play.google.com/store/apps/details?id=com.yourcompany.yourgame";
+  public const string IOS_STORE_URL     = "https://apps.apple.com/app/idXXXXXXXXX";
+  ```
+
 **구현 인수 기준**
 - [ ] 강제 업데이트 시 스토어 이동만 가능
 - [ ] 일반 진행 시 다음 단계로

@@ -95,6 +95,11 @@ dotnet ef migrations add <MigrationName> --project Framework/Framework.Infrastru
 dotnet ef database update --project Framework/Framework.Infrastructure --startup-project Framework/Framework.Api
 ```
 
+> **운영 DB 적용 시 connection string 주의** — `Framework.Infrastructure/Persistence/AppDbContextFactory.cs:15`에 design-time 도구용 connection string이 `Host=localhost;...;Password=postgres`로 하드코딩됨. 운영 DB에 `dotnet ef database update` 실행 시 다음 중 하나로 덮을 것:
+> - 환경변수 `ConnectionStrings__Default` 우선 적용 (배포 호스트에서 설정)
+> - 또는 `--connection "운영 DSN"` 인자 명시
+> - 임시로 `AppDbContextFactory.cs` 수정 시 **커밋 금지** (개발 머신 영향)
+
 ### 5.2 xmin 동시성 토큰 마이그레이션 — **수동 절차 필수**
 
 `PlayerItem.Quantity` / `Mail.IsClaimed` / `IapPurchase.Status` 등 xmin 토큰을 새 엔티티에 추가할 때:
@@ -260,6 +265,8 @@ dotnet ef database update --project Framework/Framework.Infrastructure --startup
 
 - [ ] `.env` 모든 시크릿 실제 값 채움 (§2/§3)
 - [ ] `appsettings.Development.json` 더미값이 운영에 노출 안 되는지 확인 (.env가 우선)
+- [ ] **`Framework.Api/appsettings.json` `Iap.Google.RtdnAudience` 운영 도메인 교체** — 현재 `https://your-server.com/api/iap/google/rtdn` placeholder. `.env`의 `IAP_GOOGLE_RTDN_AUDIENCE`로 덮이지만 `.env` 누락 시 placeholder 노출 → RTDN OIDC 검증 실패로 환불 알림 누락
+- [ ] **Unity 클라이언트 스토어 URL 점검** — 강제 업데이트 다이얼로그(`CLIENT_GUIDE.md §2`)의 Play Store / App Store 패키지 URL이 placeholder가 아닌 실제 마켓 URL인지 확인. iOS 미출시 시 Apple URL은 placeholder 유지 가능
 - [ ] `secrets/google-play-service-account.json` 서버에 존재 확인 (Docker 볼륨 마운트 대상 — Git에 없으므로 수동 배치 필수)
 - [ ] Google Play Console 설정 완료 (§4)
 - [ ] DB 백업 정책 설정 (pg_dump 또는 볼륨 스냅샷, 최소 1일 1회 / 30일 보관)

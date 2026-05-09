@@ -35,6 +35,14 @@ if (args.Length >= 2 && args[0] == "--hash")
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
+    // 요청 단위 컨텍스트(LogContext.PushProperty 등) 전파에 필수
+    .Enrich.FromLogContext()
+    // 컨테이너/노드 식별 — Docker 멀티 인스턴스 환경에서 어느 노드인지 구분
+    .Enrich.WithMachineName()
+    // Development/Production 구분 — 동일 Sink 공유 시 환경 식별 (ASPNETCORE_ENVIRONMENT 환경변수 사용)
+    .Enrich.WithEnvironmentName()
+    // 멀티 앱(Api/Admin) 로그 통합 시 필터링용 고정 속성
+    .Enrich.WithProperty("Application", "Framework.Admin")
     // 개발/운영 공통: 콘솔 출력
     .WriteTo.Console()
 #if !DEBUG
@@ -47,6 +55,19 @@ Log.Logger = new LoggerConfiguration()
         rollOnFileSizeLimit: true)         // 크기 초과 시 새 파일 생성
 #endif
     .CreateLogger();
+
+// 라이브 안정성 #4 — AppDomain 최후 hook. 모든 보호 우회한 unhandled 예외 캡처
+AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
+{
+    var ex = e.ExceptionObject as Exception;
+    Log.Fatal(
+        ex,
+        "[FATAL] AppDomain unhandled exception. IsTerminating={IsTerminating} ProcessId={ProcessId} Machine={Machine}",
+        e.IsTerminating,
+        Environment.ProcessId,
+        Environment.MachineName);
+    Log.CloseAndFlush();
+};
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -98,6 +119,9 @@ builder.Services.AddHttpClient("ApiClient", client =>
 builder.Services.AddScoped<ApiHttpClient>();
 
 var app = builder.Build();
+
+// 정상 종료 (Ctrl+C / SIGTERM 등) 시 Serilog 비동기 sink 버퍼 flush 보장
+app.Lifetime.ApplicationStopped.Register(() => Log.CloseAndFlush());
 
 if (!app.Environment.IsDevelopment())
 {

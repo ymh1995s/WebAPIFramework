@@ -59,6 +59,17 @@
 
 ## [설계 결정]
 
+### AppDomain 최후 로깅 (2026-05-09)
+
+Framework.Api / Framework.Admin 양 프로세스에 `AppDomain.CurrentDomain.UnhandledException` 핸들러 등록. 모든 보호(GlobalExceptionHandler, Polly, BackgroundService 외곽 보호) 우회한 진짜 unhandled 예외에 대해 마지막 로그 보장.
+
+- **등록 위치**: `Log.Logger` 초기화 직후, 호스트 빌드 전 — 부팅·런타임 모두 커버
+- **로그 본문**: Fatal 레벨 + IsTerminating + ProcessId + MachineName 메타데이터
+- **Flush 전략**: 핸들러 안에서 `Log.CloseAndFlush()` + `app.Lifetime.ApplicationStopped` 보강 (정상 종료 경로)
+- **Admin Enrich 추가**: `Framework.Admin`에 `Serilog.Enrichers.Environment` 패키지 추가 — `Framework.Api`와 동일하게 FromLogContext/WithMachineName/WithEnvironmentName/WithProperty("Application") Enrich 체인 적용
+- **R-6 한계 인지**: StackOverflowException / OutOfMemoryException은 일부 환경에서 hook 호출 안 될 수 있음. 100% 커버 불가능
+- **#3 미채택**: TaskScheduler.UnobservedTaskException은 사용자 결정으로 미도입 (1인 운영 환경, fire-and-forget 패턴 거의 없음)
+
 ### BackgroundService 자동 재시작 (2026-05-09)
 
 `PiiRetentionCleanupService` / `IapConsumeRetryService`의 `ExecuteAsync` 외곽에 try/while 보호 패턴 직접 적용. unhandled 예외 발생 시 Critical AdminNotification 발송 후 1분 후 재시작.
@@ -273,10 +284,6 @@ PlayerItem.Quantity / Mail.IsClaimed / IapPurchase.Status 등 동시 갱신이 �
 - **로그/APM 도구 연동** [중요도 낮음] — 현재 파일 로그(Serilog) 기반. 유저 증가 시 ELK Stack + Elastic APM 연동 권장 (APM이 ELK 위에서 동작하므로 세트로 도입). 가벼운 대안으로 Seq(컨테이너 1개, .NET 친화적) 또는 Grafana+Loki 가능. Serilog 싱크 추가 + Program.cs 한 줄로 연동 가능
 - **SignalR 허브 Rate Limiting** — `/hubs/matchmaking` 등 SignalR 허브 연결에 대한 Rate Limiting 미구현. HTTP 요청과 달리 앱 백그라운드/포그라운드 전환 시 재연결이 발생해 game 정책 직접 적용 불가. 별도 설계 필요. 구현 시점: 실 서비스 직전 또는 연결 폭주 사례 발생 시
 - **계정 탈퇴 안내 UI (Unity 클라이언트)** — 백엔드 탈퇴 처리(`DELETE /api/auth/withdraw`)와 별개로 클라이언트 탈퇴 화면에 안내 팝업 필수. 법적/마켓 정책 의무 항목·구현 요구사항은 `CLIENT_GUIDE.md` 10번 + 부록 A 참조
-
-### 라이브 안정성 — 서버 크래시·thread 고갈 방어 (라이브 직전 일괄 처리)
-- **AppDomain.UnhandledException 최후 로깅** — 정말로 잡지 못한 예외로 프로세스가 죽기 직전 마지막 로그 hook. `AppDomain.CurrentDomain.UnhandledException` 핸들러 등록 + Serilog Flush 강제로 로그 누락 방지
-
 
 ---
 

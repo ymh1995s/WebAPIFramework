@@ -44,6 +44,19 @@ Log.Logger = new LoggerConfiguration()
 #endif
     .CreateLogger();
 
+// 라이브 안정성 #4 — AppDomain 최후 hook. 모든 보호 우회한 unhandled 예외 캡처
+AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
+{
+    var ex = e.ExceptionObject as Exception;
+    Log.Fatal(
+        ex,
+        "[FATAL] AppDomain unhandled exception. IsTerminating={IsTerminating} ProcessId={ProcessId} Machine={Machine}",
+        e.IsTerminating,
+        Environment.ProcessId,
+        Environment.MachineName);
+    Log.CloseAndFlush();
+};
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ASP.NET Core 기본 로거를 Serilog로 교체
@@ -130,6 +143,9 @@ builder.Services.AddApiErrorHandling();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+
+// 정상 종료 (Ctrl+C / SIGTERM 등) 시 Serilog 비동기 sink 버퍼 flush 보장
+app.Lifetime.ApplicationStopped.Register(() => Log.CloseAndFlush());
 
 // ─────────────────────────────────────────────────────────────
 // DB 마이그레이션 자동 적용
