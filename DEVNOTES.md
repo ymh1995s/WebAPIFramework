@@ -223,9 +223,7 @@ PlayerItem.Quantity / Mail.IsClaimed / IapPurchase.Status 등 동시 갱신이 �
 - MailService는 `ex.Entries[0].Entity` 타입 검사로 `Mail.IsClaimed` 충돌(즉시 false 반환, 재시도 무의미) vs `PlayerItem.xmin` 충돌(재시도) 구분
 
 ## [기술 부채] 검토 항목
-- **스테이지 순차성 보장 미구현** — 스테이지는 1번부터 순차적으로 추가되는 구조(RequiredPrevStageId 체인)이므로, 중간 스테이지를 삭제하면 이후 스테이지의 진행 조건 체인이 끊긴다. 현재 DEBUG 삭제 API(`DELETE /api/admin/stages/{id}`)는 FK를 SetNull로만 처리하므로 중간 삭제 후 체인 재연결 로직이 없다. 운영 환경 삭제 기능 도입 시 "삭제 대상 이후 스테이지 RequiredPrevStageId 재연결" 또는 "빈 번호 재정렬" 처리 필요.
 - **일괄 우편 발송 성능** — `MailService.BulkSendAsync`가 전체 플레이어를 메모리 로드 후 단일 트랜잭션으로 N건 INSERT. 유저 수 증가 시 메모리 압박 + DB 락 시간 문제 발생. 배치 분할(500건씩 끊어서 INSERT + SaveChanges) 도입 필요
-- **DiSmokeTests ValidateOnBuild 미적용** — `DiSmokeTests`가 `services.BuildServiceProvider()`를 `ValidateOnBuild`/`ValidateScopes` 없이 호출 + `AddContentServices()` 미호출로 DI 사이클이 형성되지 않아 정적 검증 불가. 처치: `ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }` 적용 + 모든 `Add*Services`/`Add*Repositories` 호출 보강.
 
 ### REVIEW_REPORT.md 우선순위 처리 결과 (round_20260503 종결: 2026-05-05)
 
@@ -239,17 +237,21 @@ PlayerItem.Quantity / Mail.IsClaimed / IapPurchase.Status 등 동시 갱신이 �
 
 ## [미구현] 추가 개발 필요 항목
 - **계정 탈퇴 유예 기간(취소 흐름)** — 현재는 즉시 익명화 처리. 사용자 실수 탈퇴 복구 불가. 향후 출시 후 민원 패턴 따라 BackgroundService로 N일 유예 검토. 도입 시: `WithdrawalScheduledAt` 컬럼 + BackgroundService 1개 + 취소 API 1개. Unity 클라이언트 안내 팝업도 같이.
-- **PII 정리 BackgroundService 다중 인스턴스 안전성** — PostgreSQL advisory lock(`pg_try_advisory_lock`)으로 동시 실행 방지. 단일 컨테이너 운영 시 불필요
-- **DailyLogin 보상 누락 자동 보전 워커** — 2차 트랜잭션(RewardDispatcher 호출) 실패 시 현재는 AdminNotification + 운영자 수동 처리. 자동 보전 워커는 별도 라운드
-- **Apple StoreKit 영수증 검증** — `IapStore.Apple(=2)` Enum 예약 + `AppleStoreVerifier` 미구현 (※ Apple IAP 검증기 항목과 동일, 플랫폼 출시 시점에 도입)
+- **Apple IAP 검증기** — `IapStore.Apple(=2)` Enum 예약됨. `AppleStoreVerifier` 구현체 미존재. iOS 플랫폼 출시 시 추가 필요
 
 - **공지사항 페이지** [선택] — 현재는 1회성 텍스트 공지만 구현됨. 공지 이력 열람, 카테고리 분류 등 게시판 형태가 필요해지면 별도 페이지 추가 고려
 - **백업 정책** — DB 백업은 애플리케이션 관할 아님. Docker로 운영 중인 PostgreSQL 컨테이너/볼륨 레벨에서 별도 설정 필요 (pg_dump, 볼륨 스냅샷 등). 최소 1일 1회 백업, 30일 보관 권장
-- **Apple IAP 검증기** — `IapStore.Apple(=2)` Enum은 예약되어 있으나 `AppleStoreVerifier` 구현체 미존재. Apple 플랫폼 출시 시 추가 필요
 - **이벤트 기간 관리** [중요도 낮음] — 기간 한정 이벤트 시작/종료 관리. 클라이언트가 현재 이벤트 진행 여부를 서버에 질의. 게임마다 구조가 달라 범용 설계 필요
 - **로그/APM 도구 연동** [중요도 낮음] — 현재 파일 로그(Serilog) 기반. 유저 증가 시 ELK Stack + Elastic APM 연동 권장 (APM이 ELK 위에서 동작하므로 세트로 도입). 가벼운 대안으로 Seq(컨테이너 1개, .NET 친화적) 또는 Grafana+Loki 가능. Serilog 싱크 추가 + Program.cs 한 줄로 연동 가능
 - **SignalR 허브 Rate Limiting** — `/hubs/matchmaking` 등 SignalR 허브 연결에 대한 Rate Limiting 미구현. HTTP 요청과 달리 앱 백그라운드/포그라운드 전환 시 재연결이 발생해 game 정책 직접 적용 불가. 별도 설계 필요. 구현 시점: 실 서비스 직전 또는 연결 폭주 사례 발생 시
 - **계정 탈퇴 안내 UI (Unity 클라이언트)** — 백엔드 탈퇴 처리(`DELETE /api/auth/withdraw`)와 별개로 클라이언트 탈퇴 화면에 안내 팝업 필수. 법적/마켓 정책 의무 항목·구현 요구사항은 `CLIENT_GUIDE.md` 10번 + 부록 A 참조
+
+### 라이브 안정성 — 서버 크래시·thread 고갈 방어 (라이브 직전 일괄 처리)
+- **외부 API 타임아웃·서킷브레이커** — Google Play / Unity Ads / IronSource SSV 등 외부 호출에 명시적 타임아웃 없으면 응답 지연 시 thread pool 고갈로 서버 응답 불능. HttpClient `Timeout` 설정 + Polly `AddTransientHttpErrorPolicy` 적용 필요. (REVIEW_REPORT M-18, M-19 동일 항목)
+- **BackgroundService 예외 후 자동 재시작** — `PiiRetentionCleanupService` 등이 예외 던지면 .NET BackgroundService는 조용히 멈추고 재시작 안 함. 외부에서는 서버가 살아있는 것처럼 보이나 정리 작업 영구 정지. `ExecuteAsync` 내부 try-catch + 재시작 루프 또는 IHostApplicationLifetime을 통한 명시적 처리 필요
+- **TaskScheduler.UnobservedTaskException 핸들러** — `_ = SomeAsync()` 같은 fire-and-forget 패턴에서 예외 발생 시 GlobalExceptionHandler 우회로 무시됨. Program.cs에 `TaskScheduler.UnobservedTaskException += ...` 핸들러 등록 + Serilog 로깅 필요
+- **AppDomain.UnhandledException 최후 로깅** — 정말로 잡지 못한 예외로 프로세스가 죽기 직전 마지막 로그 hook. `AppDomain.CurrentDomain.UnhandledException` 핸들러 등록 + Serilog Flush 강제로 로그 누락 방지
+- **DB 커넥션 풀 고갈 모니터링** — 트랜잭션 누수 시 풀이 고갈되어 모든 요청 대기·502/504 폭주. Npgsql의 `MaxPoolSize` 명시 + `Database` HealthCheck에서 풀 사용률 노출 또는 별도 메트릭 수집 필요
 
 
 ---
