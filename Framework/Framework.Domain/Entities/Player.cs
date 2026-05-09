@@ -12,7 +12,7 @@ public class Player
     // 게스트 로그인용 기기 식별자 (UUID) — 탈퇴 시 PII 익명화로 null 처리됨 (H-12 SoftDelete 정책)
     public string? DeviceId { get; set; }
 
-    // 구글 로그인 연동용 (나중에 사용)
+    // 구글 OAuth 로그인 연동 식별자 (게스트→구글 전환 / 계정 충돌 추적)
     public string? GoogleId { get; set; }
 
     // 닉네임

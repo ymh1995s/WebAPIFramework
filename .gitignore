@@ -1,5 +1,9 @@
 .utmp/
 GameClient/
+
+# comment-audit 스킬 산출물 — 라운드별 임시 보고서
+.claude/comment-audit-state/
+
 [Ll]ibrary/
 [Tt]emp/
 [Bb]in/

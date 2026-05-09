@@ -116,7 +116,7 @@ public partial class AuditLogs : SafeComponentBase
         // 현재 구현된 사유 값
         AuditLogReasons.MailClaim => "bg-primary",
         AuditLogReasons.ItemUse   => "bg-info",
-        // 도메인 주석 기준 예정 값 (미구현)
+        // AuditLog.Reason에는 미정의이지만 RewardSourceType.AdminGrant 매핑용 배지 색상 (운영 지급 표시)
         "AdminGrant"   => "bg-warning text-dark",
         "ShopPurchase" => "bg-success",
         _              => "bg-secondary"

@@ -225,7 +225,6 @@ public class MailService : IMailService
                     }
 
                     // Exp 수령 처리 — 레벨업 발생 시 오른 레벨 목록을 받아 레벨업 보상 지급
-                    // TODO: 감사 로그 구조 개선 시 Currency(Gold/Gems) 로그도 기록 필요
                     if (mail.Exp > 0)
                     {
                         var leveledUp = await _expService.AddExpAsync(mail.PlayerId, mail.Exp, SourceKeys.Mail(mail.Id));
