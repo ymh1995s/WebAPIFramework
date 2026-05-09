@@ -27,6 +27,7 @@ WebAPIFramework 프로젝트를 **Phase × Chunk 2축 분할**로 전사 검토�
 - 진행 추적: `review/round_{YYYYMMDD}/STATUS.md`
 - PLAN 스냅샷: `review/round_{YYYYMMDD}/REVIEW_PLAN.snapshot.md`
 - 직전 보고서 백업: `review/round_{YYYYMMDD}/REVIEW_REPORT.previous.md`
+- **결함 추적**: `review/round_{YYYYMMDD}/DEFECT_TRACKING.md` — 직전 라운드 이슈 해결/미해결 현황
 - 최종 보고서: 루트 `REVIEW_REPORT.md` 갱신 + 라운드 폴더 사본 저장
 - `review/`는 `.gitignore` 등재됨
 
@@ -37,10 +38,16 @@ WebAPIFramework 프로젝트를 **Phase × Chunk 2축 분할**로 전사 검토�
 1. 오늘 날짜로 `ROUND_ID = round_{YYYYMMDD}` 결정. 같은 날 재시작 시 기존 폴더 재사용 여부 사용자 1회 확인 (기본: 재사용).
 2. `review/{ROUND_ID}/` 생성.
 3. 기존 루트 `REVIEW_REPORT.md`를 `review/{ROUND_ID}/REVIEW_REPORT.previous.md`로 백업(원본 유지).
-4. 루트 `REVIEW_PLAN.md`를 본 스킬의 청크 카탈로그 기반으로 자동 작성(덮어쓰기) + 동일 본문을 라운드 스냅샷으로 복사.
-5. `review/{ROUND_ID}/STATUS.md` 생성 — 모든 청크 `[ ] PENDING`으로 초기화.
-6. `review/CURRENT_ROUND.txt`를 `{ROUND_ID}` 한 줄로 갱신.
-7. P1.1부터 순차 실행.
+4. **직전 라운드 결함 추적** — `REVIEW_REPORT.previous.md`가 존재하면 "식별된 이슈 표" 전체를 추출한다. 각 이슈별로 현재 코드를 검토해 **RESOLVED**(수정 확인) / **OPEN**(미해결) 을 판정하고 판정 근거(파일·라인 또는 "코드 변경 없음")를 1줄 기록한다. 결과를 아래 표 형식으로 `review/{ROUND_ID}/DEFECT_TRACKING.md`에 저장한다. 직전 라운드가 없으면 파일에 "이전 라운드 없음" 1줄만 기록 후 계속 진행한다.
+
+   | 심각도 | 점검 ID | 파일·라인 | 이슈 설명 | 상태 | 판정 근거 |
+   |---|---|---|---|---|---|
+   | CRITICAL | S3 | Program.cs:42 | 디버그 인증 바이패스 | OPEN | 코드 변경 없음 |
+
+5. 루트 `REVIEW_PLAN.md`를 본 스킬의 청크 카탈로그 기반으로 자동 작성(덮어쓰기) + 동일 본문을 라운드 스냅샷으로 복사.
+6. `review/{ROUND_ID}/STATUS.md` 생성 — 모든 청크 `[ ] PENDING`으로 초기화.
+7. `review/CURRENT_ROUND.txt`를 `{ROUND_ID}` 한 줄로 갱신.
+8. P1.1부터 순차 실행.
 
 ---
 
@@ -53,8 +60,9 @@ WebAPIFramework 프로젝트를 **Phase × Chunk 2축 분할**로 전사 검토�
 3. `review/CURRENT_ROUND.txt` → `{ROUND_ID}`
 4. `review/{ROUND_ID}/REVIEW_PLAN.snapshot.md`
 5. `review/{ROUND_ID}/STATUS.md`
-6. **직전 청크 산출물 1개** (다음 청크가 의존)
-7. (Phase 4 재개 시) `review/{ROUND_ID}/p*.md` 글롭 전체
+6. `review/{ROUND_ID}/DEFECT_TRACKING.md` (직전 라운드 결함 현황)
+7. **직전 청크 산출물 1개** (다음 청크가 의존)
+8. (Phase 4 재개 시) `review/{ROUND_ID}/p*.md` 글롭 전체
 
 알고리즘:
 - STATUS.md에서 `[ ]`/`[~]` 첫 청크 X 식별
@@ -202,6 +210,7 @@ WebAPIFramework 프로젝트를 **Phase × Chunk 2축 분할**로 전사 검토�
 2. 각 산출물 "식별된 이슈 표"를 심각도별 통합
 3. 다음 구조로 루트 `REVIEW_REPORT.md` 작성(덮어쓰기 전 사용자 1회 확인):
    - Executive Summary (라운드 정보, 청크 완료 현황, 심각도별 합계, Top 5 즉시 조치)
+   - **0장 직전 라운드 결함 추적** — `DEFECT_TRACKING.md` 기반. RESOLVED/OPEN 건수 요약 + OPEN 이슈 전체 표. 직전 라운드 없으면 "해당 없음" 1줄
    - 1장 Phase 1 결과 (1.1/1.2/1.3)
    - 2장 Phase 2 결과 (2.1/2.2/2.3/2.4)
    - 3장 Phase 3 결과 (3.1/3.2/3.3/3.4/3.5)
