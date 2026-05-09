@@ -138,6 +138,7 @@ Every task follows: **Question → Options → Decision → Draft → Approval**
 - Design → Implementation → Verification runs sequentially. qa-reviewer + security-master may run in parallel.
 - **All agents MUST run in the background (`run_in_background: true`) unless the user explicitly requests foreground execution. No exceptions.**
 - **Exception — programmer agent**: programmer is always run in foreground (`run_in_background: false`) so the user can approve each file operation interactively.
+- **Orchestrator MUST NOT directly write or edit production code files** (Write/Edit tools on `.cs`, `.razor`, `.razor.cs`, etc.). All code changes MUST go through the programmer agent. The only exceptions are: CLAUDE.md itself, documentation files, and configuration files explicitly requested by the user.
 
 ### programmer → qa-reviewer Auto-Loop (Orchestrator MUST)
 

@@ -33,4 +33,7 @@ public static class SourceKeys
 
     // 아이템 사용 보상 — 클라이언트 요청 ID로 멱등성 보장 (형식: itemuse:{playerId}:{clientRequestId})
     public static string ItemUse(int playerId, string clientRequestId) => $"itemuse:{playerId}:{clientRequestId}";
+
+    // 인게임 상점 구매 보상 — 상품·요청 ID 조합으로 멱등성 보장 (형식: shop:{playerId}:{productId}:{clientRequestId})
+    public static string ShopPurchase(int playerId, int productId, string clientRequestId) => $"shop:{playerId}:{productId}:{clientRequestId}";
 }

@@ -5,6 +5,7 @@ using Framework.Application.Common;
 using Framework.Application.Features.AdPolicy;
 using Framework.Application.Features.AdReward;
 using Framework.Application.Features.ItemUse;
+using Framework.Application.Features.Shop;
 using Framework.Application.Features.AdminNotification;
 using Framework.Application.Features.AuditLog;
 using Framework.Application.Features.BanLog;
@@ -134,6 +135,9 @@ public static class ServiceExtensions
         // 레벨 임계값 저장소 등록
         services.AddScoped<ILevelThresholdRepository, LevelThresholdRepository>();
 
+        // 인게임 상점 상품 저장소 등록
+        services.AddScoped<IShopProductRepository, ShopProductRepository>();
+
         return services;
     }
 
@@ -199,6 +203,12 @@ public static class ServiceExtensions
         // IItemUseEffectExtension은 게임별 선택 등록이므로 여기서 등록하지 않음
         // (IEnumerable<IItemUseEffectExtension>은 미등록 시 빈 컬렉션으로 주입됨)
         services.AddScoped<IItemUseService, ItemUseService>();
+
+        // 인게임 상점 서비스 등록
+        services.AddScoped<IShopProductService, ShopProductService>();
+
+        // 인게임 상점 구매 서비스 등록 — 재화 차감 + 보상 지급 플레이어 전용
+        services.AddScoped<IShopPurchaseService, ShopPurchaseService>();
 
         // 보상 디스패처 등록 — 모든 보상 경로의 단일 진입점
         services.AddScoped<IRewardDispatcher, RewardDispatcher>();

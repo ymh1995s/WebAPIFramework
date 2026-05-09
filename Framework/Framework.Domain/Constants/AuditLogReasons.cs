@@ -9,7 +9,9 @@ public static class AuditLogReasons
     // 아이템 사용(소모)으로 인한 수량 차감
     public const string ItemUse = "ItemUse";
 
+    // 인게임 상점 구매로 인한 재화 차감
+    public const string ShopPurchase = "ShopPurchase";
+
     // 향후 확장 예정 — 도메인 주석 기준 미구현
     // public const string AdminGrant = "AdminGrant";
-    // public const string ShopPurchase = "ShopPurchase";
 }

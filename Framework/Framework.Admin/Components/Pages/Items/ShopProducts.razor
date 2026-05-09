@@ -1,0 +1,267 @@
+@page "/shop-products"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits SafeComponentBase
+@using Framework.Admin.Constants
+
+<PageTitle>상점 상품 관리</PageTitle>
+
+<h2 class="mb-2">상점 상품 관리</h2>
+
+<div class="alert alert-info py-2 small mb-3">
+    <p class="mb-1">인게임 재화(Gold/Gems 등)로 구매 가능한 상점 상품을 등록합니다.</p>
+    <p class="mb-1"><strong>[가격 ItemId]</strong> 차감할 재화 아이템 ID (예: Gold=1, Gems=2)</p>
+    <p class="mb-0"><strong>[RewardTableId]</strong> 구매 시 지급할 보상 테이블 ID (IRewardDispatcher 연동)</p>
+</div>
+
+<!-- 검색 필터 카드 -->
+<section class="card mb-3">
+    <div class="card-header py-2"><strong>검색 필터</strong></div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">활성 여부</label>
+                <select class="form-select form-select-sm" @bind="filterIsEnabled">
+                    <option value="">전체</option>
+                    <option value="true">활성</option>
+                    <option value="false">비활성</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">페이지 크기</label>
+                <input type="number" class="form-control form-control-sm" @bind="pageSize" min="10" max="100" />
+            </div>
+        </div>
+    </div>
+    <div class="card-footer py-2 d-flex gap-2">
+        <button class="btn btn-primary btn-sm" @onclick="Search">조회</button>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="Reset">초기화</button>
+        <button class="btn btn-success btn-sm ms-auto" @onclick="OpenCreateModal">+ 상품 추가</button>
+    </div>
+</section>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger py-2 small">@errorMessage</div>
+}
+@if (!string.IsNullOrEmpty(successMessage))
+{
+    <div class="alert alert-success py-2 small">@successMessage</div>
+}
+
+@if (isLoading)
+{
+    <p class="text-muted">불러오는 중...</p>
+}
+else if (result == null)
+{
+    <p class="text-muted">상단 필터를 설정한 후 <strong>조회</strong> 버튼을 눌러주세요.</p>
+}
+else if (!result.Items.Any())
+{
+    <p class="text-muted">조건에 맞는 상품이 없습니다.</p>
+}
+else
+{
+    <div class="d-flex align-items-center mb-2">
+        <span class="small text-muted ms-auto">총 <strong>@result.TotalCount</strong> 건</span>
+    </div>
+
+    <table class="table table-sm table-striped table-hover">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>상품명</th>
+                <th>가격 재화</th>
+                <th>가격 수량</th>
+                <th>RewardTableId</th>
+                <th>일일 한도</th>
+                <th>총 한도</th>
+                <th>활성</th>
+                <th>정렬</th>
+                <th>설명</th>
+                <th>관리</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in result.Items)
+            {
+                <tr>
+                    <td>@p.Id</td>
+                    <td><strong>@p.Name</strong></td>
+                    <td><span class="badge bg-secondary">@p.PriceItemName (ID:@p.PriceItemId)</span></td>
+                    <td>@p.PriceAmount</td>
+                    <td>@p.RewardTableId</td>
+                    <td>@(p.DailyLimit == 0 ? "무제한" : p.DailyLimit.ToString())</td>
+                    <td>@(p.TotalLimit == 0 ? "무제한" : p.TotalLimit.ToString())</td>
+                    <td>
+                        @if (p.IsEnabled)
+                        {
+                            <span class="badge bg-success">활성</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-warning text-dark">비활성</span>
+                        }
+                    </td>
+                    <td>@p.SortOrder</td>
+                    <td>@p.Description</td>
+                    <td>
+                        <button class="btn btn-outline-primary btn-sm" @onclick="() => OpenEditModal(p)">편집</button>
+                        <button class="btn btn-outline-danger btn-sm" @onclick="() => OpenDeleteModal(p)">삭제</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <!-- 페이지네이션 -->
+    <div class="d-flex gap-2 align-items-center">
+        <button class="btn btn-outline-secondary btn-sm" @onclick="PrevPage" disabled="@(page <= 1)">이전</button>
+        <span class="small">@(page) / @(result.TotalPages) 페이지</span>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@(page >= result.TotalPages)">다음</button>
+    </div>
+}
+
+<!-- 생성 모달 -->
+@if (showCreateModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">상점 상품 추가</h5>
+                    <button type="button" class="btn-close" @onclick="CloseCreateModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2">
+                        <label class="form-label small">상품명 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-sm" @bind="newName" placeholder="상품 이름" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">설명</label>
+                        <input type="text" class="form-control form-control-sm" @bind="newDescription" placeholder="상품 설명" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">가격 재화 ItemId <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control form-control-sm" @bind="newPriceItemId" min="1" placeholder="예: 1=Gold, 2=Gems" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">가격 수량 <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control form-control-sm" @bind="newPriceAmount" min="1" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">RewardTableId <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control form-control-sm" @bind="newRewardTableId" min="1" placeholder="구매 시 지급할 보상 테이블 ID" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">일일 구매 한도 <span class="text-muted">(0=무제한)</span></label>
+                        <input type="number" class="form-control form-control-sm" @bind="newDailyLimit" min="0" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">총 구매 한도 <span class="text-muted">(0=무제한)</span></label>
+                        <input type="number" class="form-control form-control-sm" @bind="newTotalLimit" min="0" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">정렬 순서</label>
+                        <input type="number" class="form-control form-control-sm" @bind="newSortOrder" min="0" />
+                    </div>
+                    <div class="mb-2 form-check">
+                        <input type="checkbox" class="form-check-input" id="newIsEnabled" @bind="newIsEnabled" />
+                        <label class="form-check-label small" for="newIsEnabled">활성화</label>
+                    </div>
+                    @if (!string.IsNullOrEmpty(createError))
+                    {
+                        <div class="alert alert-danger py-1 small">@createError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseCreateModal">취소</button>
+                    <button class="btn btn-success btn-sm" @onclick="Create">생성</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- 편집 모달 -->
+@if (showEditModal && editingProduct != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">상품 편집 — @editingProduct.Name</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEditModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2">
+                        <label class="form-label small">상품명</label>
+                        <input type="text" class="form-control form-control-sm" @bind="editName" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">설명</label>
+                        <input type="text" class="form-control form-control-sm" @bind="editDescription" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">가격 재화 ItemId</label>
+                        <input type="number" class="form-control form-control-sm" @bind="editPriceItemId" min="1" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">가격 수량</label>
+                        <input type="number" class="form-control form-control-sm" @bind="editPriceAmount" min="1" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">RewardTableId</label>
+                        <input type="number" class="form-control form-control-sm" @bind="editRewardTableId" min="1" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">일일 구매 한도 <span class="text-muted">(0=무제한)</span></label>
+                        <input type="number" class="form-control form-control-sm" @bind="editDailyLimit" min="0" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">총 구매 한도 <span class="text-muted">(0=무제한)</span></label>
+                        <input type="number" class="form-control form-control-sm" @bind="editTotalLimit" min="0" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">정렬 순서</label>
+                        <input type="number" class="form-control form-control-sm" @bind="editSortOrder" min="0" />
+                    </div>
+                    <div class="mb-2 form-check">
+                        <input type="checkbox" class="form-check-input" id="editIsEnabled" @bind="editIsEnabled" />
+                        <label class="form-check-label small" for="editIsEnabled">활성화</label>
+                    </div>
+                    @if (!string.IsNullOrEmpty(editError))
+                    {
+                        <div class="alert alert-danger py-1 small">@editError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseEditModal">취소</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveEdit">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- 삭제 확인 모달 -->
+@if (showDeleteModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">상품 삭제 확인</h5>
+                </div>
+                <div class="modal-body">
+                    <p><strong>@deletingName</strong> 상품을 삭제하시겠습니까?</p>
+                    <p class="text-muted small">소프트 삭제로 처리됩니다. (DB 행은 유지)</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CancelDelete">취소</button>
+                    <button class="btn btn-danger btn-sm" @onclick="ConfirmDelete">삭제</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}

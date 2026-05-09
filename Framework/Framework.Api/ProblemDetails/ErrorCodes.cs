@@ -25,4 +25,11 @@ public static class ErrorCodes
 
     // IAP verify 동시성 충돌 한도 초과 — 503 응답, 클라이언트 재시도 권고
     public const string IapVerifyConcurrencyExhausted = "IAP_VERIFY_CONCURRENCY_EXHAUSTED";
+
+    // 인게임 상점 구매 관련 오류
+    public const string ShopProductNotFound = "SHOP_PRODUCT_NOT_FOUND";
+    public const string ShopNotEnoughCurrency = "SHOP_NOT_ENOUGH_CURRENCY";
+    public const string ShopDailyLimitExceeded = "SHOP_DAILY_LIMIT_EXCEEDED";
+    public const string ShopTotalLimitExceeded = "SHOP_TOTAL_LIMIT_EXCEEDED";
+    public const string ShopDuplicateRequest = "SHOP_DUPLICATE_REQUEST";
 }

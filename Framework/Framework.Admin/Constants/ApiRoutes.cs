@@ -505,6 +505,40 @@ public static class ApiRoutes
         }
     }
 
+    // ── 인게임 상점 상품 Admin (AdminShopProductsController: Route = "api/admin/shop/products") ──
+    public static class AdminShopProducts
+    {
+        private const string Base = "api/admin/shop/products";
+
+        /// <summary>목록 조회 (GET) / 생성 (POST)</summary>
+        public const string Collection = Base;
+
+        /// <summary>단건 수정 (PUT) / 소프트 삭제 (DELETE)</summary>
+        public static string ById(int id) => $"{Base}/{id}";
+
+        /// <summary>활성 여부 + 페이지네이션 검색</summary>
+        public static string Search(bool? isEnabled, int page, int pageSize)
+        {
+            var parts = new List<string>();
+            if (isEnabled.HasValue) parts.Add($"isEnabled={isEnabled.Value.ToString().ToLower()}");
+            parts.Add($"page={page}");
+            parts.Add($"pageSize={pageSize}");
+            return $"{Base}?{string.Join("&", parts)}";
+        }
+    }
+
+    // ── 인게임 상점 (ShopController: Route = "api/shop") ─────────────────
+    public static class Shop
+    {
+        private const string Base = "api/shop";
+
+        /// <summary>활성 상품 목록 조회 (GET)</summary>
+        public const string Products = Base;
+
+        /// <summary>상품 구매 (POST) — body: { clientRequestId: string }</summary>
+        public static string Buy(int productId) => $"{Base}/{productId}/buy";
+    }
+
     // ── 헬스체크 (Framework.Api MapHealthChecks 엔드포인트) ──────────────
     public static class Health
     {

@@ -72,6 +72,9 @@ public class AppDbContext : DbContext
     // 레벨 임계값 마스터 테이블 — 레벨별 누적 경험치 기준 (DB 외부화)
     public DbSet<LevelThreshold> LevelThresholds { get; set; }
 
+    // 인게임 상점 상품 마스터 테이블 — 재화로 구매 가능한 상품 정의
+    public DbSet<ShopProduct> ShopProducts { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // SystemConfig: Key를 PK로 사용
@@ -583,6 +586,61 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<BanLog>()
             .Property(b => b.ActorIp)
             .HasMaxLength(45);
+
+        // ─────────────────────────────────────────────
+        // 인게임 상점 상품 — ShopProduct 설정
+        // ─────────────────────────────────────────────
+
+        // ShopProduct: IsEnabled/IsDeleted 기본값
+        modelBuilder.Entity<ShopProduct>()
+            .Property(p => p.IsEnabled)
+            .HasDefaultValue(true);
+
+        modelBuilder.Entity<ShopProduct>()
+            .Property(p => p.IsDeleted)
+            .HasDefaultValue(false);
+
+        // ShopProduct: DailyLimit/TotalLimit 기본값 0 (무제한)
+        modelBuilder.Entity<ShopProduct>()
+            .Property(p => p.DailyLimit)
+            .HasDefaultValue(0);
+
+        modelBuilder.Entity<ShopProduct>()
+            .Property(p => p.TotalLimit)
+            .HasDefaultValue(0);
+
+        // ShopProduct: SortOrder 기본값 0
+        modelBuilder.Entity<ShopProduct>()
+            .Property(p => p.SortOrder)
+            .HasDefaultValue(0);
+
+        // ShopProduct: Name 최대 길이
+        modelBuilder.Entity<ShopProduct>()
+            .Property(p => p.Name)
+            .HasMaxLength(128);
+
+        // ShopProduct: Description 최대 길이
+        modelBuilder.Entity<ShopProduct>()
+            .Property(p => p.Description)
+            .HasMaxLength(512);
+
+        // ShopProduct → Item (N:1) — 가격 재화 참조, 아이템 삭제 시 Restrict (상품 먼저 삭제 필요)
+        modelBuilder.Entity<ShopProduct>()
+            .HasOne(p => p.PriceItem)
+            .WithMany()
+            .HasForeignKey(p => p.PriceItemId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // ShopProduct → RewardTable (N:1) — 보상 테이블 참조, 삭제 시 Restrict
+        modelBuilder.Entity<ShopProduct>()
+            .HasOne(p => p.RewardTable)
+            .WithMany()
+            .HasForeignKey(p => p.RewardTableId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // ShopProduct: SortOrder 인덱스 — 클라이언트 상점 목록 조회 최적화
+        modelBuilder.Entity<ShopProduct>()
+            .HasIndex(p => p.SortOrder);
 
         // LevelThreshold: Level을 PK로 사용
         modelBuilder.Entity<LevelThreshold>().HasKey(t => t.Level);

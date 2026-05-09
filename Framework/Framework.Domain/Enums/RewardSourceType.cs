@@ -44,4 +44,7 @@ public enum RewardSourceType
 
     // 아이템 사용(소모) 보상 — 아이템 수량 차감 후 UseRewardTableId 참조 보상 지급
     ItemUse = 12,
+
+    // 인게임 상점 구매 보상 — 재화 차감 후 ShopProduct.RewardTableId 참조 보상 지급
+    ShopPurchase = 13,
 }
