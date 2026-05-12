@@ -29,8 +29,10 @@ secrets/
 **/*.coverage
 **/*.coveragexml
 
-# 풀리뷰 라운드 산출물 (로컬 전용, 최종 REVIEW_REPORT.md만 루트 보존)
+# 풀리뷰 라운드 산출물 (로컬 전용 — 매 스킬 실행마다 자동 재생성됨)
 review/
+REVIEW_PLAN.md
+REVIEW_REPORT.md
 
 
 # By default unity supports Blender asset imports, *.blend1 blender files do not need to be commited to version control.
