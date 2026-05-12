@@ -2,6 +2,8 @@ using Framework.Admin.Components;
 using Framework.Admin.Constants;
 using Framework.Admin.Http;
 using Framework.Admin.Json;
+using Framework.Application.Features.Item;
+using Framework.Domain.Enums;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 
@@ -216,10 +218,6 @@ public partial class Items : SafeComponentBase
         }
     }
 
-    // API 응답 매핑용 로컬 DTO
-    private record ItemDto(int Id, string Name, ItemType ItemType, string Description, AuditLevel AuditLevel, int AnomalyThreshold, int? UseRewardTableId = null);
+    // 보유 유저 수 조회 응답용 로컬 DTO — 서버 대응 타입 없음
     private record HolderCountDto(int Count);
-    private enum ItemType { Currency, Consumable }
-    /// <summary>감사 로그 기록 수준 — 서버 Framework.Domain.Enums.AuditLevel와 순서 동일해야 함</summary>
-    private enum AuditLevel { AnomalyOnly, Full }
 }

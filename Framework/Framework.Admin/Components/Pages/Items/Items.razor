@@ -2,6 +2,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inherits SafeComponentBase
 @using Framework.Admin.Constants
+@using Framework.Domain.Enums
 
 <PageTitle>아이템 마스터 관리</PageTitle>
 
@@ -18,6 +19,7 @@
         <div>
             <label class="form-label">타입</label>
             <select class="form-select" @bind="newItemType">
+                @* 서버 enum 멤버 추가 시 Admin UI 노출 적합성 확인 *@
                 @foreach (var type in Enum.GetValues<ItemType>())
                 {
                     <option value="@type">@type</option>
