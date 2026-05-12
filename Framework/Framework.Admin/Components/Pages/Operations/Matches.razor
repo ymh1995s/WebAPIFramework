@@ -2,6 +2,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inherits SafeComponentBase
 @using Framework.Admin.Constants
+@using Framework.Domain.Enums
 
 <PageTitle>매치 이력</PageTitle>
 
@@ -139,7 +140,8 @@ else
                                                 <td>@p.PlayerId</td>
                                                 <td>@p.Nickname</td>
                                                 <td>
-                                                    @if (p.HumanType == "Human")
+                                                    @* HumanType enum 비교 — 서버 DTO 재사용으로 타입 안전 *@
+                                                    @if (p.HumanType == HumanType.Human)
                                                     {
                                                         <span class="badge bg-primary">플레이어</span>
                                                     }
@@ -150,7 +152,8 @@ else
                                                 </td>
                                                 <td>@(p.Score.HasValue ? p.Score.Value.ToString() : "-")</td>
                                                 <td>
-                                                    @if (p.Result is not null)
+                                                    @* MatchOutcome? enum 비교 — null이면 "-" 표시 *@
+                                                    @if (p.Result.HasValue)
                                                     {
                                                         <span class="badge @ResultBadgeClass(p.Result)">@p.Result</span>
                                                     }

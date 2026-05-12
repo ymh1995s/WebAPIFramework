@@ -2,6 +2,7 @@ using Framework.Admin.Components;
 using Framework.Admin.Constants;
 using Framework.Admin.Http;
 using Framework.Admin.Json;
+using Framework.Application.Features.BanLog;
 using Framework.Domain.Enums;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
@@ -31,7 +32,8 @@ public partial class BanLogs : SafeComponentBase
 
     // ── 로딩/결과/오류 상태 ───────────────────────────────────
     private bool isLoading;
-    private BanLogPagedResult? result;
+    // 서버 BanLogPagedDto 직접 사용 — 로컬 record 제거 후 단일 진실의 원천 유지
+    private BanLogPagedDto? result;
     private string? error;
 
     // 전체 페이지 수 계산
@@ -107,32 +109,11 @@ public partial class BanLogs : SafeComponentBase
         var response = await ApiClient.GetRawAsync(url);
 
         if (response.IsSuccessStatusCode)
-            result = await response.Content.ReadFromJsonAsync<BanLogPagedResult>(AdminJsonOptions.Default);
+            result = await response.Content.ReadFromJsonAsync<BanLogPagedDto>(AdminJsonOptions.Default);
         else
             error = $"조회 실패: {response.StatusCode}";
 
         isLoading = false;
     }
 
-    // ── API 응답 매핑용 로컬 DTO ──────────────────────────────
-
-    // BanLogDto 응답 구조 — AdminBanLogsController 반환 형태와 일치
-    private record BanLogItem(
-        long Id,
-        int PlayerId,
-        string? PlayerNickname,
-        BanAction Action,
-        DateTime? BannedUntil,
-        string? Reason,
-        int ActorType,
-        int? ActorId,
-        string? ActorIp,
-        DateTime CreatedAt);
-
-    // BanLogPagedDto 응답 래퍼
-    private record BanLogPagedResult(
-        List<BanLogItem> Items,
-        int TotalCount,
-        int Page,
-        int PageSize);
 }

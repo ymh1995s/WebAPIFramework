@@ -3,6 +3,8 @@ using Framework.Admin.Constants;
 using Framework.Admin.Http;
 using Framework.Admin.Json;
 using Framework.Application.Common;
+using Framework.Application.Features.AdminMatch;
+using Framework.Domain.Enums;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 
@@ -30,13 +32,15 @@ public partial class Matches : SafeComponentBase
     private int pageSize = 20;
 
     // ─── 결과 상태 ──────────────────────────────────
-    private PagedResultDto<MatchSummary>? result;
+    // 서버 MatchSummaryDto 직접 사용 — Tier/State 가 enum 타입으로 정확히 역직렬화됨
+    private PagedResultDto<MatchSummaryDto>? result;
     private bool isLoading;
     private string? errorMessage;
 
     // ─── 상세 인라인 펼침 상태 ──────────────────────
+    // 서버 MatchDetailDto 직접 사용 — HumanType/MatchOutcome enum 정확 역직렬화
     private Guid? expandedMatchId;
-    private MatchDetail? matchDetail;
+    private MatchDetailDto? matchDetail;
 
     // Tier 드롭다운 옵션 — Domain.Enums.Tier 정수값과 일치 (Tier1=0 ~ Tier10=9)
     private static readonly List<(string Label, int Value)> TierOptions = new()
@@ -122,7 +126,7 @@ public partial class Matches : SafeComponentBase
         var response = await ApiClient.GetRawAsync(url);
 
         if (response.IsSuccessStatusCode)
-            result = await response.Content.ReadFromJsonAsync<PagedResultDto<MatchSummary>>(AdminJsonOptions.Default);
+            result = await response.Content.ReadFromJsonAsync<PagedResultDto<MatchSummaryDto>>(AdminJsonOptions.Default);
         else
             errorMessage = $"조회 실패: {response.StatusCode}";
 
@@ -144,7 +148,7 @@ public partial class Matches : SafeComponentBase
 
         if (response.IsSuccessStatusCode)
         {
-            matchDetail = await response.Content.ReadFromJsonAsync<MatchDetail>(AdminJsonOptions.Default);
+            matchDetail = await response.Content.ReadFromJsonAsync<MatchDetailDto>(AdminJsonOptions.Default);
             expandedMatchId = matchId;
         }
         else
@@ -160,29 +164,24 @@ public partial class Matches : SafeComponentBase
                 TimeZoneInfo.FindSystemTimeZoneById("Asia/Seoul"))
             .ToString("yyyy-MM-dd HH:mm:ss");
 
-    /// <summary>MatchState에 따른 배지 색상 클래스 반환</summary>
-    private static string StateBadgeClass(string state) => state switch
+    /// <summary>MatchState enum에 따른 배지 색상 클래스 반환</summary>
+    private static string StateBadgeClass(MatchState state) => state switch
     {
-        "Waiting" => "bg-warning text-dark",
-        "InProgress" => "bg-primary",
-        "Finished" => "bg-success",
-        "Aborted" => "bg-danger",
-        _ => "bg-secondary"
+        MatchState.Waiting    => "bg-warning text-dark",
+        MatchState.InProgress => "bg-primary",
+        MatchState.Finished   => "bg-success",
+        MatchState.Aborted    => "bg-danger",
+        _                     => "bg-secondary"
     };
 
-    /// <summary>MatchOutcome에 따른 배지 색상 클래스 반환</summary>
-    private static string ResultBadgeClass(string? result) => result switch
+    /// <summary>MatchOutcome enum에 따른 배지 색상 클래스 반환 — null이면 bg-secondary</summary>
+    private static string ResultBadgeClass(MatchOutcome? result) => result switch
     {
-        "Win" => "bg-success",
-        "Lose" => "bg-danger",
-        "Draw" => "bg-secondary",
-        "Abandon" => "bg-warning text-dark",
-        _ => "bg-secondary"
+        MatchOutcome.Win     => "bg-success",
+        MatchOutcome.Lose    => "bg-danger",
+        MatchOutcome.Draw    => "bg-secondary",
+        MatchOutcome.Abandon => "bg-warning text-dark",
+        _                    => "bg-secondary"
     };
-
-    // ─── 내부 모델 ──────────────────────────────────
-    private record MatchSummary(Guid Id, string Tier, string State, DateTime StartedAt, DateTime? EndedAt, int ParticipantCount);
-    private record MatchParticipant(int Id, int PlayerId, string Nickname, string HumanType, int? Score, string? Result);
-    private record MatchDetail(Guid Id, string Tier, string State, DateTime StartedAt, DateTime? EndedAt, List<MatchParticipant> Participants);
 
 }

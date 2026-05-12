@@ -2,6 +2,7 @@ using Framework.Admin.Components;
 using Framework.Admin.Constants;
 using Framework.Admin.Http;
 using Framework.Admin.Json;
+using Framework.Application.Features.Ranking;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 
@@ -19,6 +20,7 @@ public partial class Ranking : SafeComponentBase
     // 조회할 랭킹 인원 수 (기본 100명)
     private int count = 100;
     private bool isLoading;
+    // 서버 RankingDto 직접 사용 — PlayerId가 Guid임을 명확히 (int 로컬 record 제거)
     private List<RankingDto>? rankings;
     private string? errorMessage;
 
@@ -39,6 +41,4 @@ public partial class Ranking : SafeComponentBase
         isLoading = false;
     }
 
-    // API 응답 매핑용 로컬 DTO
-    private record RankingDto(int Rank, int PlayerId, string Nickname, int BestScore);
 }
