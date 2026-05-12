@@ -1,4 +1,5 @@
 using Framework.Domain.Entities;
+using Framework.Domain.Enums;
 using Framework.Domain.Interfaces;
 using Framework.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -16,10 +17,12 @@ public class PlayerItemRepository : IPlayerItemRepository
     }
 
     // 플레이어 보유 아이템 전체 조회 (Item 네비게이션 프로퍼티 포함 로드)
+    // Currency 타입은 수량이 0이어도 인벤토리에 항상 노출; 일반 아이템은 수량 > 0인 행만 반환
     public async Task<List<PlayerItem>> GetByPlayerIdAsync(int playerId)
         => await _context.PlayerItems
             .Include(pi => pi.Item)
-            .Where(pi => pi.PlayerId == playerId)
+            .Where(pi => pi.PlayerId == playerId
+                      && (pi.Quantity > 0 || pi.Item.ItemType == ItemType.Currency))
             .ToListAsync();
 
     // 특정 플레이어+아이템 조합 조회 (수령 시 수량 증가 여부 판단용)
