@@ -32,6 +32,12 @@ For pre-deployment replacements, unimplemented items, index plans, and feature s
 - `Framework.Api/Program.cs` `#if DEBUG` block — debug-build-only auth bypass (PlayerId fixed to 1). Excluded from Release compilation.
 - `Framework.Admin/Program.cs` `#if DEBUG` block — debug-build-only Admin auto-login. Excluded from Release compilation.
 
+### [Convention] Admin HTTP client pattern
+- **모든 Admin Blazor 페이지**는 `IHttpClientFactory` 대신 `ApiHttpClient` (`Framework.Admin/Http/ApiHttpClient.cs`)를 주입하여 사용한다.
+- `ApiHttpClient`는 `"ApiClient"` 명명 클라이언트(AdminApiKeyHandler + HttpLogCaptureHandler 체인 포함)를 내부에서 생성하고, `AdminJsonOptions.Default`(camelCase enum 직렬화)를 일관 적용한다.
+- DI 명명: `[Inject] private ApiHttpClient ApiClient { get; set; } = default!;`
+- `IHttpClientFactory` 직접 주입은 `InquiryTest.razor.cs`처럼 `SendAsync` + Authorization 헤더 직접 조작이 필요한 경우에만 예외적으로 허용한다.
+
 ---
 
 ## Behavioral Guidelines

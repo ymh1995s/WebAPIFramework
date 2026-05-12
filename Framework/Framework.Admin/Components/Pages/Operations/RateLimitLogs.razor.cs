@@ -1,5 +1,7 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Framework.Application.Features.Security;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
@@ -14,7 +16,8 @@ namespace Framework.Admin.Components.Pages.Operations;
 /// </summary>
 public partial class RateLimitLogs : SafeComponentBase
 {
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
     // Rate Limit 설정값 — API(GET /api/admin/security/rate-limit-config)에서 동적으로 읽어옴
@@ -57,11 +60,11 @@ public partial class RateLimitLogs : SafeComponentBase
     /// <summary>페이지 초기화 시 Rate Limit 설정값 로드</summary>
     protected override async Task OnInitializedAsync()
     {
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(ApiRoutes.AdminSecurity.RateLimitConfig);
+        // GetRawAsync로 Rate Limit 설정값 조회 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(ApiRoutes.AdminSecurity.RateLimitConfig);
         if (response.IsSuccessStatusCode)
         {
-            var data = await response.Content.ReadFromJsonAsync<RateLimitConfigDto>();
+            var data = await response.Content.ReadFromJsonAsync<RateLimitConfigDto>(AdminJsonOptions.Default);
             if (data is not null)
             {
                 // auth 정책의 IP 한도·PlayerId 한도를 각각 바인딩
@@ -83,11 +86,11 @@ public partial class RateLimitLogs : SafeComponentBase
             filterPlayerId,
             filterIp);
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(url);
+        // GetRawAsync로 보안 타임라인 조회 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(url);
 
         if (response.IsSuccessStatusCode)
-            timelineItems = await response.Content.ReadFromJsonAsync<List<SecurityTimelineItemDto>>();
+            timelineItems = await response.Content.ReadFromJsonAsync<List<SecurityTimelineItemDto>>(AdminJsonOptions.Default);
         else
             timelineError = $"조회 실패: {response.StatusCode}";
 
@@ -100,11 +103,11 @@ public partial class RateLimitLogs : SafeComponentBase
         isLoading = true;
         loadError = null;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(ApiRoutes.AdminRateLimitLogs.Collection);
+        // GetRawAsync로 IP별 Rate Limit 집계 조회 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(ApiRoutes.AdminRateLimitLogs.Collection);
 
         if (response.IsSuccessStatusCode)
-            logs = await response.Content.ReadFromJsonAsync<List<RateLimitLogDto>>();
+            logs = await response.Content.ReadFromJsonAsync<List<RateLimitLogDto>>(AdminJsonOptions.Default);
         else
             loadError = $"조회 실패: {response.StatusCode}";
 
@@ -120,7 +123,6 @@ public partial class RateLimitLogs : SafeComponentBase
         isAttacking = true;
         attackResults = [];
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new { DeviceId = "attack-test-device" };
 
         // authPermitLimit이 아직 로드되지 않았거나 0이면 기본값 65 사용
@@ -128,7 +130,8 @@ public partial class RateLimitLogs : SafeComponentBase
 
         for (var i = 1; i <= attackCount; i++)
         {
-            var response = await client.PostAsJsonAsync(ApiRoutes.Auth.Guest, payload);
+            // PostAsync — AdminJsonOptions.Default로 직렬화하여 전송
+            var response = await ApiClient.PostAsync(ApiRoutes.Auth.Guest, payload);
             var status = (int)response.StatusCode;
             attackResults.Add(new AttackResult(i, status, status == 429 ? "Too Many Requests" : "OK"));
             StateHasChanged();
@@ -147,8 +150,8 @@ public partial class RateLimitLogs : SafeComponentBase
         banningPlayerIds.Add(targetPlayerId);
         timelineError = null;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.PostAsJsonAsync(
+        // PostAsync — AdminJsonOptions.Default로 직렬화하여 영구밴 처리
+        var response = await ApiClient.PostAsync(
             ApiRoutes.AdminPlayers.Ban(targetPlayerId),
             new { BannedUntil = (DateTime?)null });
 

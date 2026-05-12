@@ -1,5 +1,7 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Framework.Application.Features.Shout;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
@@ -12,8 +14,8 @@ namespace Framework.Admin.Components.Pages.Support;
 /// </summary>
 public partial class Shouts : SafeComponentBase
 {
-    // 의존성 주입 — HttpClientFactory를 통해 ApiClient 인스턴스 생성
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     // ─── 발송 폼 상태 ───────────────────────────────────
     // PlayerId null 또는 0이면 전체 대상
@@ -64,8 +66,8 @@ public partial class Shouts : SafeComponentBase
             ExpiresInMinutes = newExpiresInMinutes
         };
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.PostAsJsonAsync(ApiRoutes.AdminShouts.Create, payload);
+        // PostAsync — AdminJsonOptions.Default로 직렬화하여 1회 공지 발송
+        var response = await ApiClient.PostAsync(ApiRoutes.AdminShouts.Create, payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -81,7 +83,7 @@ public partial class Shouts : SafeComponentBase
         else
         {
             sendSuccess = false;
-            var error = await response.Content.ReadFromJsonAsync<ErrorDto>();
+            var error = await response.Content.ReadFromJsonAsync<ErrorDto>(AdminJsonOptions.Default);
             sendMessage = error?.Message ?? $"발송 실패: {response.StatusCode}";
         }
     }
@@ -93,12 +95,12 @@ public partial class Shouts : SafeComponentBase
         historyError = null;
 
         var url = ApiRoutes.AdminShouts.Search(filterPlayerId, filterActiveOnly ? true : null, currentPage, PageSize);
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(url);
+        // GetRawAsync로 응답 코드 확인 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(url);
 
         if (response.IsSuccessStatusCode)
         {
-            var result = await response.Content.ReadFromJsonAsync<ShoutListResponse>();
+            var result = await response.Content.ReadFromJsonAsync<ShoutListResponse>(AdminJsonOptions.Default);
             historyItems = result?.Items ?? [];
             totalCount = result?.Total ?? 0;
         }
@@ -121,8 +123,8 @@ public partial class Shouts : SafeComponentBase
     private async Task Deactivate(int id)
     {
         historyError = null;
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.PutAsync(ApiRoutes.AdminShouts.Deactivate(id), null);
+        // PutAsync — 본문 없는 비활성화 요청 (빈 객체로 전달)
+        var response = await ApiClient.PutAsync(ApiRoutes.AdminShouts.Deactivate(id), new { });
 
         if (response.IsSuccessStatusCode)
         {

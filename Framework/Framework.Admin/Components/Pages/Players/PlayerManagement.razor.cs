@@ -1,5 +1,7 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Framework.Application.Features.Auth;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -13,8 +15,8 @@ namespace Framework.Admin.Components.Pages.Players;
 /// </summary>
 public partial class PlayerManagement : SafeComponentBase
 {
-    // 의존성 주입
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     // ─── 전체 목록 (페이지네이션) ───────────────────
     private PlayerPagedResult? pagedResult;
@@ -56,8 +58,8 @@ public partial class PlayerManagement : SafeComponentBase
     private async Task LoadPaged()
     {
         isLoading = true;
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        pagedResult = await client.GetFromJsonAsync<PlayerPagedResult>(ApiRoutes.AdminPlayers.Paged(currentPage, pageSize));
+        // GetAsync로 플레이어 목록 조회 — AdminJsonOptions.Default로 역직렬화
+        pagedResult = await ApiClient.GetAsync<PlayerPagedResult>(ApiRoutes.AdminPlayers.Paged(currentPage, pageSize));
         isLoading = false;
     }
 
@@ -110,11 +112,11 @@ public partial class PlayerManagement : SafeComponentBase
     /// <summary>검색 API 호출 — searchCurrentPage 기준으로 DB 페이지네이션 요청</summary>
     private async Task LoadSearch()
     {
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(ApiRoutes.AdminPlayers.Search(searchKeyword, searchCurrentPage, pageSize));
+        // GetRawAsync로 응답 코드 확인 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(ApiRoutes.AdminPlayers.Search(searchKeyword, searchCurrentPage, pageSize));
 
         if (response.IsSuccessStatusCode)
-            searchPagedResult = await response.Content.ReadFromJsonAsync<PlayerPagedResult>();
+            searchPagedResult = await response.Content.ReadFromJsonAsync<PlayerPagedResult>(AdminJsonOptions.Default);
         else
             searchError = "검색 중 오류가 발생했습니다.";
     }
@@ -122,9 +124,9 @@ public partial class PlayerManagement : SafeComponentBase
     /// <summary>플레이어 밴 처리 — bannedUntil이 null이면 영구 밴</summary>
     private async Task BanPlayer(int playerId, DateTime? bannedUntil)
     {
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new { BannedUntil = bannedUntil };
-        var response = await client.PostAsJsonAsync(ApiRoutes.AdminPlayers.Ban(playerId), payload);
+        // PostAsync — AdminJsonOptions.Default로 직렬화하여 밴 처리 전송
+        var response = await ApiClient.PostAsync(ApiRoutes.AdminPlayers.Ban(playerId), payload);
         if (response.IsSuccessStatusCode)
         {
             // 목록 및 검색 결과 갱신
@@ -137,8 +139,8 @@ public partial class PlayerManagement : SafeComponentBase
     /// <summary>플레이어 밴 해제</summary>
     private async Task UnbanPlayer(int playerId)
     {
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.PostAsJsonAsync(ApiRoutes.AdminPlayers.Unban(playerId), new { });
+        // PostAsync — AdminJsonOptions.Default로 직렬화하여 밴 해제 요청
+        var response = await ApiClient.PostAsync(ApiRoutes.AdminPlayers.Unban(playerId), new { });
         if (response.IsSuccessStatusCode)
         {
             await LoadPaged();
@@ -164,12 +166,11 @@ public partial class PlayerManagement : SafeComponentBase
         deletingPlayerInfo = $"ID: {p.Id} / 닉네임: {p.Nickname}";
         _isHardDelete      = true;
 
-        // 결제 건수 조회 — 모달에 소실 경고 표시
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(ApiRoutes.AdminPlayers.IapCount(p.Id));
+        // 결제 건수 조회 — 모달에 소실 경고 표시 (GetRawAsync로 응답 코드 확인)
+        var response = await ApiClient.GetRawAsync(ApiRoutes.AdminPlayers.IapCount(p.Id));
         if (response.IsSuccessStatusCode)
         {
-            var result = await response.Content.ReadFromJsonAsync<IapCountResponse>();
+            var result = await response.Content.ReadFromJsonAsync<IapCountResponse>(AdminJsonOptions.Default);
             deletingExtraInfo = result?.Count > 0
                 ? $"주의: 인앱결제 이력 {result.Count}건이 함께 삭제됩니다."
                 : null;
@@ -196,14 +197,13 @@ public partial class PlayerManagement : SafeComponentBase
     /// <summary>삭제 확인 — 하드삭제 여부에 따라 엔드포인트 분기 후 목록 갱신</summary>
     private async Task ConfirmDelete()
     {
-        var client = HttpClientFactory.CreateClient("ApiClient");
-
         // 하드삭제: DELETE /api/admin/players/{id}/hard, 소프트 딜리트: DELETE /api/admin/players/{id}
         var url = _isHardDelete
             ? ApiRoutes.AdminPlayers.HardDelete(deletingPlayerId)
             : ApiRoutes.AdminPlayers.Delete(deletingPlayerId);
 
-        var response = await client.DeleteAsync(url);
+        // DeleteAsync — 삭제 처리
+        var response = await ApiClient.DeleteAsync(url);
 
         // 모달 닫기 및 상태 초기화
         showDeleteModal    = false;
@@ -265,13 +265,13 @@ public partial class PlayerManagement : SafeComponentBase
             return;
         }
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new { DeviceId = newDeviceId };
-        var response = await client.PostAsJsonAsync(ApiRoutes.Auth.Guest, payload);
+        // PostAsync — AdminJsonOptions.Default로 직렬화하여 게스트 등록 요청
+        var response = await ApiClient.PostAsync(ApiRoutes.Auth.Guest, payload);
 
         if (response.IsSuccessStatusCode)
         {
-            var result = await response.Content.ReadFromJsonAsync<TokenResponseDto>();
+            var result = await response.Content.ReadFromJsonAsync<TokenResponseDto>(AdminJsonOptions.Default);
             var status = result?.IsNewPlayer == true ? "신규 생성" : "기존 플레이어";
             registerMessage = $"{status}됨 (PlayerId: {result?.PlayerId})";
             registerSuccess = true;

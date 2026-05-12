@@ -1,5 +1,7 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Framework.Application.Features.Notice;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
@@ -12,8 +14,8 @@ namespace Framework.Admin.Components.Pages.Support;
 /// </summary>
 public partial class Notices : SafeComponentBase
 {
-    // 의존성 주입
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     // 공지 목록 상태
     private List<NoticeAdminDto> notices = [];
@@ -43,11 +45,11 @@ public partial class Notices : SafeComponentBase
     {
         isLoading = true;
         errorMessage = null;
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(ApiRoutes.AdminNotices.Collection);
+        // GetRawAsync로 응답 코드 확인 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(ApiRoutes.AdminNotices.Collection);
 
         if (response.IsSuccessStatusCode)
-            notices = await response.Content.ReadFromJsonAsync<List<NoticeAdminDto>>() ?? [];
+            notices = await response.Content.ReadFromJsonAsync<List<NoticeAdminDto>>(AdminJsonOptions.Default) ?? [];
         else
             errorMessage = "공지 목록 조회에 실패했습니다.";
 
@@ -61,8 +63,8 @@ public partial class Notices : SafeComponentBase
         errorMessage = null;
         if (string.IsNullOrWhiteSpace(newContent)) return;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.PostAsJsonAsync(ApiRoutes.AdminNotices.Collection, new { Content = newContent });
+        // PostAsync — AdminJsonOptions.Default로 직렬화하여 공지 생성
+        var response = await ApiClient.PostAsync(ApiRoutes.AdminNotices.Collection, new { Content = newContent });
 
         if (response.IsSuccessStatusCode)
         {
@@ -90,8 +92,8 @@ public partial class Notices : SafeComponentBase
     private async Task SaveEdit(NoticeAdminDto notice)
     {
         errorMessage = null;
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.PutAsJsonAsync(
+        // PutAsync — AdminJsonOptions.Default로 직렬화하여 공지 수정 저장
+        var response = await ApiClient.PutAsync(
             ApiRoutes.AdminNotices.ById(notice.Id),
             new { Content = editContent, IsActive = editIsActive });
 
@@ -110,8 +112,8 @@ public partial class Notices : SafeComponentBase
     private async Task DeleteNotice(int id)
     {
         errorMessage = null;
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.DeleteAsync(ApiRoutes.AdminNotices.ById(id));
+        // DeleteAsync — 공지 삭제
+        var response = await ApiClient.DeleteAsync(ApiRoutes.AdminNotices.ById(id));
 
         if (response.IsSuccessStatusCode)
             await LoadNotices();

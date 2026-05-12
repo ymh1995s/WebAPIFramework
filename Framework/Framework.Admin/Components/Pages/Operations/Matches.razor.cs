@@ -1,5 +1,7 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Framework.Application.Common;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
@@ -12,8 +14,8 @@ namespace Framework.Admin.Components.Pages.Operations;
 /// </summary>
 public partial class Matches : SafeComponentBase
 {
-    // 의존성 주입
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     // ─── 필터 상태 ──────────────────────────────────
     private string filterMatchId = "";
@@ -115,12 +117,12 @@ public partial class Matches : SafeComponentBase
             ? DateTime.SpecifyKind(filterToLocal.Value, DateTimeKind.Local).ToUniversalTime()
             : (DateTime?)null;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var url = ApiRoutes.AdminMatches.Search(matchGuid, filterPlayerId, tierInt, stateInt, from, to, page, pageSize);
-        var response = await client.GetAsync(url);
+        // GetRawAsync로 응답 코드 확인 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(url);
 
         if (response.IsSuccessStatusCode)
-            result = await response.Content.ReadFromJsonAsync<PagedResultDto<MatchSummary>>();
+            result = await response.Content.ReadFromJsonAsync<PagedResultDto<MatchSummary>>(AdminJsonOptions.Default);
         else
             errorMessage = $"조회 실패: {response.StatusCode}";
 
@@ -137,12 +139,12 @@ public partial class Matches : SafeComponentBase
             return;
         }
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(ApiRoutes.AdminMatches.ById(matchId));
+        // GetRawAsync로 응답 코드 확인 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(ApiRoutes.AdminMatches.ById(matchId));
 
         if (response.IsSuccessStatusCode)
         {
-            matchDetail = await response.Content.ReadFromJsonAsync<MatchDetail>();
+            matchDetail = await response.Content.ReadFromJsonAsync<MatchDetail>(AdminJsonOptions.Default);
             expandedMatchId = matchId;
         }
         else

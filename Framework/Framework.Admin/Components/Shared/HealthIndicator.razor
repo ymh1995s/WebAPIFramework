@@ -1,5 +1,6 @@
 @using Framework.Admin.Constants
 @using Framework.Admin.Http
+@using Framework.Admin.Json
 @using System.Net.Http.Json
 @inject ApiHttpClient Http
 @implements IDisposable
@@ -63,7 +64,7 @@
             _lastCheckedAt = DateTime.Now;
 
             // 본문을 HealthResponse로 역직렬화 (200 Healthy, 503 Degraded/Unhealthy 모두 동일 구조)
-            var data = await response.Content.ReadFromJsonAsync<HealthResponse>();
+            var data = await response.Content.ReadFromJsonAsync<HealthResponse>(AdminJsonOptions.Default);
             _lastResponse = data;
 
             // JSON status 필드 → 점 색상 상태 매핑

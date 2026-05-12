@@ -1,4 +1,5 @@
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
 using Microsoft.AspNetCore.Components;
 using System.Net;
 using System.Net.Http.Json;
@@ -24,8 +25,8 @@ public partial class RewardCancelDialog
     /// <summary>다이얼로그 닫기 콜백</summary>
     [Parameter] public EventCallback OnClosed { get; set; }
 
-    // 의존성 주입
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     // ─── 입력 상태 ──────────────────────────────────
     // 취소 사유 — 필수 입력
@@ -59,8 +60,6 @@ public partial class RewardCancelDialog
 
         try
         {
-            var client = HttpClientFactory.CreateClient("ApiClient");
-
             // 취소 요청 DTO 구성
             var requestBody = new
             {
@@ -74,7 +73,8 @@ public partial class RewardCancelDialog
                     : notificationMailBody.Trim()
             };
 
-            var response = await client.PostAsJsonAsync(
+            // PostAsync — AdminJsonOptions.Default로 직렬화하여 취소 요청 전송
+            var response = await ApiClient.PostAsync(
                 ApiRoutes.AdminRewardDispatch.Cancel(GrantId), requestBody);
 
             if (response.IsSuccessStatusCode)

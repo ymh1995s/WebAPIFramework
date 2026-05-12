@@ -1,5 +1,7 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Framework.Domain.Enums;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
@@ -10,8 +12,8 @@ namespace Framework.Admin.Components.Pages.Operations;
 // URL 쿼리스트링으로 playerId 초기값 수신 가능 (/ban-logs?playerId=123)
 public partial class BanLogs : SafeComponentBase
 {
-    // Admin API 호출용 HttpClient
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     // URL 쿼리스트링에서 초기 PlayerId 수신 — PlayerManagement 페이지의 "밴 이력" 링크 연동
     [SupplyParameterFromQuery(Name = "playerId")]
@@ -101,11 +103,11 @@ public partial class BanLogs : SafeComponentBase
         var fromUtc = filterFrom?.ToUniversalTime();
 
         var url = ApiRoutes.AdminBanLogs.Search(filterPlayerId, action, fromUtc, toUtc, currentPage, PageSize);
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(url);
+        // GetRawAsync로 응답 코드 확인 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(url);
 
         if (response.IsSuccessStatusCode)
-            result = await response.Content.ReadFromJsonAsync<BanLogPagedResult>();
+            result = await response.Content.ReadFromJsonAsync<BanLogPagedResult>(AdminJsonOptions.Default);
         else
             error = $"조회 실패: {response.StatusCode}";
 

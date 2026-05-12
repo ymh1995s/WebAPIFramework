@@ -1,5 +1,7 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Framework.Application.Features.Exp;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
@@ -12,8 +14,8 @@ namespace Framework.Admin.Components.Pages;
 /// </summary>
 public partial class LevelThresholds : SafeComponentBase
 {
-    // 의존성 주입
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     // ─── 상태 ─────────────────────────────────────────
     // 현재 편집 중인 레벨 목록
@@ -36,12 +38,12 @@ public partial class LevelThresholds : SafeComponentBase
         errorMessage = null;
         successMessage = null;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(ApiRoutes.AdminLevelThresholds.Collection);
+        // GetRawAsync로 응답 코드 확인 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(ApiRoutes.AdminLevelThresholds.Collection);
 
         if (response.IsSuccessStatusCode)
         {
-            var items = await response.Content.ReadFromJsonAsync<List<LevelThresholdDto>>();
+            var items = await response.Content.ReadFromJsonAsync<List<LevelThresholdDto>>(AdminJsonOptions.Default);
             rows = (items ?? new List<LevelThresholdDto>())
                 .Select(d => new LevelRow { Level = d.Level, RequiredExp = d.RequiredExp })
                 .ToList();
@@ -100,13 +102,13 @@ public partial class LevelThresholds : SafeComponentBase
         errorMessage = null;
         successMessage = null;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new
         {
             Items = rows.Select(r => new { Level = r.Level, RequiredExp = r.RequiredExp }).ToList()
         };
 
-        var response = await client.PutAsJsonAsync(ApiRoutes.AdminLevelThresholds.Collection, payload);
+        // AdminJsonOptions.Default로 직렬화하여 PUT 전송
+        var response = await ApiClient.PutAsync(ApiRoutes.AdminLevelThresholds.Collection, payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -119,7 +121,7 @@ public partial class LevelThresholds : SafeComponentBase
             // 서버 에러 메시지 파싱
             try
             {
-                var err = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                var err = await response.Content.ReadFromJsonAsync<ErrorResponse>(AdminJsonOptions.Default);
                 errorMessage = $"저장 실패: {err?.Message ?? response.StatusCode.ToString()}";
             }
             catch

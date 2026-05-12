@@ -6,6 +6,8 @@
 
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Framework.Application.Common;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
@@ -18,8 +20,8 @@ namespace Framework.Admin.Components.Pages.Content;
 /// </summary>
 public partial class Stages : SafeComponentBase
 {
-    // 의존성 주입
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     // ─── 필터 상태 ──────────────────────────────────
     private string filterKeyword = "";
@@ -109,12 +111,12 @@ public partial class Stages : SafeComponentBase
         errorMessage = null;
         successMessage = null;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var url = ApiRoutes.AdminStages.Search(filterKeyword, page, pageSize);
-        var response = await client.GetAsync(url);
+        // GetRawAsync로 응답 코드 확인 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(url);
 
         if (response.IsSuccessStatusCode)
-            result = await response.Content.ReadFromJsonAsync<PagedResultDto<StageItem>>();
+            result = await response.Content.ReadFromJsonAsync<PagedResultDto<StageItem>>(AdminJsonOptions.Default);
         else
             errorMessage = $"조회 실패: {response.StatusCode}";
 
@@ -156,7 +158,6 @@ public partial class Stages : SafeComponentBase
             return;
         }
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new
         {
             Code = newCode.Trim(),
@@ -169,7 +170,7 @@ public partial class Stages : SafeComponentBase
             IsActive = newIsActive,
             SortOrder = newSortOrder
         };
-        var response = await client.PostAsJsonAsync(ApiRoutes.AdminStages.Collection, payload);
+        var response = await ApiClient.PostAsync(ApiRoutes.AdminStages.Collection, payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -225,8 +226,7 @@ public partial class Stages : SafeComponentBase
     /// <summary>삭제 확인 — DELETE /api/admin/stages/{id} 호출 후 목록 갱신</summary>
     private async Task ConfirmDeleteAsync()
     {
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.DeleteAsync(ApiRoutes.AdminStages.Delete(_deletingStageId));
+        var response = await ApiClient.DeleteAsync(ApiRoutes.AdminStages.Delete(_deletingStageId));
 
         // 모달 닫기 및 상태 초기화
         _showDeleteModal   = false;
@@ -257,7 +257,6 @@ public partial class Stages : SafeComponentBase
             return;
         }
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new
         {
             Name = editName.Trim(),
@@ -269,7 +268,7 @@ public partial class Stages : SafeComponentBase
             IsActive = editIsActive,
             SortOrder = editSortOrder
         };
-        var response = await client.PutAsJsonAsync(ApiRoutes.AdminStages.ById(editingStage.Id), payload);
+        var response = await ApiClient.PutAsync(ApiRoutes.AdminStages.ById(editingStage.Id), payload);
 
         if (response.IsSuccessStatusCode)
         {

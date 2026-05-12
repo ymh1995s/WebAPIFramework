@@ -1,5 +1,7 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 
@@ -11,8 +13,8 @@ namespace Framework.Admin.Components.Pages.Players;
 /// </summary>
 public partial class Inventory : SafeComponentBase
 {
-    // 의존성 주입
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     // 조회 대상 플레이어 ID
     private int playerId;
@@ -32,11 +34,11 @@ public partial class Inventory : SafeComponentBase
         isLoading = true;
         errorMessage = null;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(ApiRoutes.Players.Items(playerId));
+        // GetRawAsync로 응답 코드 확인 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(ApiRoutes.Players.Items(playerId));
 
         if (response.IsSuccessStatusCode)
-            items = await response.Content.ReadFromJsonAsync<List<PlayerItemDto>>();
+            items = await response.Content.ReadFromJsonAsync<List<PlayerItemDto>>(AdminJsonOptions.Default);
         else
             errorMessage = $"조회 실패: {response.StatusCode}";
 

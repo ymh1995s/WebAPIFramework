@@ -1,5 +1,7 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Framework.Application.Common;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
@@ -12,8 +14,8 @@ namespace Framework.Admin.Components.Pages.Rewards;
 /// </summary>
 public partial class RewardTables : SafeComponentBase
 {
-    // 의존성 주입
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     // ─── 필터 상태 ──────────────────────────────────
     private string filterSourceType = "";
@@ -133,12 +135,12 @@ public partial class RewardTables : SafeComponentBase
         // 문자열을 int로 파싱 (빈 문자열이면 null)
         int? sourceTypeInt = int.TryParse(filterSourceType, out var st) ? st : (int?)null;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var url = ApiRoutes.AdminRewardTables.Search(sourceTypeInt, filterCode, page, pageSize);
-        var response = await client.GetAsync(url);
+        // GetRawAsync로 응답 코드 확인 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(url);
 
         if (response.IsSuccessStatusCode)
-            result = await response.Content.ReadFromJsonAsync<PagedResultDto<RewardTableItem>>();
+            result = await response.Content.ReadFromJsonAsync<PagedResultDto<RewardTableItem>>(AdminJsonOptions.Default);
         else
             errorMessage = $"조회 실패: {response.StatusCode}";
 
@@ -154,12 +156,12 @@ public partial class RewardTables : SafeComponentBase
             return;
         }
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(ApiRoutes.AdminRewardTables.ById(id));
+        // GetRawAsync로 상세 조회 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(ApiRoutes.AdminRewardTables.ById(id));
 
         if (response.IsSuccessStatusCode)
         {
-            detail = await response.Content.ReadFromJsonAsync<RewardTableDetail>();
+            detail = await response.Content.ReadFromJsonAsync<RewardTableDetail>(AdminJsonOptions.Default);
             if (detail is not null)
             {
                 expandedId = id;
@@ -193,9 +195,9 @@ public partial class RewardTables : SafeComponentBase
     private async Task SaveDescription()
     {
         if (expandedId is null) return;
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new { Description = editDescription };
-        var response = await client.PutAsJsonAsync(ApiRoutes.AdminRewardTables.ById(expandedId.Value), payload);
+        // PutAsync — AdminJsonOptions.Default로 직렬화하여 설명 저장
+        var response = await ApiClient.PutAsync(ApiRoutes.AdminRewardTables.ById(expandedId.Value), payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -227,7 +229,6 @@ public partial class RewardTables : SafeComponentBase
     {
         if (expandedId is null) return;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = editEntries.Select(e => new
         {
             ItemId = e.ItemId,
@@ -235,7 +236,8 @@ public partial class RewardTables : SafeComponentBase
             Weight = e.Weight
         }).ToList();
 
-        var response = await client.PutAsJsonAsync(ApiRoutes.AdminRewardTables.Entries(expandedId.Value), payload);
+        // PutAsync — AdminJsonOptions.Default로 직렬화하여 항목 일괄 저장
+        var response = await ApiClient.PutAsync(ApiRoutes.AdminRewardTables.Entries(expandedId.Value), payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -288,14 +290,14 @@ public partial class RewardTables : SafeComponentBase
             return;
         }
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new
         {
             SourceType = sourceTypeValue,
             Code = newCode,
             Description = newDescription
         };
-        var response = await client.PostAsJsonAsync(ApiRoutes.AdminRewardTables.Collection, payload);
+        // PostAsync — AdminJsonOptions.Default로 직렬화하여 보상 테이블 생성
+        var response = await ApiClient.PostAsync(ApiRoutes.AdminRewardTables.Collection, payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -310,7 +312,7 @@ public partial class RewardTables : SafeComponentBase
         else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
         {
             // Code 형식 또는 길이 검증 실패 — 서버 메시지 표시
-            var errorBody = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+            var errorBody = await response.Content.ReadFromJsonAsync<ErrorResponse>(AdminJsonOptions.Default);
             createError = errorBody?.Message ?? "Code 형식이 올바르지 않습니다.";
         }
         else
@@ -338,8 +340,8 @@ public partial class RewardTables : SafeComponentBase
     /// <summary>소프트 삭제 확정 — DELETE /{id}</summary>
     private async Task ConfirmDelete()
     {
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.DeleteAsync(ApiRoutes.AdminRewardTables.ById(deletingId));
+        // DeleteAsync — 보상 테이블 소프트 삭제
+        var response = await ApiClient.DeleteAsync(ApiRoutes.AdminRewardTables.ById(deletingId));
 
         showDeleteModal = false;
 

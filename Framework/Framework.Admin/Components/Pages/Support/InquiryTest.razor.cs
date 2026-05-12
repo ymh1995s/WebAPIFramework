@@ -1,4 +1,6 @@
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Framework.Application.Features.Auth;
 using Framework.Application.Features.Inquiry;
 using Microsoft.AspNetCore.Components;
@@ -10,11 +12,14 @@ namespace Framework.Admin.Components.Pages.Support;
 /// <summary>
 /// 문의 테스트 페이지 코드-비하인드.
 /// 플레이어 역할로 게스트 로그인 후 문의 제출/조회를 테스트한다.
+/// SubmitInquiry/LoadMyInquiries는 플레이어 Bearer 토큰이 필요하여 IHttpClientFactory 직접 사용.
 /// InquiryTest는 SafeComponentBase를 상속하지 않으므로 ComponentBase를 직접 사용한다.
 /// </summary>
 public partial class InquiryTest : Microsoft.AspNetCore.Components.ComponentBase
 {
-    // 의존성 주입
+    // 의존성 주입 — GuestLogin에는 ApiHttpClient, 토큰 인증 요청에는 IHttpClientFactory 직접 사용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
+    // 플레이어 Bearer 토큰이 필요한 SendAsync 요청에만 사용 (SubmitInquiry, LoadMyInquiries)
     [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
 
     // 로그인 상태
@@ -37,12 +42,12 @@ public partial class InquiryTest : Microsoft.AspNetCore.Components.ComponentBase
     private async Task GuestLogin()
     {
         loginError = null;
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.PostAsJsonAsync(ApiRoutes.Auth.Guest, new { DeviceId = deviceId });
+        // PostAsync — AdminJsonOptions.Default로 직렬화하여 게스트 로그인 요청
+        var response = await ApiClient.PostAsync(ApiRoutes.Auth.Guest, new { DeviceId = deviceId });
 
         if (response.IsSuccessStatusCode)
         {
-            var result = await response.Content.ReadFromJsonAsync<TokenResponseDto>();
+            var result = await response.Content.ReadFromJsonAsync<TokenResponseDto>(AdminJsonOptions.Default);
             if (result is not null)
             {
                 accessToken = result.AccessToken;
@@ -100,7 +105,7 @@ public partial class InquiryTest : Microsoft.AspNetCore.Components.ComponentBase
         var response = await client.SendAsync(request);
 
         if (response.IsSuccessStatusCode)
-            myInquiries = await response.Content.ReadFromJsonAsync<List<InquiryDto>>() ?? [];
+            myInquiries = await response.Content.ReadFromJsonAsync<List<InquiryDto>>(AdminJsonOptions.Default) ?? [];
         else
             listError = $"조회 실패: {response.StatusCode}";
     }

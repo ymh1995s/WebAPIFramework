@@ -1,5 +1,7 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 
@@ -13,8 +15,8 @@ namespace Framework.Admin.Components.Pages.Operations;
 /// </summary>
 public partial class SystemSettings : SafeComponentBase
 {
-    // 의존성 주입
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     private bool isLoading = true;
 
@@ -88,23 +90,22 @@ public partial class SystemSettings : SafeComponentBase
         isLoading = true;
         errorMessage = null;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-
-        var r1 = await client.GetAsync(ApiRoutes.SystemConfig.MaintenanceMode);
-        var r2 = await client.GetAsync(ApiRoutes.SystemConfig.MaintenanceSchedule);
-        var r4 = await client.GetAsync(ApiRoutes.SystemConfig.MaintenanceStatus);
-        var r5 = await client.GetAsync(ApiRoutes.SystemConfig.Version);
+        // 병렬 GET 요청 — GetRawAsync로 응답 코드 확인 후 AdminJsonOptions.Default로 역직렬화
+        var r1 = await ApiClient.GetRawAsync(ApiRoutes.SystemConfig.MaintenanceMode);
+        var r2 = await ApiClient.GetRawAsync(ApiRoutes.SystemConfig.MaintenanceSchedule);
+        var r4 = await ApiClient.GetRawAsync(ApiRoutes.SystemConfig.MaintenanceStatus);
+        var r5 = await ApiClient.GetRawAsync(ApiRoutes.SystemConfig.Version);
 
         if (r1.IsSuccessStatusCode && r2.IsSuccessStatusCode && r4.IsSuccessStatusCode && r5.IsSuccessStatusCode)
         {
-            maintenanceEnabled = (await r1.Content.ReadFromJsonAsync<ToggleDto>())?.Enabled ?? false;
-            isUnderMaintenance = (await r4.Content.ReadFromJsonAsync<StatusDto>())?.IsUnderMaintenance ?? false;
+            maintenanceEnabled = (await r1.Content.ReadFromJsonAsync<ToggleDto>(AdminJsonOptions.Default))?.Enabled ?? false;
+            isUnderMaintenance = (await r4.Content.ReadFromJsonAsync<StatusDto>(AdminJsonOptions.Default))?.IsUnderMaintenance ?? false;
 
-            var schedule = await r2.Content.ReadFromJsonAsync<ScheduleDto>();
+            var schedule = await r2.Content.ReadFromJsonAsync<ScheduleDto>(AdminJsonOptions.Default);
             currentStartAt = schedule?.StartAt;
             currentEndAt = schedule?.EndAt;
 
-            var version = await r5.Content.ReadFromJsonAsync<VersionDto>();
+            var version = await r5.Content.ReadFromJsonAsync<VersionDto>(AdminJsonOptions.Default);
             minVersion = version?.MinVersion ?? "";
             latestVersion = version?.LatestVersion ?? "";
 
@@ -135,8 +136,8 @@ public partial class SystemSettings : SafeComponentBase
     {
         maintenanceMessage = null;
         var enabled = (bool)(e.Value ?? false);
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.PutAsJsonAsync(ApiRoutes.SystemConfig.MaintenanceMode, enabled);
+        // PutAsync — AdminJsonOptions.Default로 직렬화하여 점검 모드 토글 전송
+        var response = await ApiClient.PutAsync(ApiRoutes.SystemConfig.MaintenanceMode, enabled);
 
         if (response.IsSuccessStatusCode)
         {
@@ -170,13 +171,13 @@ public partial class SystemSettings : SafeComponentBase
             return;
         }
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new
         {
             StartAt = DateTime.SpecifyKind(scheduleStartAt, DateTimeKind.Local).ToUniversalTime(),
             EndAt = DateTime.SpecifyKind(scheduleEndAt, DateTimeKind.Local).ToUniversalTime()
         };
-        var response = await client.PutAsJsonAsync(ApiRoutes.SystemConfig.MaintenanceSchedule, payload);
+        // PutAsync — AdminJsonOptions.Default로 직렬화하여 점검 예약 저장
+        var response = await ApiClient.PutAsync(ApiRoutes.SystemConfig.MaintenanceSchedule, payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -195,9 +196,9 @@ public partial class SystemSettings : SafeComponentBase
     private async Task ClearSchedule()
     {
         scheduleMessage = null;
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new { StartAt = (DateTime?)null, EndAt = (DateTime?)null };
-        var response = await client.PutAsJsonAsync(ApiRoutes.SystemConfig.MaintenanceSchedule, payload);
+        // PutAsync — 점검 예약 초기화 (null 값 전송)
+        var response = await ApiClient.PutAsync(ApiRoutes.SystemConfig.MaintenanceSchedule, payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -233,8 +234,8 @@ public partial class SystemSettings : SafeComponentBase
             return;
         }
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.PutAsJsonAsync(ApiRoutes.SystemConfig.Version, new { MinVersion = minVersion, LatestVersion = latestVersion });
+        // PutAsync — AdminJsonOptions.Default로 직렬화하여 버전 정보 저장
+        var response = await ApiClient.PutAsync(ApiRoutes.SystemConfig.Version, new { MinVersion = minVersion, LatestVersion = latestVersion });
 
         if (response.IsSuccessStatusCode)
         {
@@ -250,8 +251,8 @@ public partial class SystemSettings : SafeComponentBase
     /// <summary>서버에서 현재 설정된 기준 시각을 로드하여 time 인풋에 반영</summary>
     private async Task LoadBoundaryAsync()
     {
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var result = await client.GetFromJsonAsync<BoundaryResponse>(ApiRoutes.SystemConfig.DailyRewardDayBoundary);
+        // GetAsync로 기준 시각 조회 후 AdminJsonOptions.Default로 역직렬화
+        var result = await ApiClient.GetAsync<BoundaryResponse>(ApiRoutes.SystemConfig.DailyRewardDayBoundary);
         if (result is not null)
         {
             // HH:mm 형식 문자열로 변환하여 time 인풋 초기값 설정
@@ -278,9 +279,9 @@ public partial class SystemSettings : SafeComponentBase
             return;
         }
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new { HourKst = time.Hour, MinuteKst = time.Minute };
-        var response = await client.PutAsJsonAsync(ApiRoutes.SystemConfig.DailyRewardDayBoundary, payload);
+        // PutAsync — AdminJsonOptions.Default로 직렬화하여 기준 시각 저장
+        var response = await ApiClient.PutAsync(ApiRoutes.SystemConfig.DailyRewardDayBoundary, payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -297,8 +298,8 @@ public partial class SystemSettings : SafeComponentBase
     /// <summary>서버에서 현재 기본 보상 설정을 로드하여 입력 필드에 반영</summary>
     private async Task LoadDefaultRewardAsync()
     {
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var result = await client.GetFromJsonAsync<DefaultRewardResponse>(ApiRoutes.SystemConfig.DailyRewardDefault);
+        // GetAsync로 기본 보상 설정 조회 후 AdminJsonOptions.Default로 역직렬화
+        var result = await ApiClient.GetAsync<DefaultRewardResponse>(ApiRoutes.SystemConfig.DailyRewardDefault);
         if (result is not null)
         {
             // 아이템 ID가 null이면 드롭다운을 "아이템 없음"으로 초기화
@@ -315,9 +316,9 @@ public partial class SystemSettings : SafeComponentBase
         // 드롭다운 값 파싱 (빈 문자열이면 null)
         int? parsedItemId = int.TryParse(defaultItemIdStr, out var pid) ? pid : null;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new { ItemId = parsedItemId, ItemCount = defaultItemCount };
-        var response = await client.PutAsJsonAsync(ApiRoutes.SystemConfig.DailyRewardDefault, payload);
+        // PutAsync — AdminJsonOptions.Default로 직렬화하여 기본 보상 저장
+        var response = await ApiClient.PutAsync(ApiRoutes.SystemConfig.DailyRewardDefault, payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -336,9 +337,9 @@ public partial class SystemSettings : SafeComponentBase
     {
         defaultRewardMessage = null;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var payload = new { ItemId = (int?)null, ItemCount = 0 };
-        var response = await client.PutAsJsonAsync(ApiRoutes.SystemConfig.DailyRewardDefault, payload);
+        // PutAsync — 기본 보상 설정 초기화 (아이템 없음, 수량 0 전송)
+        var response = await ApiClient.PutAsync(ApiRoutes.SystemConfig.DailyRewardDefault, payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -357,16 +358,15 @@ public partial class SystemSettings : SafeComponentBase
     /// <summary>아이템 목록 조회 — 기본 보상 설정 드롭다운에 사용</summary>
     private async Task LoadItemsAsync()
     {
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        itemList = await client.GetFromJsonAsync<List<ItemOption>>(ApiRoutes.AdminItems.Collection) ?? new();
+        // GetAsync로 아이템 목록 조회 — 기본 보상 설정 드롭다운 옵션 구성용
+        itemList = await ApiClient.GetAsync<List<ItemOption>>(ApiRoutes.AdminItems.Collection) ?? new();
     }
 
     /// <summary>RemoteConfig 항목 목록 조회 — 페이지 진입 시 및 변경 후 호출</summary>
     private async Task LoadClientConfigs()
     {
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var result = await client.GetFromJsonAsync<List<ClientConfigItem>>(ApiRoutes.SystemConfig.ClientConfigs);
-        clientConfigs = result ?? new();
+        // GetAsync로 클라이언트 설정 목록 조회 — AdminJsonOptions.Default로 역직렬화
+        clientConfigs = await ApiClient.GetAsync<List<ClientConfigItem>>(ApiRoutes.SystemConfig.ClientConfigs) ?? new();
     }
 
     /// <summary>클라이언트 설정 추가 또는 수정 — 입력 필드의 순수 키(prefix 없음)로 PUT 요청</summary>
@@ -382,9 +382,8 @@ public partial class SystemSettings : SafeComponentBase
             return;
         }
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        // 순수 키를 URL 경로에 삽입 — 서버에서 "client." 접두사 자동 부착
-        var response = await client.PutAsJsonAsync(
+        // PutAsync — 순수 키를 URL 경로에 삽입, 서버에서 "client." 접두사 자동 부착
+        var response = await ApiClient.PutAsync(
             ApiRoutes.SystemConfig.ClientConfigByKey(newClientConfigKey),
             new { Value = newClientConfigValue }
         );
@@ -416,8 +415,8 @@ public partial class SystemSettings : SafeComponentBase
         const string prefix = "client.";
         var pureKey = fullKey.StartsWith(prefix) ? fullKey[prefix.Length..] : fullKey;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.DeleteAsync(ApiRoutes.SystemConfig.ClientConfigByKey(pureKey));
+        // DeleteAsync — 클라이언트 설정 항목 삭제
+        var response = await ApiClient.DeleteAsync(ApiRoutes.SystemConfig.ClientConfigByKey(pureKey));
 
         if (response.IsSuccessStatusCode)
         {

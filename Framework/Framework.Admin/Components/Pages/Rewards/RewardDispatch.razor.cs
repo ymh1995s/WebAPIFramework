@@ -1,5 +1,7 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 
@@ -12,8 +14,8 @@ namespace Framework.Admin.Components.Pages.Rewards;
 /// </summary>
 public partial class RewardDispatch : SafeComponentBase
 {
-    // 의존성 주입
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     // ─── 대상 모드 ──────────────────────────────────
     // "single" = 특정 플레이어, "bulk" = 전체 플레이어
@@ -57,11 +59,11 @@ public partial class RewardDispatch : SafeComponentBase
     // 아이템 마스터 목록 조회 — GET api/admin/items
     private async Task LoadAvailableItemsAsync()
     {
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(ApiRoutes.AdminItems.Collection);
+        // GetRawAsync로 아이템 목록 조회 — 드롭다운 옵션 구성용
+        var response = await ApiClient.GetRawAsync(ApiRoutes.AdminItems.Collection);
         if (!response.IsSuccessStatusCode) return;
 
-        var dtos = await response.Content.ReadFromJsonAsync<List<ItemOptionDto>>();
+        var dtos = await response.Content.ReadFromJsonAsync<List<ItemOptionDto>>(AdminJsonOptions.Default);
         if (dtos is not null)
             availableItems = dtos.Select(d => new ItemOption(d.Id, d.Name)).ToList();
     }
@@ -151,9 +153,8 @@ public partial class RewardDispatch : SafeComponentBase
     /// <summary>단일 플레이어 보상 지급 — POST /api/admin/reward-dispatch/grant</summary>
     private async Task ExecuteSingleGrant()
     {
-        // PlayerId 존재 여부 사전 확인 — API 실패 전 즉시 피드백
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var checkRes = await client.GetAsync(ApiRoutes.AdminPlayers.ById(playerId));
+        // PlayerId 존재 여부 사전 확인 — GetRawAsync로 응답 코드 확인 후 즉시 피드백
+        var checkRes = await ApiClient.GetRawAsync(ApiRoutes.AdminPlayers.ById(playerId));
         if (checkRes.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             resultSuccess = false;
@@ -186,12 +187,12 @@ public partial class RewardDispatch : SafeComponentBase
             MailExpiresInDays = mailExpiresInDays
         };
 
-        // 위에서 생성한 client 재사용 (PlayerId 검증 시 이미 생성됨)
-        var response = await client.PostAsJsonAsync(ApiRoutes.AdminRewardDispatch.Grant, payload);
+        // PostAsync — AdminJsonOptions.Default로 직렬화하여 보상 지급 요청
+        var response = await ApiClient.PostAsync(ApiRoutes.AdminRewardDispatch.Grant, payload);
 
         if (response.IsSuccessStatusCode)
         {
-            var result = await response.Content.ReadFromJsonAsync<GrantResponse>();
+            var result = await response.Content.ReadFromJsonAsync<GrantResponse>(AdminJsonOptions.Default);
             resultSuccess = true;
             resultMessage = result?.Message ?? "지급 완료";
             if (result is not null)
@@ -204,7 +205,7 @@ public partial class RewardDispatch : SafeComponentBase
         }
         else
         {
-            var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+            var error = await response.Content.ReadFromJsonAsync<ErrorResponse>(AdminJsonOptions.Default);
             resultSuccess = false;
             resultMessage = error?.Message ?? $"지급 실패: {response.StatusCode}";
         }
@@ -236,8 +237,8 @@ public partial class RewardDispatch : SafeComponentBase
             Items = validItems.Select(i => new { i.ItemId, i.Quantity }).ToList()
         };
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.PostAsJsonAsync(ApiRoutes.AdminMails.Bulk, payload);
+        // PostAsync — AdminJsonOptions.Default로 직렬화하여 전체 우편 발송
+        var response = await ApiClient.PostAsync(ApiRoutes.AdminMails.Bulk, payload);
 
         if (response.IsSuccessStatusCode)
         {
@@ -250,7 +251,7 @@ public partial class RewardDispatch : SafeComponentBase
         }
         else
         {
-            var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+            var error = await response.Content.ReadFromJsonAsync<ErrorResponse>(AdminJsonOptions.Default);
             resultSuccess = false;
             resultMessage = error?.Message ?? $"발송 실패: {response.StatusCode}";
         }

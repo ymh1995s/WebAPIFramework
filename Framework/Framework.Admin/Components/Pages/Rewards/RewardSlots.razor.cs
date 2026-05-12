@@ -1,5 +1,7 @@
 using Framework.Admin.Components.Base;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 
@@ -12,8 +14,8 @@ namespace Framework.Admin.Components.Pages.Rewards;
 /// </summary>
 public partial class RewardSlots : DirtyGuardBase
 {
-    // 의존성 주입
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     /// <summary>현재 활성 탭 ("current" 또는 "next")</summary>
     private string activeTab = "current";
@@ -57,11 +59,9 @@ public partial class RewardSlots : DirtyGuardBase
         loading = true;
         errorMessage = null;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-
-        // 아이템 목록과 슬롯 데이터 병렬 요청
-        var itemTask = client.GetFromJsonAsync<List<ItemOption>>(ApiRoutes.AdminItems.Collection);
-        var slotTask = client.GetFromJsonAsync<List<SlotDayDto>>(ApiRoutes.AdminDailyRewardSlots.Slot(activeTab));
+        // 아이템 목록과 슬롯 데이터 병렬 요청 — AdminJsonOptions.Default로 역직렬화
+        var itemTask = ApiClient.GetAsync<List<ItemOption>>(ApiRoutes.AdminItems.Collection);
+        var slotTask = ApiClient.GetAsync<List<SlotDayDto>>(ApiRoutes.AdminDailyRewardSlots.Slot(activeTab));
 
         await Task.WhenAll(itemTask, slotTask);
 
@@ -159,9 +159,9 @@ public partial class RewardSlots : DirtyGuardBase
                 return;
             }
 
-            var client = HttpClientFactory.CreateClient("ApiClient");
             var payload = new { Days = changedDays };
-            var response = await client.PutAsJsonAsync(
+            // PutAsync — AdminJsonOptions.Default로 직렬화하여 변경된 슬롯 일괄 저장
+            var response = await ApiClient.PutAsync(
                 ApiRoutes.AdminDailyRewardSlots.SlotBatch(activeTab), payload);
 
             saveSuccess = response.IsSuccessStatusCode;

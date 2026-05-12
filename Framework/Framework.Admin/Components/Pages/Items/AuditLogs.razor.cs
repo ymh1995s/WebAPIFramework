@@ -1,8 +1,11 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Framework.Application.Common;
 using Framework.Domain.Constants;
 using Microsoft.AspNetCore.Components;
+using System.Net.Http.Json;
 
 namespace Framework.Admin.Components.Pages.Items;
 
@@ -12,8 +15,8 @@ namespace Framework.Admin.Components.Pages.Items;
 /// </summary>
 public partial class AuditLogs : SafeComponentBase
 {
-    // 의존성 주입
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     // 필터 상태
     private int? filterPlayerId;
@@ -81,12 +84,12 @@ public partial class AuditLogs : SafeComponentBase
         var from = filterFromLocal.HasValue ? DateTime.SpecifyKind(filterFromLocal.Value, DateTimeKind.Local).ToUniversalTime() : (DateTime?)null;
         var to = filterToLocal.HasValue ? DateTime.SpecifyKind(filterToLocal.Value, DateTimeKind.Local).ToUniversalTime() : (DateTime?)null;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
         var url = ApiRoutes.AdminAuditLogs.Search(filterPlayerId, filterItemId, from, to, anomaly, page, pageSize);
-        var response = await client.GetAsync(url);
+        // GetRawAsync로 응답 코드 확인 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(url);
 
         if (response.IsSuccessStatusCode)
-            result = await response.Content.ReadFromJsonAsync<PagedResultDto<AuditLogDto>>();
+            result = await response.Content.ReadFromJsonAsync<PagedResultDto<AuditLogDto>>(AdminJsonOptions.Default);
         else
             errorMessage = $"조회 실패: {response.StatusCode}";
 

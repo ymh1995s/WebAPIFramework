@@ -1,5 +1,7 @@
 using Framework.Admin.Components;
 using Framework.Admin.Constants;
+using Framework.Admin.Http;
+using Framework.Admin.Json;
 using Framework.Application.Features.Inquiry;
 using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
@@ -12,8 +14,8 @@ namespace Framework.Admin.Components.Pages.Support;
 /// </summary>
 public partial class Inquiries : SafeComponentBase
 {
-    // 의존성 주입
-    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+    // 의존성 주입 — ApiHttpClient 래퍼를 통해 camelCase JSON 옵션 일관 적용
+    [Inject] private ApiHttpClient ApiClient { get; set; } = default!;
 
     // 문의 목록 상태
     private List<InquiryAdminDto> inquiries = [];
@@ -38,11 +40,11 @@ public partial class Inquiries : SafeComponentBase
     {
         isLoading = true;
         errorMessage = null;
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.GetAsync(ApiRoutes.AdminInquiries.Collection);
+        // GetRawAsync로 응답 코드 확인 후 AdminJsonOptions.Default로 역직렬화
+        var response = await ApiClient.GetRawAsync(ApiRoutes.AdminInquiries.Collection);
 
         if (response.IsSuccessStatusCode)
-            inquiries = await response.Content.ReadFromJsonAsync<List<InquiryAdminDto>>() ?? [];
+            inquiries = await response.Content.ReadFromJsonAsync<List<InquiryAdminDto>>(AdminJsonOptions.Default) ?? [];
         else
             errorMessage = "문의 목록 조회에 실패했습니다.";
 
@@ -68,8 +70,8 @@ public partial class Inquiries : SafeComponentBase
         errorMessage = null;
         if (string.IsNullOrWhiteSpace(replyContent)) return;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        var response = await client.PostAsJsonAsync(
+        // PostAsync — AdminJsonOptions.Default로 직렬화하여 답변 저장
+        var response = await ApiClient.PostAsync(
             ApiRoutes.AdminInquiries.Reply(id),
             new { Reply = replyContent });
 
