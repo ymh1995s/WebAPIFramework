@@ -2,6 +2,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inherits SafeComponentBase
 @using Framework.Admin.Constants
+@using Framework.Application.Common
 
 <PageTitle>광고 정책 관리</PageTitle>
 
@@ -150,8 +151,10 @@ else
                     <div class="mb-2">
                         <label class="form-label small">PlacementType <span class="text-danger">*</span></label>
                         <select class="form-select form-select-sm" @bind="newPlacementType">
-                            <option value="1">RewardedVideo</option>
-                            <option value="2">Interstitial</option>
+                            @foreach (var opt in PlacementTypeOptions)
+                            {
+                                <option value="@opt.Value">@opt.Label</option>
+                            }
                         </select>
                     </div>
                     <div class="mb-2">

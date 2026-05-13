@@ -42,23 +42,9 @@ public partial class RewardGrants : SafeComponentBase
     private int cancelTargetGrantId;
     private int cancelTargetPlayerId;
 
-    // SourceType 드롭다운 옵션 — 서버 enum 값과 일치
-    // DailyLogin(0)은 RewardTables 미사용이지만 이력 조회에서는 표시 유지
-    private static readonly List<(string Label, int Value)> SourceTypeOptions = new()
-    {
-        ("DailyLogin", 0),
-        ("MatchComplete", 1),
-        ("QuestComplete", 2),
-        ("AchievementUnlock", 3),
-        ("LevelUp", 4),
-        ("EventReward", 5),
-        ("AdminGrant", 6),
-        ("AdReward", 7),
-        ("Purchase", 8),
-        ("StageComplete", 9),
-        ("CouponCode", 10),
-        ("SeasonReward", 11),
-    };
+    // SourceType 드롭다운 옵션 — 이력 조회이므로 DailyLogin 포함 전체 목록
+    private static IReadOnlyList<(string Label, int Value)> SourceTypeOptions =>
+        RewardSourceTypeMeta.AllOptions;
 
     /// <summary>조회 실행</summary>
     private async Task Search()

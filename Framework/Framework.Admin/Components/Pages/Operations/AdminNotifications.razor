@@ -2,6 +2,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @using Framework.Admin.Constants
 @using Framework.Admin.Http
+@using Framework.Application.Common
 @using Framework.Domain.Enums
 @inject ApiHttpClient Http
 
@@ -11,7 +12,10 @@
     <button class="btn btn-sm btn-outline-secondary" @onclick="MarkAllRead">전체 읽음 처리</button>
     <select class="form-select form-select-sm w-auto" @onchange="OnCategoryChanged">
         <option value="">전체</option>
-        <option value="1">IAP 환불</option>
+        @foreach (var opt in AdminNotificationCategoryMeta.AllOptions)
+        {
+            <option value="@opt.Value">@opt.Label</option>
+        }
     </select>
     <select class="form-select form-select-sm w-auto" @onchange="OnReadFilterChanged">
         <option value="">전체</option>
@@ -41,7 +45,7 @@ else
             {
                 <tr class="@(item.IsRead ? "" : "table-warning")">
                     <td><span class="badge @GetBadgeClass(item.Severity)">@item.Severity</span></td>
-                    <td>@item.Category</td>
+                    <td>@AdminNotificationCategoryMeta.GetLabel(item.Category)</td>
                     <td>@item.Title</td>
                     <td>@item.Message</td>
                     <td>@item.CreatedAt.ToLocalTime().ToString("MM-dd HH:mm")</td>

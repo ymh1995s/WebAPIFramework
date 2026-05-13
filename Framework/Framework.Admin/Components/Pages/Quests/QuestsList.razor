@@ -2,6 +2,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inherits SafeComponentBase
 @using Framework.Admin.Constants
+@using Framework.Application.Common
 @using Framework.Domain.Enums
 
 <PageTitle>퀘스트 관리</PageTitle>
@@ -28,9 +29,10 @@
                 <label class="form-label small mb-1">주기</label>
                 <select class="form-select form-select-sm" @bind="filterPeriod">
                     <option value="">전체</option>
-                    <option value="0">일일</option>
-                    <option value="1">주간</option>
-                    <option value="2">영구(메인)</option>
+                    @foreach (var opt in QuestPeriodMeta.AllOptions)
+                    {
+                        <option value="@opt.Value">@opt.Label</option>
+                    }
                 </select>
             </div>
             <div class="col-md-2">
@@ -170,23 +172,24 @@ else
                     <div class="mb-2">
                         <label class="form-label small">주기 <span class="text-danger">*</span></label>
                         <select class="form-select form-select-sm" @bind="newPeriod">
-                            <option value="0">일일</option>
-                            <option value="1">주간</option>
-                            <option value="2">영구(메인)</option>
+                            @foreach (var opt in QuestPeriodMeta.AllOptions)
+                            {
+                                <option value="@opt.Value">@opt.Label</option>
+                            }
                         </select>
                     </div>
                     <div class="mb-2">
                         <label class="form-label small">조건 타입 <span class="text-danger">*</span></label>
                         <!-- 조건 타입 변경 시 대상 ID를 null로 리셋 -->
                         <select class="form-select form-select-sm" @bind="newConditionType" @bind:after="OnNewConditionTypeChanged">
-                            <option value="1">스테이지 클리어</option>
-                            <option value="2">아이템 사용</option>
-                            <option value="3">상점 구매</option>
-                            <option value="4">로그인</option>
+                            @foreach (var opt in QuestConditionTypeMeta.AllOptions)
+                            {
+                                <option value="@opt.Value">@opt.Label</option>
+                            }
                         </select>
                     </div>
                     <!-- 조건 대상 ID — 조건 타입에 따라 드롭다운 내용 변경 -->
-                    @if (newConditionType == 4)
+                    @if (!NewConditionRequiresTarget)
                     {
                         <!-- Login 타입은 대상 없음 — null 고정 -->
                         <div class="mb-2">
@@ -298,14 +301,14 @@ else
                         <label class="form-label small">조건 타입</label>
                         <!-- 조건 타입 변경 시 대상 ID를 null로 리셋 -->
                         <select class="form-select form-select-sm" @bind="editConditionType" @bind:after="OnEditConditionTypeChanged">
-                            <option value="1">스테이지 클리어</option>
-                            <option value="2">아이템 사용</option>
-                            <option value="3">상점 구매</option>
-                            <option value="4">로그인</option>
+                            @foreach (var opt in QuestConditionTypeMeta.AllOptions)
+                            {
+                                <option value="@opt.Value">@opt.Label</option>
+                            }
                         </select>
                     </div>
                     <!-- 조건 대상 ID — 조건 타입에 따라 드롭다운 내용 변경 -->
-                    @if (editConditionType == 4)
+                    @if (!EditConditionRequiresTarget)
                     {
                         <!-- Login 타입은 대상 없음 — null 고정 -->
                         <div class="mb-2">

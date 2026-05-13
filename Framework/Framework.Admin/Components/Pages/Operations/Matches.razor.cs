@@ -42,29 +42,13 @@ public partial class Matches : SafeComponentBase
     private Guid? expandedMatchId;
     private MatchDetailDto? matchDetail;
 
-    // Tier 드롭다운 옵션 — Domain.Enums.Tier 정수값과 일치 (Tier1=0 ~ Tier10=9)
-    private static readonly List<(string Label, int Value)> TierOptions = new()
-    {
-        ("Tier1", 0),
-        ("Tier2", 1),
-        ("Tier3", 2),
-        ("Tier4", 3),
-        ("Tier5", 4),
-        ("Tier6", 5),
-        ("Tier7", 6),
-        ("Tier8", 7),
-        ("Tier9", 8),
-        ("Tier10", 9),
-    };
+    // Tier 드롭다운 옵션 — TierMeta 레지스트리 위임
+    private static IReadOnlyList<(string Label, int Value)> TierOptions =>
+        TierMeta.AllOptions;
 
-    // MatchState 드롭다운 옵션 — Domain.Enums.MatchState 정수값과 일치
-    private static readonly List<(string Label, int Value)> StateOptions = new()
-    {
-        ("Waiting", 0),
-        ("InProgress", 1),
-        ("Finished", 2),
-        ("Aborted", 3),
-    };
+    // MatchState 드롭다운 옵션 — MatchStateMeta 레지스트리 위임
+    private static IReadOnlyList<(string Label, int Value)> StateOptions =>
+        MatchStateMeta.AllOptions;
 
     /// <summary>조회 실행</summary>
     private async Task Search()

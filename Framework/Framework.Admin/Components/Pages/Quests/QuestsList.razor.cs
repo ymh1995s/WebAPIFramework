@@ -371,24 +371,19 @@ public partial class QuestsList : SafeComponentBase
         deletingCode = "";
     }
 
-    // 주기 레이블 반환
-    private static string PeriodLabel(QuestPeriod period) => period switch
-    {
-        QuestPeriod.Daily => "일일",
-        QuestPeriod.Weekly => "주간",
-        QuestPeriod.Permanent => "영구",
-        _ => period.ToString()
-    };
+    // 주기 레이블 반환 — QuestPeriodMeta 위임
+    private static string PeriodLabel(QuestPeriod period) => QuestPeriodMeta.GetLabel(period);
 
-    // 조건 타입 레이블 반환
-    private static string ConditionLabel(QuestConditionType type) => type switch
-    {
-        QuestConditionType.StageCleared => "스테이지 클리어",
-        QuestConditionType.ItemUsed => "아이템 사용",
-        QuestConditionType.ShopPurchased => "상점 구매",
-        QuestConditionType.Login => "로그인",
-        _ => type.ToString()
-    };
+    // 조건 타입 레이블 반환 — QuestConditionTypeMeta 위임
+    private static string ConditionLabel(QuestConditionType type) => QuestConditionTypeMeta.GetLabel(type);
+
+    // 생성 모달 — 현재 조건 타입이 대상 ID를 필요로 하는지 여부
+    private bool NewConditionRequiresTarget =>
+        QuestConditionTypeMeta.RequiresTarget((QuestConditionType)newConditionType);
+
+    // 편집 모달 — 현재 조건 타입이 대상 ID를 필요로 하는지 여부
+    private bool EditConditionRequiresTarget =>
+        QuestConditionTypeMeta.RequiresTarget((QuestConditionType)editConditionType);
 
     /// <summary>
     /// 보상 테이블 드롭다운 표시 레이블 — Description 유무에 따라 다르게 표시.

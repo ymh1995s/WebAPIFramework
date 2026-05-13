@@ -55,12 +55,13 @@ public partial class AdPolicies : SafeComponentBase
     private int deletingId;
     private string deletingInfo = "";
 
-    // 광고 네트워크 드롭다운 옵션 — AdNetworkType enum과 일치해야 함
-    private static readonly List<(string Label, int Value)> NetworkOptions = new()
-    {
-        ("UnityAds", 1),
-        ("IronSource", 2),
-    };
+    // 광고 네트워크 드롭다운 옵션 — AdNetworkTypeMeta 레지스트리 위임
+    private static IReadOnlyList<(string Label, int Value)> NetworkOptions =>
+        AdNetworkTypeMeta.AllOptions;
+
+    // PlacementType 드롭다운 옵션 — AdPlacementTypeMeta 레지스트리 위임
+    private static IReadOnlyList<(string Label, int Value)> PlacementTypeOptions =>
+        AdPlacementTypeMeta.AllOptions;
 
     /// <summary>조회 실행 — 페이지 1로 리셋</summary>
     private async Task Search()

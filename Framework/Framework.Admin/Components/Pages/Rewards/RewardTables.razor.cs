@@ -55,66 +55,18 @@ public partial class RewardTables : SafeComponentBase
     private int deletingId;
     private string deletingInfo = "";
 
-    // SourceType 드롭다운 옵션 — Label은 서버 enum 이름(PascalCase) + 한글 설명, Value는 정수값
-    // DailyLogin(0)은 RewardTables에서 사용 중단 — UI에서 숨김 처리
-    private static readonly List<(string Label, int Value)> SourceTypeOptions = new()
-    {
-        ("MatchComplete(매치 완료)", 1),
-        ("QuestComplete(퀘스트 완료)", 2),
-        ("AchievementUnlock(업적 달성)", 3),
-        ("LevelUp(레벨업)", 4),
-        ("EventReward(이벤트 보상)", 5),
-        ("AdminGrant(관리자 지급)", 6),
-        ("AdReward(광고 보상)", 7),
-        ("Purchase(인앱결제)", 8),
-        ("StageComplete(스테이지 완료)", 9),
-        ("CouponCode(쿠폰)", 10),
-        ("SeasonReward(시즌 보상)", 11),
-    };
+    // SourceType 드롭다운 옵션 — RewardSourceTypeMeta 레지스트리 위임 (DailyLogin 숨김 유지)
+    private static IReadOnlyList<(string Label, int Value)> SourceTypeOptions =>
+        RewardSourceTypeMeta.RewardTablesOptions;
 
-    // 서버 camelCase 값 → 한글 포함 레이블 매핑 (목록 테이블 표시용)
-    private static readonly Dictionary<string, string> SourceTypeLabelMap = new(StringComparer.OrdinalIgnoreCase)
-    {
-        { "matchComplete",     "MatchComplete(매치 완료)" },
-        { "questComplete",     "QuestComplete(퀘스트 완료)" },
-        { "achievementUnlock", "AchievementUnlock(업적 달성)" },
-        { "levelUp",           "LevelUp(레벨업)" },
-        { "eventReward",       "EventReward(이벤트 보상)" },
-        { "adminGrant",        "AdminGrant(관리자 지급)" },
-        { "adReward",          "AdReward(광고 보상)" },
-        { "purchase",          "Purchase(인앱결제)" },
-        { "stageComplete",     "StageComplete(스테이지 완료)" },
-        { "couponCode",        "CouponCode(쿠폰)" },
-        { "seasonReward",      "SeasonReward(시즌 보상)" },
-        { "dailyLogin",        "DailyLogin(일일 접속)" },
-    };
-
-    /// <summary>서버가 반환한 camelCase enum 이름을 한글 포함 레이블로 변환</summary>
+    // 서버 camelCase → 한글 레이블 변환 — 레지스트리 위임
     private static string GetSourceTypeLabel(string sourceType) =>
-        SourceTypeLabelMap.TryGetValue(sourceType, out var label)
-            ? label
-            : string.IsNullOrEmpty(sourceType) ? sourceType : char.ToUpperInvariant(sourceType[0]) + sourceType[1..];
+        RewardSourceTypeMeta.GetLabel(sourceType);
 
-    // SourceType별 Code 입력 예시 맵 — 생성 모달에서 동적으로 안내 문구 표시
-    private static readonly Dictionary<int, string> CodeExampleMap = new()
-    {
-        { 1,  "match_win_ranked, match_loss_casual" },
-        { 2,  "quest_001, quest_main_ch1" },
-        { 3,  "ach_first_win, ach_lv50" },
-        { 4,  "lv_5, lv_10, lv_default" },
-        { 5,  "event_2026spring_d1" },
-        { 6,  "admin_manual_001" },
-        { 7,  "ad_daily_1, ad_doublegold" },
-        { 8,  "iap_pkg_starter" },
-        { 9,  "stage_1, stage_2, stage_boss_1" },
-        { 10, "coupon_welcome, coupon_event_2026" },
-        { 11, "season_2026_s1, season_ranked_gold" },
-    };
-
-    // 현재 선택된 SourceType의 Code 예시 문자열 반환 (선택 전이면 빈 문자열)
+    // 현재 선택된 SourceType의 Code 입력 예시 — 레지스트리 위임
     private string CurrentCodeExample =>
-        int.TryParse(newSourceType, out var v) && CodeExampleMap.TryGetValue(v, out var ex)
-            ? ex
+        int.TryParse(newSourceType, out var v)
+            ? RewardSourceTypeMeta.GetCodeExample(v)
             : string.Empty;
 
     /// <summary>페이지 초기화 — 아이템 드롭다운 목록 사전 로드</summary>
