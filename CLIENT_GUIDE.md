@@ -1072,7 +1072,8 @@ Retry-After: 30
 
 | 기능 | API | 클라이언트 할 일 |
 |---|---|---|
-| **아이템 사용** | `POST /api/items/{itemId}/use` — Body: `{ "clientRequestId": "<UUID>" }` | 인벤토리 팝업에 Consumable 아이템 대상 사용 버튼 추가. clientRequestId는 `Guid.NewGuid().ToString()`으로 생성. 응답: 200(성공) / 400(수량 부족·아이템 없음) / 409(중복 요청) / 422(보상 테이블 오류) / 500(보상 지급 실패) |
+| **아이템 사용** | `POST /api/items/{itemId}/use` — Body: `{ "clientRequestId": "<UUID>", "quantity": N }` | 인벤토리 팝업에 Consumable 아이템 대상 사용 버튼 추가. clientRequestId는 `Guid.NewGuid().ToString()`으로 생성. quantity 기본값 1. 응답: 200(성공) / 400(수량 부족·아이템 없음) / 409(중복 요청) / 422(보상 테이블 오류) / 500(보상 지급 실패) |
+| **인게임 상점** | `GET /api/shop` (상품 목록) + `POST /api/shop/{id}/buy` — Body: `{ "clientRequestId": "<UUID>", "quantity": N }` | 상품 목록 표시 → 구매 버튼. quantity 기본값 1. clientRequestId로 중복 구매 방지. 응답: 200(성공) / 400(MaxPerCallExceeded 또는 LimitWouldExceed + remainingQuantity 포함) / 402(재화 부족) / 404(상품 없음) / 409(중복 요청) |
 
 ---
 
@@ -1105,8 +1106,54 @@ Retry-After: 30
 
 ---
 
+# 부록 D — DEBUG 전용 재화 지급 API
+
+> **DEBUG 빌드 전용.** Release 빌드에서는 서버 컨트롤러 클래스 자체가 어셈블리에 없음 — 호출 시 404 또는 라우팅 오류. Unity 클라이언트도 `#if UNITY_EDITOR || DEVELOPMENT_BUILD` 가드 필수.
+
+**용도**: 개발/QA 중 특정 재화·아이템·Exp 즉시 세팅. 보상 연출, 상점 구매 흐름, 한도 시나리오 재현 등.
+
+**요청**
+```http
+POST /api/debug/grant
+Authorization: Bearer {AccessToken}
+Content-Type: application/json
+
+{
+  "playerId": 42,          // 생략 시 본인 (JWT PlayerId)
+  "exp": 500,
+  "items": [
+    { "itemId": 1, "quantity": 1000 },
+    { "itemId": 2, "quantity": 50 }
+  ],
+  "sourceKey": "qa-scenario-shop-limit"   // 생략 시 debug:{GUID} 자동 생성
+}
+```
+
+**응답 (성공)** — 200 OK
+```json
+{ "grantId": 88 }
+```
+
+**에러 처리**
+| Status | 사유 | 처리 |
+|---|---|---|
+| 400 | 파라미터 검증 실패 (quantity 범위 초과 등) | 입력값 확인 |
+| 404 | 존재하지 않는 ItemId | 아이템 마스터 확인 |
+
+**Unity 클라이언트 가드**
+```csharp
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+await ApiClient.PostAsync("/api/debug/grant", new { items = ... });
+#endif
+```
+
+**sourceKey 중복 주의**: 동일 sourceKey 재호출 시 `alreadyGranted` (중복 지급 차단). 테스트 반복 시 sourceKey 생략하거나 매번 다른 값 사용.
+
+---
+
 # 변경 이력
 
 | 일자 | 라운드 | 변경 |
 |---|---|---|
+| 2026-05-13 | - | 부록 B-2 아이템 사용 quantity 파라미터 + 상점 추가. 부록 D(DEBUG 재화 지급) 추가 |
 | 2026-05-05 | round_20260503 종결 | 최초 작성 — 20개 엔드포인트 + 공통 처리 패턴 + 부록 |

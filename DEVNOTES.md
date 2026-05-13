@@ -38,7 +38,8 @@
 | 운영 알림 | RTDN 환불 등 운영 이슈 Admin 즉시 통지. NotificationBell 30초 폴링 |
 | PII 보관기간 정책 | AuditLog 365일·RateLimitLog 90일 자동 삭제. 매일 KST 03:00 실행 → §PII 보관기간 |
 | 서버 시간 동기화 | `GET /api/time` — UTC/KST/UnixMs 반환. 익명, Game RateLimit, Cache-Control: no-store |
-| 인게임 상점 | `GET /api/shop` 목록 조회 + `POST /api/shop/{id}/buy` 재화 차감·보상 지급. Admin CRUD. 일일/총 한도, 멱등성(ClientRequestId) |
+| 인게임 상점 | `GET /api/shop` 목록 조회 + `POST /api/shop/{id}/buy?quantity=N` 재화 차감·보상 지급. Admin CRUD. 일일/총 한도(SumQuantityAsync 누적 집계), 1회 최대 수량(MaxPerCall), 멱등성(ClientRequestId), LimitWouldExceed+RemainingQuantity |
+| 디버그 재화 지급 [DEBUG 전용] | `POST /api/debug/grant` — DEBUG 빌드 전용. 모든 아이템/재화/Exp 즉시 지급. `#if DEBUG` 파일 전체 가드 → Release 어셈블리에서 클래스 자체 미존재 |
 | 튜토리얼 진행 상태 | `GET /api/tutorial` 전체 키-값 맵 조회 + `PUT /api/tutorial/{key}` upsert. 플레이어당 200행·key 128자·value 512자 상한. 서버는 key-value 창고만 담당, 시나리오 해석은 클라이언트 전담 |
 | RemoteConfig | `GET /api/remoteconfig` (AllowAnonymous) — `client.` prefix 키만 필터해 prefix 제거 후 `{ "values": {...} }` 반환. SystemConfig 테이블 공용. Admin `/system-settings` 페이지에서 CRUD 관리 |
 
@@ -58,6 +59,16 @@
 
 
 ## [설계 결정]
+
+### 상점 N개 구매 — 한도 집계 의미 전환 및 overflow 방어 (2026-05-12)
+
+| 결정 | 내용 |
+|---|---|
+| 한도 의미 전환 | `CountTodayAsync`(건수) → `SumQuantityAsync`(PurchasedQuantity 합산). 5개 구매 1건이 5 카운트로 정산됨. 취소된 RewardGrant는 `.Where(!IsCancelled)` 제외 |
+| 오버플로우 방어 | `long totalPrice = (long)PriceAmount * quantity`. `totalPrice > int.MaxValue` 시 NotEnoughCurrency 반환(현실적 미발생, 안전장치). 보상 번들 `e.Count * quantity`는 `checked` 블록으로 감지 |
+| MaxPerCall | `ShopProduct.MaxPerCall int?` — null=무제한. 1회 요청 수량 상한. 기존 상품 backfill 없음(null) |
+| LimitWouldExceed | 한도 초과 시 `RemainingQuantity` 함께 반환 — 클라이언트가 "N개 남음" 안내 가능 |
+| TOCTOU 재확인 | 트랜잭션 내부에서 freshPriceItem 재조회 후 totalPriceInt로 재검증 |
 
 ### AppDomain 최후 로깅 (2026-05-09)
 
@@ -275,6 +286,10 @@ PlayerItem.Quantity / Mail.IsClaimed / IapPurchase.Status 등 동시 갱신이 �
 
 
 ## [미구현] 추가 개발 필요 항목
+- **ShopProduct.MaxPerCall Admin 편집 UI** — DB 컬럼은 존재하지만 Admin 상품 CRUD 페이지에서 편집 불가. 현재는 직접 SQL 또는 시드로 설정 필요. Admin 상품 편집 폼에 MaxPerCall 입력란 추가 필요
+
+- **광고 부정 수령 회수** — `RewardDispatcher.GrantAsync(Mode=Direct)` 경로는 `RewardCancelService`로 취소 불가(이미 PlayerItem에 반영). 탐지 인프라(이상패턴 알림) 미구축이므로 현재는 AuditLog 수동 조회 후 운영자 SQL 차감으로 처리. 참고: `AdRewardController`의 `CountTodayAsync`는 `IsCancelled` 미필터 — 취소된 광고 보상이 일일 한도에서 복원되지 않음(향후 검토)
+
 - **계정 탈퇴 유예 기간(취소 흐름)** — 현재는 즉시 익명화 처리. 사용자 실수 탈퇴 복구 불가. 향후 출시 후 민원 패턴 따라 BackgroundService로 N일 유예 검토. 도입 시: `WithdrawalScheduledAt` 컬럼 + BackgroundService 1개 + 취소 API 1개. Unity 클라이언트 안내 팝업도 같이.
 - **Apple IAP 검증기** — `IapStore.Apple(=2)` Enum 예약됨. `AppleStoreVerifier` 구현체 미존재. iOS 플랫폼 출시 시 추가 필요
 

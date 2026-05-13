@@ -156,3 +156,14 @@ Run autonomously the moment programmer finishes. Do not ask the user.
 
 - During the loop, the Collaboration Protocol Write/Edit approval gate is waived (but any new file outside the initially approved file list still requires explicit confirmation).
 - Do not report intermediate progress (during implementation or review) to the user. **However, reporting the final approval result is mandatory and must not be omitted.**
+
+### qa-reviewer 테스트 실행 범위 정책 (Orchestrator MUST)
+
+qa-reviewer 호출 시 orchestrator는 호출 명세에 `dotnet test` 범위를 명시한다.
+1인 개발 환경에서 매 사이클 전체 실행은 과하므로 변경 범위에 비례한 검증으로 비용을 조절한다.
+
+- **전체** — 공용 영역(RewardDispatcher / AppDbContext / IUnitOfWork / Domain Common / Migration 신규 / Repository 인터페이스) 변경, 변경 파일 수 ≥ 8, 또는 사용자가 "전체 회귀" 명시 시
+- **영역 필터** (`--filter "FullyQualifiedName~{SUT}"`) — 기본값. Auto-Loop 2차 이후 항상 이 모드
+- **빌드만** — `.razor` Admin UI / 주석·문서 전용 변경, 또는 사용자가 "테스트 스킵" 명시
+
+자체 판단 절차와 공용 영역 자동 감지 안전망은 `.claude/agents/qa-reviewer.md` 참조.

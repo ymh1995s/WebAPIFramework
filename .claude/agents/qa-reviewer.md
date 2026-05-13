@@ -142,6 +142,27 @@ dotnet build Framework/Framework.sln
 - **자동 실행 (programmer 후)**: 오케스트레이터가 전달한 변경 파일 목록만 검토한다. 전체 코드베이스를 스캔하지 않는다.
 - **유저 명시 요청**: 유저가 지정한 범위 안에서만 검토한다.
 
+## 테스트 실행 범위 self-judgement
+
+오케스트레이터 호출 명세에 `dotnet test` 범위가 명시된 경우 그대로 따른다. 명시되지 않은 경우 다음 절차로 자체 판단:
+
+1. 변경 파일의 네임스페이스/클래스명에서 SUT 영역 추정
+2. `dotnet test --filter "FullyQualifiedName~{영역명}"` 으로 영역 실행
+3. 검증 보고서에 적용한 필터를 반드시 명시 (예: "Shop 영역 — 12/12 통과")
+4. SUT 추정 불가 또는 3개 이상 다영역 변경 시 전체 실행
+
+수정 사이클(반려 후 재호출)은 호출 명세에 없어도 영역 필터 우선.
+
+### 공용 영역 변경 감지 시 — 자체 판단으로 전체 실행
+
+호출 명세가 영역 필터를 지시했더라도 다음 공용 영역이 변경 파일에 포함되어 있으면 전체 실행 후 그 사실을 보고서에 명시:
+- `Framework.Application/Features/Reward/RewardDispatcher.cs`
+- `Framework.Application/Common/UnitOfWork*.cs` 또는 `IUnitOfWork` 구현
+- `Framework.Infrastructure/Persistence/AppDbContext.cs`
+- `Framework.Domain/Common/**`
+- `Framework.Infrastructure/Migrations/**` 신규 추가
+- Repository 인터페이스(`I*Repository.cs`) 시그니처 변경
+
 ## 승인/반려 판정 (Auto Review 사이클)
 
 자동 루프 호출 시 판정은 오케스트레이터에게만 반환. 보고서 맨 아래 아래 블록 필수:
