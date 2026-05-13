@@ -22,7 +22,7 @@
                 @* 서버 enum 멤버 추가 시 Admin UI 노출 적합성 확인 *@
                 @foreach (var type in Enum.GetValues<ItemType>())
                 {
-                    <option value="@type">@type</option>
+                    <option value="@type">@ItemTypeLabel(type)</option>
                 }
             </select>
         </div>
@@ -38,7 +38,7 @@
             <select class="form-select" @bind="newAuditLevel">
                 @foreach (var level in Enum.GetValues<AuditLevel>())
                 {
-                    <option value="@level">@level</option>
+                    <option value="@level">@AuditLevelLabel(level)</option>
                 }
             </select>
         </div>
@@ -121,7 +121,7 @@
                                 <select class="form-select form-select-sm" @bind="editItemType">
                                     @foreach (var type in Enum.GetValues<ItemType>())
                                     {
-                                        <option value="@type">@type</option>
+                                        <option value="@type">@ItemTypeLabel(type)</option>
                                     }
                                 </select>
                             </td>
@@ -130,7 +130,7 @@
                                 <select class="form-select form-select-sm" @bind="editAuditLevel">
                                     @foreach (var level in Enum.GetValues<AuditLevel>())
                                     {
-                                        <option value="@level">@level</option>
+                                        <option value="@level">@AuditLevelLabel(level)</option>
                                     }
                                 </select>
                             </td>
@@ -145,9 +145,9 @@
                         else
                         {
                             <td>@item.Name</td>
-                            <td>@item.ItemType</td>
+                            <td>@ItemTypeLabel(item.ItemType)</td>
                             <td>@item.Description</td>
-                            <td>@item.AuditLevel</td>
+                            <td>@AuditLevelLabel(item.AuditLevel)</td>
                             <td>@item.AnomalyThreshold</td>
                             <!-- 사용 효과 인라인 편집 영역 -->
                             <td>

@@ -252,7 +252,7 @@ public class AppDbContext : DbContext
         // PlayerItem.Quantity 갱신을 낙관적 동시성으로 보호 (Currency-as-Item Lost Update 차단)
         //
         // [목적] 동일 PlayerItem 행에 대한 동시 read-modify-write 시 Lost Update를 차단
-        //        — Currency-as-Item 도입으로 Gold/Gems가 PlayerItem(ItemId=1/2)으로 통합되어
+        //        — Currency-as-Item 도입으로 통화 아이템이 PlayerItem으로 통합되어
         //          모든 재화·아이템 갱신이 같은 행을 두고 경쟁함
         //        — 보상 멱등성(RewardGrants UNIQUE)은 같은 SourceKey만 차단하므로
         //          서로 다른 SourceKey의 동시 갱신(우편 A+B 동시 수령 등)은 보호 못함
@@ -351,6 +351,16 @@ public class AppDbContext : DbContext
             .HasForeignKey(i => i.UseRewardTableId)
             .IsRequired(false)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // Code 부분 unique 인덱스 — null이 아닌 행만 고유성 강제 (일반 아이템 다수 허용)
+        modelBuilder.Entity<Item>()
+            .Property(i => i.Code)
+            .HasMaxLength(32);
+        modelBuilder.Entity<Item>()
+            .HasIndex(i => i.Code)
+            .HasDatabaseName("IX_Items_Code")
+            .IsUnique()
+            .HasFilter("\"Code\" IS NOT NULL");
 
         // DailyRewardSlot: ItemCount 기본값 0
         modelBuilder.Entity<DailyRewardSlot>()

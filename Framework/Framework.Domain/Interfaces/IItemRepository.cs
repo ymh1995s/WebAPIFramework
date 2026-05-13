@@ -21,6 +21,8 @@ public interface IItemRepository
     Task<List<Item>> GetByIdsAsync(List<int> ids);
     // 통화 아이템(ItemType.Currency) 전체 조회 — Gold/Gems 등 기본 재화 목록
     Task<List<Item>> GetCurrencyItemsAsync();
+    // Code 값으로 단건 조회 — 통화 아이템 식별용 (예: "SOFT_CURRENCY")
+    Task<Item?> GetByCodeAsync(string code);
     // 변경사항 저장
     Task SaveChangesAsync();
 }

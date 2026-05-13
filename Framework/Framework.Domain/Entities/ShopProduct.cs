@@ -14,7 +14,7 @@ public class ShopProduct
     // 상품 설명 (Admin 표시용)
     public string Description { get; set; } = string.Empty;
 
-    // 가격 — 차감할 재화 아이템 ID (예: Gold=1, Gems=2)
+    // 가격 — 차감할 통화 아이템 ID
     public int PriceItemId { get; set; }
 
     // 가격 — 차감할 재화 수량

@@ -22,4 +22,8 @@ public class Item
     // 아이템 사용 시 지급할 보상 테이블 ID — null이면 수량 차감만 수행 (보상 없음)
     public int? UseRewardTableId { get; set; }
 
+    // 환경 독립적 안정 식별 키 — 통화 아이템에 권장 (예: "SOFT_CURRENCY", "HARD_CURRENCY")
+    // null이면 일반 아이템. 마이그레이션 시드를 안전하게 박는 데 사용
+    public string? Code { get; set; }
+
 }

@@ -26,7 +26,7 @@ public record CreateShopProductRequest(
     // 상품 설명
     string Description,
 
-    // 가격 재화 ItemId (예: Gold=1, Gems=2)
+    // 가격 재화 ItemId — 차감할 통화 아이템 ID
     int PriceItemId,
 
     // 가격 수량

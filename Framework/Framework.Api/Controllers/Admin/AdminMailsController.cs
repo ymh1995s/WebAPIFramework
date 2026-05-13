@@ -19,7 +19,7 @@ public class AdminMailsController : ControllerBase
     }
 
     // 전체 플레이어에게 우편 일괄 발송
-    // Currency-as-Item: Items 목록에 Gold(Id=1)/Gems(Id=2) 포함 가능
+    // Currency-as-Item: Items 목록에 통화 아이템(ItemType.Currency) 포함 가능
     [HttpPost("bulk")]
     public async Task<IActionResult> BulkSend([FromBody] BulkSendMailDto dto)
     {

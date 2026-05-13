@@ -4,7 +4,7 @@ using Framework.Domain.Enums;
 namespace Framework.Application.Features.AdminRewardDispatch;
 
 // 수동 보상 지급 요청 DTO
-// Gold/Gems는 Items 목록에 ItemId=1(Gold) / ItemId=2(Gems)로 포함하여 전달
+// 통화 아이템(ItemType.Currency)은 Items 목록에 해당 ItemId로 포함하여 전달
 public record AdminGrantRewardDto(
     // 대상 플레이어 ID
     int PlayerId,
@@ -20,7 +20,7 @@ public record AdminGrantRewardDto(
     // 경험치 지급량 (미입력 시 0)
     int? Exp,
 
-    // 지급 아이템 목록 (Gold=ItemId 1, Gems=ItemId 2, 미입력 시 없음)
+    // 지급 아이템 목록 (통화 아이템은 해당 ItemId로 포함, 미입력 시 없음)
     List<AdminGrantItemDto>? Items,
 
     // 지급 방식 (Auto=자동판단, Direct=즉시지급, Mail=우편)

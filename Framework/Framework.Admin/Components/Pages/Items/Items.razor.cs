@@ -220,4 +220,20 @@ public partial class Items : SafeComponentBase
 
     // 보유 유저 수 조회 응답용 로컬 DTO — 서버 대응 타입 없음
     private record HolderCountDto(int Count);
+
+    // ItemType enum 한글 표시명 반환
+    private static string ItemTypeLabel(ItemType type) => type switch
+    {
+        ItemType.Currency   => "Currency(재화)",
+        ItemType.Consumable => "Consumable(소모품)",
+        _                   => type.ToString()
+    };
+
+    // AuditLevel enum 한글 표시명 반환
+    private static string AuditLevelLabel(AuditLevel level) => level switch
+    {
+        AuditLevel.Full        => "Full(전체 기록)",
+        AuditLevel.AnomalyOnly => "AnomalyOnly(이상치만 기록)",
+        _                      => level.ToString()
+    };
 }

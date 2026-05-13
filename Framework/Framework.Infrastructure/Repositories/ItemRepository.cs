@@ -56,6 +56,10 @@ public class ItemRepository : IItemRepository
             .Where(i => ids.Contains(i.Id))
             .ToListAsync();
 
+    // Code로 단건 조회 — 삭제된 항목 제외
+    public async Task<Item?> GetByCodeAsync(string code)
+        => await _context.Items.FirstOrDefaultAsync(i => i.Code == code && !i.IsDeleted);
+
     // 변경사항 저장
     public async Task SaveChangesAsync()
         => await _context.SaveChangesAsync();

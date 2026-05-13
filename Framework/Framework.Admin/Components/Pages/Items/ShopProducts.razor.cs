@@ -34,7 +34,7 @@ public partial class ShopProducts : SafeComponentBase
     private bool showCreateModal;
     private string newName = "";
     private string newDescription = "";
-    private int newPriceItemId = 1;     // 기본값: Gold(ItemId=1)
+    private int newPriceItemId = 0;     // 기본값: 미선택 (Admin이 직접 입력)
     private int newPriceAmount = 100;
     private int newRewardTableId;
     private int newDailyLimit = 0;
@@ -119,7 +119,7 @@ public partial class ShopProducts : SafeComponentBase
     {
         newName = "";
         newDescription = "";
-        newPriceItemId = 1;
+        newPriceItemId = 0;
         newPriceAmount = 100;
         newRewardTableId = 0;
         newDailyLimit = 0;
