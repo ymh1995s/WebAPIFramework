@@ -64,6 +64,38 @@ public partial class ShopProducts : SafeComponentBase
     private int deletingId;
     private string deletingName = "";
 
+    // ─── 드롭다운 옵션 ──────────────────────────────
+    // 가격 재화 선택용 — Currency 타입 아이템만 필터링해서 보관
+    private List<ItemOption> allCurrencyItems = new();
+    // 보상 테이블 선택용 — 삭제되지 않은 테이블 목록
+    private List<RewardTableOption> rewardTableOptions = new();
+
+    /// <summary>페이지 초기화 — 드롭다운 옵션 미리 로드</summary>
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDropdownOptions();
+    }
+
+    /// <summary>가격 재화 목록(Currency 타입)과 보상 테이블 목록을 드롭다운용으로 사전 로드</summary>
+    private async Task LoadDropdownOptions()
+    {
+        // 아이템 전체 조회 후 Currency 타입만 필터링 — camelCase enum 직렬화로 "currency" 문자열 비교
+        var itemResponse = await ApiClient.GetRawAsync(ApiRoutes.AdminItems.Collection);
+        if (itemResponse.IsSuccessStatusCode)
+        {
+            var all = await itemResponse.Content.ReadFromJsonAsync<List<ItemOption>>(AdminJsonOptions.Default);
+            allCurrencyItems = all?.Where(i => string.Equals(i.ItemType, "currency", StringComparison.OrdinalIgnoreCase)).ToList() ?? new();
+        }
+
+        // 보상 테이블 최대 200개 조회 — 삭제된 항목 제외
+        var rtResponse = await ApiClient.GetRawAsync(ApiRoutes.AdminRewardTables.Search(null, null, 1, 200));
+        if (rtResponse.IsSuccessStatusCode)
+        {
+            var rtResult = await rtResponse.Content.ReadFromJsonAsync<PagedResultDto<RewardTableOption>>(AdminJsonOptions.Default);
+            rewardTableOptions = rtResult?.Items.Where(r => !r.IsDeleted).ToList() ?? new();
+        }
+    }
+
     /// <summary>조회 실행 — 페이지 1로 리셋</summary>
     private async Task Search()
     {
@@ -147,7 +179,7 @@ public partial class ShopProducts : SafeComponentBase
         }
         if (newPriceItemId < 1)
         {
-            createError = "가격 재화 ItemId를 1 이상으로 입력해주세요.";
+            createError = "가격 재화를 선택해주세요.";
             return;
         }
         if (newPriceAmount < 1)
@@ -157,7 +189,7 @@ public partial class ShopProducts : SafeComponentBase
         }
         if (newRewardTableId < 1)
         {
-            createError = "RewardTableId를 1 이상으로 입력해주세요.";
+            createError = "보상 테이블을 선택해주세요.";
             return;
         }
 
@@ -278,6 +310,12 @@ public partial class ShopProducts : SafeComponentBase
     }
 
     // ─── 내부 모델 ──────────────────────────────────
+
+    // 가격 재화 드롭다운용 최소 DTO — ItemType 필터링에 사용 (camelCase enum 문자열)
+    private record ItemOption(int Id, string Name, string ItemType);
+
+    // 보상 테이블 드롭다운용 최소 DTO — 삭제 여부 필터링 포함
+    private record RewardTableOption(int Id, string SourceType, string Code, string Description, bool IsDeleted);
 
     // 상점 상품 목록 응답 DTO — AdminJsonOptions.Default로 역직렬화
     private record ShopProductItem(

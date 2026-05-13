@@ -46,7 +46,15 @@
       "PowerShell(Test-Path *)",
       "Bash(dotnet restore *)",
       "PowerShell(New-Item *)",
-      "PowerShell(Copy-Item *)"
+      "PowerShell(Copy-Item *)",
+      "Bash(xargs grep -l \"class ItemDto\\\\|record ItemDto\")",
+      "Bash(dotnet publish *)",
+      "PowerShell(Remove-Item *)",
+      "Skill(update-config)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\user\\\\Documents\\\\WebAPIFramework\\\\Framework\\\\Framework.Api\\\\Controllers\" -Recurse -Include \"*.cs\")",
+      "Bash(findstr /R /S \"GetByPlayerAndItemAsync\" *.cs Framework\\\\**\\\\*.cs)",
+      "Bash(psql \"host=localhost port=5432 dbname=framework_db user=postgres password=postgres\" -c \"SELECT \\\\\"Id\\\\\", \\\\\"Name\\\\\", \\\\\"Code\\\\\", \\\\\"ItemType\\\\\" FROM \\\\\"Items\\\\\" ORDER BY \\\\\"Id\\\\\";\")",
+      "PowerShell(docker exec framework-postgres *)"
     ]
   }
 }

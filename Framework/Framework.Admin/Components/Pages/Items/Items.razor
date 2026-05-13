@@ -104,7 +104,7 @@
                     <th>설명</th>
                     <th>감사 레벨 <HelpIcon Text="Full: 모든 변동 기록 / AnomalyOnly: 이상치 임계값 초과분만 기록" /></th>
                     <th>이상치 임계값 <HelpIcon Text="1회 변동량이 이 값을 초과하면 이상치로 기록됩니다. 0이면 검사 안 함" /></th>
-                    <th>사용 효과 <HelpIcon Text="아이템 사용 시 지급할 RewardTable ID. 비워두면 수량 차감만 수행합니다." /></th>
+                    <th>사용 효과 <HelpIcon Text="아이템 사용 시 지급할 보상 테이블. 비워두면 수량 차감만 수행합니다." /></th>
                     <th></th>
                 </tr>
             </thead>
@@ -153,11 +153,16 @@
                             <td>
                                 @if (useEffectEditMap.ContainsKey(item.Id))
                                 {
-                                    <!-- 편집 중 상태 — 입력 필드 표시 -->
+                                    <!-- 편집 중 상태 — 보상 테이블 드롭다운 표시 -->
                                     <div class="d-flex gap-1 align-items-center">
-                                        <input type="number" class="form-control form-control-sm" style="width:90px;"
-                                               placeholder="테이블 ID"
-                                               @bind="useEffectEditMap[item.Id]" />
+                                        <select class="form-select form-select-sm" style="width:280px;"
+                                                @bind="useEffectEditMap[item.Id]">
+                                            <option value="">(사용 효과 없음 — 수량 차감만)</option>
+                                            @foreach (var rt in allRewardTables)
+                                            {
+                                                <option value="@rt.Id">[@rt.Code]@(string.IsNullOrEmpty(rt.Description) ? "" : $" {rt.Description}")</option>
+                                            }
+                                        </select>
                                         <button class="btn btn-success btn-sm" @onclick="() => SaveUseEffect(item.Id)">저장</button>
                                         <button class="btn btn-secondary btn-sm" @onclick="() => CancelEditUseEffect(item.Id)">취소</button>
                                     </div>
@@ -168,8 +173,8 @@
                                 }
                                 else
                                 {
-                                    <!-- 보기 모드 — 현재 값 + 편집 버튼 -->
-                                    <span class="me-1">@(item.UseRewardTableId?.ToString() ?? "-")</span>
+                                    <!-- 보기 모드 — 현재 값(라벨 형태) + 편집 버튼 -->
+                                    <span class="me-1">@FormatRewardTableLabel(item.UseRewardTableId)</span>
                                     <button class="btn btn-outline-secondary btn-sm" @onclick="() => StartEditUseEffect(item)">편집</button>
                                     @if (useEffectMessages.TryGetValue(item.Id, out var savedMsg))
                                     {

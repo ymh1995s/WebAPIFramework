@@ -34,6 +34,18 @@ public partial class QuestsList : SafeComponentBase
     private string? errorMessage;
     private string? successMessage;
 
+    // ─── 드롭다운 데이터 소스 ────────────────────────
+    // 조건 대상 ID 드롭다운 — 조건 타입별로 선택적 사용
+    private List<DropdownStageOption> allStages = new();
+    private List<DropdownItemOption> allItems = new();
+    private List<DropdownShopProductOption> allShopProducts = new();
+
+    // 보상 테이블 드롭다운 — SourceType=QuestComplete(2)만 표시
+    private List<DropdownRewardTableOption> allRewardTables = new();
+
+    // 선행 퀘스트 드롭다운 — 활성 퀘스트 전체 캐시 (검색 결과와 별개)
+    private List<QuestItem> allActiveQuests = new();
+
     // ─── 생성 모달 상태 ─────────────────────────────
     private bool showCreateModal;
     private string newCode = "";
@@ -67,6 +79,61 @@ public partial class QuestsList : SafeComponentBase
     private bool showDeleteModal;
     private int deletingId;
     private string deletingCode = "";
+
+    /// <summary>
+    /// 페이지 초기화 — 드롭다운에 필요한 데이터 소스를 병렬로 사전 로드한다.
+    /// 로드 실패 시 해당 드롭다운은 비어 있는 상태로 동작하고 페이지는 정상 표시된다.
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        // 5개 데이터 소스를 병렬 요청 — 순서 독립적이므로 WhenAll 사용
+        var stagesTask      = ApiClient.GetRawAsync(ApiRoutes.AdminStages.Search(null, 1, 100));
+        var itemsTask       = ApiClient.GetRawAsync(ApiRoutes.AdminItems.Collection);
+        var shopTask        = ApiClient.GetRawAsync(ApiRoutes.AdminShopProducts.Search(null, 1, 100));
+        var rewardTask      = ApiClient.GetRawAsync(ApiRoutes.AdminRewardTables.Search(2, null, 1, 100));
+        var questsTask      = ApiClient.GetRawAsync(ApiRoutes.AdminQuests.Search(null, null, true, 1, 100));
+
+        await Task.WhenAll(stagesTask, itemsTask, shopTask, rewardTask, questsTask);
+
+        // 스테이지 목록 역직렬화
+        if (stagesTask.Result.IsSuccessStatusCode)
+        {
+            var paged = await stagesTask.Result.Content
+                .ReadFromJsonAsync<PagedResultDto<DropdownStageOption>>(AdminJsonOptions.Default);
+            allStages = paged?.Items ?? new();
+        }
+
+        // 아이템 목록 역직렬화
+        if (itemsTask.Result.IsSuccessStatusCode)
+        {
+            allItems = await itemsTask.Result.Content
+                .ReadFromJsonAsync<List<DropdownItemOption>>(AdminJsonOptions.Default) ?? new();
+        }
+
+        // 상점 상품 목록 역직렬화
+        if (shopTask.Result.IsSuccessStatusCode)
+        {
+            var paged = await shopTask.Result.Content
+                .ReadFromJsonAsync<PagedResultDto<DropdownShopProductOption>>(AdminJsonOptions.Default);
+            allShopProducts = paged?.Items ?? new();
+        }
+
+        // 보상 테이블 목록 역직렬화 — SourceType=QuestComplete(2)만
+        if (rewardTask.Result.IsSuccessStatusCode)
+        {
+            var paged = await rewardTask.Result.Content
+                .ReadFromJsonAsync<PagedResultDto<DropdownRewardTableOption>>(AdminJsonOptions.Default);
+            allRewardTables = paged?.Items ?? new();
+        }
+
+        // 활성 퀘스트 전체 목록 역직렬화 — 선행 퀘스트 드롭다운용
+        if (questsTask.Result.IsSuccessStatusCode)
+        {
+            var paged = await questsTask.Result.Content
+                .ReadFromJsonAsync<PagedResultDto<QuestItem>>(AdminJsonOptions.Default);
+            allActiveQuests = paged?.Items ?? new();
+        }
+    }
 
     /// <summary>조회 실행 — 페이지 1로 리셋</summary>
     private async Task Search()
@@ -145,6 +212,24 @@ public partial class QuestsList : SafeComponentBase
     /// <summary>생성 모달 닫기</summary>
     private void CloseCreateModal() => showCreateModal = false;
 
+    /// <summary>
+    /// 생성 모달 조건 타입 변경 핸들러 — 타입 변경 시 조건 대상 ID를 null로 리셋한다.
+    /// @bind:after로 바인딩 이후 호출되도록 razor에서 연결.
+    /// </summary>
+    private void OnNewConditionTypeChanged()
+    {
+        // 조건 타입이 바뀌면 이전 선택값이 무의미해지므로 null 초기화
+        newConditionTargetId = null;
+    }
+
+    /// <summary>
+    /// 편집 모달 조건 타입 변경 핸들러 — 타입 변경 시 조건 대상 ID를 null로 리셋한다.
+    /// </summary>
+    private void OnEditConditionTypeChanged()
+    {
+        editConditionTargetId = null;
+    }
+
     /// <summary>퀘스트 생성 — POST /api/admin/quests</summary>
     private async Task Create()
     {
@@ -168,7 +253,7 @@ public partial class QuestsList : SafeComponentBase
         }
         if (newRewardTableId < 1)
         {
-            createError = "RewardTableId를 1 이상으로 입력해주세요.";
+            createError = "보상 테이블을 선택해주세요.";
             return;
         }
 
@@ -305,6 +390,19 @@ public partial class QuestsList : SafeComponentBase
         _ => type.ToString()
     };
 
+    /// <summary>
+    /// 보상 테이블 드롭다운 표시 레이블 — Description 유무에 따라 다르게 표시.
+    /// Description이 있으면 "[Code] Description", 없으면 "[Code]"만 표시.
+    /// </summary>
+    private static string RewardTableLabel(DropdownRewardTableOption rt) =>
+        string.IsNullOrWhiteSpace(rt.Description)
+            ? $"[{rt.Code}]"
+            : $"[{rt.Code}] {rt.Description}";
+
+    /// <summary>선행 퀘스트 드롭다운 표시 레이블 — "[Code] Title (주기)" 형식</summary>
+    private string QuestDropdownLabel(QuestItem q) =>
+        $"[{q.Code}] {q.Title} ({PeriodLabel(q.Period)})";
+
     // ─── 내부 모델 ──────────────────────────────────
 
     // 퀘스트 정의 목록 응답 DTO — AdminJsonOptions.Default로 역직렬화
@@ -325,4 +423,16 @@ public partial class QuestsList : SafeComponentBase
         DateTimeOffset CreatedAt,
         DateTimeOffset UpdatedAt
     );
+
+    // 스테이지 드롭다운 최소 DTO — "[Code] Name" 표시용
+    private record DropdownStageOption(int Id, string Code, string Name);
+
+    // 아이템 드롭다운 최소 DTO — "Name (ItemType)" 표시용
+    private record DropdownItemOption(int Id, string Name, string ItemType, bool IsDeleted);
+
+    // 상점 상품 드롭다운 최소 DTO — "Name" 표시용
+    private record DropdownShopProductOption(int Id, string Name, bool IsEnabled);
+
+    // 보상 테이블 드롭다운 최소 DTO — "[Code] Description" 표시용
+    private record DropdownRewardTableOption(int Id, string Code, string Description, bool IsDeleted);
 }

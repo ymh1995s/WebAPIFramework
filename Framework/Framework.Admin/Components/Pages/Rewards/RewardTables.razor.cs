@@ -48,29 +48,52 @@ public partial class RewardTables : SafeComponentBase
 
     // ─── 삭제 확인 모달 상태 ────────────────────────
     private bool showDeleteModal;
+
+    // ─── 아이템 드롭다운 목록 ────────────────────────
+    // 보상 항목 ItemId 선택용 — 페이지 초기화 시 전체 로드
+    private List<ItemOption> allItems = new();
     private int deletingId;
     private string deletingInfo = "";
 
-    // SourceType 드롭다운 옵션 — Label은 서버 enum 이름(PascalCase), Value는 정수값
+    // SourceType 드롭다운 옵션 — Label은 서버 enum 이름(PascalCase) + 한글 설명, Value는 정수값
     // DailyLogin(0)은 RewardTables에서 사용 중단 — UI에서 숨김 처리
     private static readonly List<(string Label, int Value)> SourceTypeOptions = new()
     {
-        ("MatchComplete", 1),
-        ("QuestComplete", 2),
-        ("AchievementUnlock", 3),
-        ("LevelUp", 4),
-        ("EventReward", 5),
-        ("AdminGrant", 6),
-        ("AdReward", 7),
-        ("Purchase", 8),
-        ("StageComplete", 9),
-        ("CouponCode", 10),
-        ("SeasonReward", 11),
+        ("MatchComplete(매치 완료)", 1),
+        ("QuestComplete(퀘스트 완료)", 2),
+        ("AchievementUnlock(업적 달성)", 3),
+        ("LevelUp(레벨업)", 4),
+        ("EventReward(이벤트 보상)", 5),
+        ("AdminGrant(관리자 지급)", 6),
+        ("AdReward(광고 보상)", 7),
+        ("Purchase(인앱결제)", 8),
+        ("StageComplete(스테이지 완료)", 9),
+        ("CouponCode(쿠폰)", 10),
+        ("SeasonReward(시즌 보상)", 11),
     };
 
-    /// <summary>서버가 반환한 camelCase enum 이름의 첫 글자를 대문자로 변환 (예: "matchComplete" → "MatchComplete")</summary>
+    // 서버 camelCase 값 → 한글 포함 레이블 매핑 (목록 테이블 표시용)
+    private static readonly Dictionary<string, string> SourceTypeLabelMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "matchComplete",     "MatchComplete(매치 완료)" },
+        { "questComplete",     "QuestComplete(퀘스트 완료)" },
+        { "achievementUnlock", "AchievementUnlock(업적 달성)" },
+        { "levelUp",           "LevelUp(레벨업)" },
+        { "eventReward",       "EventReward(이벤트 보상)" },
+        { "adminGrant",        "AdminGrant(관리자 지급)" },
+        { "adReward",          "AdReward(광고 보상)" },
+        { "purchase",          "Purchase(인앱결제)" },
+        { "stageComplete",     "StageComplete(스테이지 완료)" },
+        { "couponCode",        "CouponCode(쿠폰)" },
+        { "seasonReward",      "SeasonReward(시즌 보상)" },
+        { "dailyLogin",        "DailyLogin(일일 접속)" },
+    };
+
+    /// <summary>서버가 반환한 camelCase enum 이름을 한글 포함 레이블로 변환</summary>
     private static string GetSourceTypeLabel(string sourceType) =>
-        string.IsNullOrEmpty(sourceType) ? sourceType : char.ToUpperInvariant(sourceType[0]) + sourceType[1..];
+        SourceTypeLabelMap.TryGetValue(sourceType, out var label)
+            ? label
+            : string.IsNullOrEmpty(sourceType) ? sourceType : char.ToUpperInvariant(sourceType[0]) + sourceType[1..];
 
     // SourceType별 Code 입력 예시 맵 — 생성 모달에서 동적으로 안내 문구 표시
     private static readonly Dictionary<int, string> CodeExampleMap = new()
@@ -93,6 +116,16 @@ public partial class RewardTables : SafeComponentBase
         int.TryParse(newSourceType, out var v) && CodeExampleMap.TryGetValue(v, out var ex)
             ? ex
             : string.Empty;
+
+    /// <summary>페이지 초기화 — 아이템 드롭다운 목록 사전 로드</summary>
+    protected override async Task OnInitializedAsync()
+    {
+        var response = await ApiClient.GetRawAsync(ApiRoutes.AdminItems.Collection);
+        if (response.IsSuccessStatusCode)
+        {
+            allItems = await response.Content.ReadFromJsonAsync<List<ItemOption>>(AdminJsonOptions.Default) ?? new();
+        }
+    }
 
     /// <summary>조회 실행 — 페이지 1로 리셋</summary>
     private async Task Search()
@@ -171,7 +204,8 @@ public partial class RewardTables : SafeComponentBase
                 {
                     ItemId = e.ItemId,
                     Count = e.Count,
-                    Weight = e.Weight
+                    Weight = e.Weight,
+                    ItemName = e.ItemName   // 아이템명 — UI 표시용
                 }).ToList();
                 detailMessage = null;
             }
@@ -369,6 +403,8 @@ public partial class RewardTables : SafeComponentBase
         public int ItemId { get; set; }
         public int Count { get; set; } = 1;
         public int? Weight { get; set; }
+        // 서버 조회 시 채워지는 아이템명 — UI 표시 전용, 저장 대상 아님
+        public string ItemName { get; set; } = "";
     }
 
     // 목록 응답 DTO
@@ -377,6 +413,9 @@ public partial class RewardTables : SafeComponentBase
     // 상세 응답 DTO
     private record RewardTableDetail(int Id, string SourceType, string Code, string Description, bool IsDeleted, List<EntryDto> Entries);
     private record EntryDto(int Id, int ItemId, string ItemName, int Count, int? Weight);
+
+    // 아이템 드롭다운용 최소 DTO
+    private record ItemOption(int Id, string Name, string ItemType);
 
     // API 에러 응답 DTO — BadRequest 메시지 역직렬화용
     private record ErrorResponse(string Message);

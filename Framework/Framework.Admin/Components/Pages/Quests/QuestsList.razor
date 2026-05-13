@@ -10,7 +10,9 @@
 
 <div class="alert alert-info py-2 small mb-3">
     <p class="mb-1">일일/주간/메인 퀘스트 조건과 보상 테이블을 정의합니다.</p>
-    <p class="mb-0"><strong>[RewardTableId]</strong> 퀘스트 완료 시 지급할 보상 테이블 ID</p>
+    <p class="mb-1"><strong>[조건 대상 ID]</strong> 조건 타입에 따라 의미가 달라집니다 (스테이지 / 아이템 / 상점 상품, Login은 해당 없음)</p>
+    <p class="mb-1"><strong>[RewardTableId]</strong> 퀘스트 완료 시 지급할 보상 테이블 (SourceType=QuestComplete만 노출)</p>
+    <p class="mb-0"><strong>[선행 퀘스트]</strong> 선택 시 해당 퀘스트 완료 후에만 본 퀘스트 진행 가능</p>
 </div>
 
 <!-- 검색 필터 카드 -->
@@ -175,28 +177,81 @@ else
                     </div>
                     <div class="mb-2">
                         <label class="form-label small">조건 타입 <span class="text-danger">*</span></label>
-                        <select class="form-select form-select-sm" @bind="newConditionType">
+                        <!-- 조건 타입 변경 시 대상 ID를 null로 리셋 -->
+                        <select class="form-select form-select-sm" @bind="newConditionType" @bind:after="OnNewConditionTypeChanged">
                             <option value="1">스테이지 클리어</option>
                             <option value="2">아이템 사용</option>
                             <option value="3">상점 구매</option>
                             <option value="4">로그인</option>
                         </select>
                     </div>
-                    <div class="mb-2">
-                        <label class="form-label small">조건 대상 ID <span class="text-muted">(null=전체)</span></label>
-                        <input type="number" class="form-control form-control-sm" @bind="newConditionTargetId" min="1" placeholder="비워두면 해당 타입 전체 대상" />
-                    </div>
+                    <!-- 조건 대상 ID — 조건 타입에 따라 드롭다운 내용 변경 -->
+                    @if (newConditionType == 4)
+                    {
+                        <!-- Login 타입은 대상 없음 — null 고정 -->
+                        <div class="mb-2">
+                            <label class="form-label small">조건 대상</label>
+                            <p class="form-control-plaintext form-control-sm text-muted">(해당 없음 — null로 고정)</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mb-2">
+                            <label class="form-label small">조건 대상 <span class="text-muted">(null=전체 대상)</span></label>
+                            <select class="form-select form-select-sm" @bind="newConditionTargetId">
+                                <option value="">@("(전체 대상 — null)")</option>
+                                @if (newConditionType == 1)
+                                {
+                                    <!-- 스테이지 클리어 — "[Code] Name" 형식 -->
+                                    @foreach (var s in allStages)
+                                    {
+                                        <option value="@s.Id">[@s.Code] @s.Name</option>
+                                    }
+                                }
+                                else if (newConditionType == 2)
+                                {
+                                    <!-- 아이템 사용 — "Name (ItemType)" 형식 -->
+                                    @foreach (var item in allItems.Where(i => !i.IsDeleted))
+                                    {
+                                        <option value="@item.Id">@item.Name (@item.ItemType)</option>
+                                    }
+                                }
+                                else if (newConditionType == 3)
+                                {
+                                    <!-- 상점 구매 — "Name" 형식 -->
+                                    @foreach (var sp in allShopProducts.Where(sp => sp.IsEnabled))
+                                    {
+                                        <option value="@sp.Id">@sp.Name</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                    }
                     <div class="mb-2">
                         <label class="form-label small">목표 수량 <span class="text-danger">*</span></label>
                         <input type="number" class="form-control form-control-sm" @bind="newTargetAmount" min="1" />
                     </div>
+                    <!-- 보상 테이블 드롭다운 — SourceType=QuestComplete(2)만 표시 -->
                     <div class="mb-2">
-                        <label class="form-label small">RewardTableId <span class="text-danger">*</span></label>
-                        <input type="number" class="form-control form-control-sm" @bind="newRewardTableId" min="1" />
+                        <label class="form-label small">보상 테이블 <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-sm" @bind="newRewardTableId">
+                            <option value="0">(선택해주세요)</option>
+                            @foreach (var rt in allRewardTables.Where(r => !r.IsDeleted))
+                            {
+                                <option value="@rt.Id">@RewardTableLabel(rt)</option>
+                            }
+                        </select>
                     </div>
+                    <!-- 선행 퀘스트 드롭다운 — 활성 퀘스트 전체 -->
                     <div class="mb-2">
-                        <label class="form-label small">선행 퀘스트 ID <span class="text-muted">(미입력=없음)</span></label>
-                        <input type="number" class="form-control form-control-sm" @bind="newPrerequisiteQuestId" min="1" placeholder="비워두면 선행 조건 없음" />
+                        <label class="form-label small">선행 퀘스트 <span class="text-muted">(미선택=없음)</span></label>
+                        <select class="form-select form-select-sm" @bind="newPrerequisiteQuestId">
+                            <option value="">(선행 조건 없음)</option>
+                            @foreach (var q in allActiveQuests)
+                            {
+                                <option value="@q.Id">@QuestDropdownLabel(q)</option>
+                            }
+                        </select>
                     </div>
                     <div class="mb-2">
                         <label class="form-label small">정렬 순서</label>
@@ -241,28 +296,81 @@ else
                     </div>
                     <div class="mb-2">
                         <label class="form-label small">조건 타입</label>
-                        <select class="form-select form-select-sm" @bind="editConditionType">
+                        <!-- 조건 타입 변경 시 대상 ID를 null로 리셋 -->
+                        <select class="form-select form-select-sm" @bind="editConditionType" @bind:after="OnEditConditionTypeChanged">
                             <option value="1">스테이지 클리어</option>
                             <option value="2">아이템 사용</option>
                             <option value="3">상점 구매</option>
                             <option value="4">로그인</option>
                         </select>
                     </div>
-                    <div class="mb-2">
-                        <label class="form-label small">조건 대상 ID <span class="text-muted">(null=전체)</span></label>
-                        <input type="number" class="form-control form-control-sm" @bind="editConditionTargetId" min="1" placeholder="비워두면 전체 대상" />
-                    </div>
+                    <!-- 조건 대상 ID — 조건 타입에 따라 드롭다운 내용 변경 -->
+                    @if (editConditionType == 4)
+                    {
+                        <!-- Login 타입은 대상 없음 — null 고정 -->
+                        <div class="mb-2">
+                            <label class="form-label small">조건 대상</label>
+                            <p class="form-control-plaintext form-control-sm text-muted">(해당 없음 — null로 고정)</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mb-2">
+                            <label class="form-label small">조건 대상 <span class="text-muted">(null=전체 대상)</span></label>
+                            <select class="form-select form-select-sm" @bind="editConditionTargetId">
+                                <option value="">@("(전체 대상 — null)")</option>
+                                @if (editConditionType == 1)
+                                {
+                                    <!-- 스테이지 클리어 — "[Code] Name" 형식 -->
+                                    @foreach (var s in allStages)
+                                    {
+                                        <option value="@s.Id">[@s.Code] @s.Name</option>
+                                    }
+                                }
+                                else if (editConditionType == 2)
+                                {
+                                    <!-- 아이템 사용 — "Name (ItemType)" 형식 -->
+                                    @foreach (var item in allItems.Where(i => !i.IsDeleted))
+                                    {
+                                        <option value="@item.Id">@item.Name (@item.ItemType)</option>
+                                    }
+                                }
+                                else if (editConditionType == 3)
+                                {
+                                    <!-- 상점 구매 — "Name" 형식 -->
+                                    @foreach (var sp in allShopProducts.Where(sp => sp.IsEnabled))
+                                    {
+                                        <option value="@sp.Id">@sp.Name</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                    }
                     <div class="mb-2">
                         <label class="form-label small">목표 수량</label>
                         <input type="number" class="form-control form-control-sm" @bind="editTargetAmount" min="1" />
                     </div>
+                    <!-- 보상 테이블 드롭다운 — SourceType=QuestComplete(2)만 표시 -->
                     <div class="mb-2">
-                        <label class="form-label small">RewardTableId</label>
-                        <input type="number" class="form-control form-control-sm" @bind="editRewardTableId" min="1" />
+                        <label class="form-label small">보상 테이블</label>
+                        <select class="form-select form-select-sm" @bind="editRewardTableId">
+                            <option value="0">(선택해주세요)</option>
+                            @foreach (var rt in allRewardTables.Where(r => !r.IsDeleted))
+                            {
+                                <option value="@rt.Id">@RewardTableLabel(rt)</option>
+                            }
+                        </select>
                     </div>
+                    <!-- 선행 퀘스트 드롭다운 — 자기 자신 제외 (순환 참조 방지) -->
                     <div class="mb-2">
-                        <label class="form-label small">선행 퀘스트 ID <span class="text-muted">(미입력=없음)</span></label>
-                        <input type="number" class="form-control form-control-sm" @bind="editPrerequisiteQuestId" min="1" placeholder="비워두면 선행 조건 없음" />
+                        <label class="form-label small">선행 퀘스트 <span class="text-muted">(미선택=없음)</span></label>
+                        <select class="form-select form-select-sm" @bind="editPrerequisiteQuestId">
+                            <option value="">(선행 조건 없음)</option>
+                            @foreach (var q in allActiveQuests.Where(q => q.Id != editingQuest.Id))
+                            {
+                                <option value="@q.Id">@QuestDropdownLabel(q)</option>
+                            }
+                        </select>
                     </div>
                     <div class="mb-2">
                         <label class="form-label small">정렬 순서</label>

@@ -132,7 +132,7 @@ else
                                 <table class="table table-sm table-bordered mb-2">
                                     <thead class="table-light">
                                         <tr>
-                                            <th>ItemId</th>
+                                            <th>아이템</th>
                                             <th>Count</th>
                                             <th title="null이면 고정 지급, 값 있으면 가중치 확률 지급">Weight</th>
                                             <th>삭제</th>
@@ -143,13 +143,20 @@ else
                                         {
                                             <tr>
                                                 <td>
-                                                    <input type="number" class="form-control form-control-sm" @bind="entry.ItemId" style="width:100px" />
+                                                    @* 전체 아이템 드롭다운 — ID 대신 이름으로 선택 *@
+                                                    <select class="form-select form-select-sm" @bind="entry.ItemId" style="min-width:180px">
+                                                        <option value="0">선택...</option>
+                                                        @foreach (var item in allItems)
+                                                        {
+                                                            <option value="@item.Id">@item.Name (@item.ItemType, ID:@item.Id)</option>
+                                                        }
+                                                    </select>
                                                 </td>
                                                 <td>
                                                     <input type="number" class="form-control form-control-sm" @bind="entry.Count" min="1" style="width:80px" />
                                                 </td>
                                                 <td>
-                                                    <input type="number" class="form-control form-control-sm" @bind="entry.Weight" placeholder="비워두면 고정" style="width:100px" />
+                                                    <input type="number" class="form-control form-control-sm" @bind="entry.Weight" placeholder="비워두면 고정 지급" style="width:160px" />
                                                 </td>
                                                 <td>
                                                     <button class="btn btn-outline-danger btn-sm" @onclick="() => RemoveEntry(entry)">×</button>

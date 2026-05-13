@@ -9,7 +9,7 @@
 
 <div class="alert alert-info py-2 small mb-3">
     <p class="mb-1">인게임 재화(Gold/Gems 등)로 구매 가능한 상점 상품을 등록합니다.</p>
-    <p class="mb-1"><strong>[가격 ItemId]</strong> 차감할 통화 아이템 ID (Admin &gt; 아이템 관리에서 확인)</p>
+    <p class="mb-1"><strong>[필요 ItemId]</strong> 차감할 통화 아이템 ID (Admin &gt; 아이템 관리에서 확인)</p>
     <p class="mb-0"><strong>[RewardTableId]</strong> 구매 시 지급할 보상 테이블 ID (IRewardDispatcher 연동)</p>
 </div>
 
@@ -71,8 +71,8 @@ else
             <tr>
                 <th>ID</th>
                 <th>상품명</th>
-                <th>가격 재화</th>
-                <th>가격 수량</th>
+                <th>필요 재화</th>
+                <th>필요 수량</th>
                 <th>RewardTableId</th>
                 <th>일일 한도</th>
                 <th>총 한도</th>
@@ -144,16 +144,30 @@ else
                         <input type="text" class="form-control form-control-sm" @bind="newDescription" placeholder="상품 설명" />
                     </div>
                     <div class="mb-2">
-                        <label class="form-label small">가격 재화 ItemId <span class="text-danger">*</span></label>
-                        <input type="number" class="form-control form-control-sm" @bind="newPriceItemId" min="1" placeholder="예: 1=Gold, 2=Gems" />
+                        <label class="form-label small">필요 재화 <span class="text-danger">*</span></label>
+                        @* Currency 타입 아이템만 드롭다운으로 표시 *@
+                        <select class="form-select form-select-sm" @bind="newPriceItemId">
+                            <option value="0">선택...</option>
+                            @foreach (var item in allCurrencyItems)
+                            {
+                                <option value="@item.Id">@item.Name (ID: @item.Id)</option>
+                            }
+                        </select>
                     </div>
                     <div class="mb-2">
-                        <label class="form-label small">가격 수량 <span class="text-danger">*</span></label>
+                        <label class="form-label small">필요 수량 <span class="text-danger">*</span></label>
                         <input type="number" class="form-control form-control-sm" @bind="newPriceAmount" min="1" />
                     </div>
                     <div class="mb-2">
-                        <label class="form-label small">RewardTableId <span class="text-danger">*</span></label>
-                        <input type="number" class="form-control form-control-sm" @bind="newRewardTableId" min="1" placeholder="구매 시 지급할 보상 테이블 ID" />
+                        <label class="form-label small">보상 테이블 <span class="text-danger">*</span></label>
+                        @* 보상 테이블 드롭다운 — code / description (ID) 형식으로 표시 *@
+                        <select class="form-select form-select-sm" @bind="newRewardTableId">
+                            <option value="0">선택...</option>
+                            @foreach (var rt in rewardTableOptions)
+                            {
+                                <option value="@rt.Id">@rt.Code — @rt.Description (ID: @rt.Id)</option>
+                            }
+                        </select>
                     </div>
                     <div class="mb-2">
                         <label class="form-label small">일일 구매 한도 <span class="text-muted">(0=무제한)</span></label>
@@ -209,16 +223,30 @@ else
                         <input type="text" class="form-control form-control-sm" @bind="editDescription" />
                     </div>
                     <div class="mb-2">
-                        <label class="form-label small">가격 재화 ItemId</label>
-                        <input type="number" class="form-control form-control-sm" @bind="editPriceItemId" min="1" />
+                        <label class="form-label small">필요 재화</label>
+                        @* Currency 타입 아이템만 드롭다운으로 표시 *@
+                        <select class="form-select form-select-sm" @bind="editPriceItemId">
+                            <option value="0">선택...</option>
+                            @foreach (var item in allCurrencyItems)
+                            {
+                                <option value="@item.Id">@item.Name (ID: @item.Id)</option>
+                            }
+                        </select>
                     </div>
                     <div class="mb-2">
-                        <label class="form-label small">가격 수량</label>
+                        <label class="form-label small">필요 수량</label>
                         <input type="number" class="form-control form-control-sm" @bind="editPriceAmount" min="1" />
                     </div>
                     <div class="mb-2">
-                        <label class="form-label small">RewardTableId</label>
-                        <input type="number" class="form-control form-control-sm" @bind="editRewardTableId" min="1" />
+                        <label class="form-label small">보상 테이블</label>
+                        @* 보상 테이블 드롭다운 — code / description (ID) 형식으로 표시 *@
+                        <select class="form-select form-select-sm" @bind="editRewardTableId">
+                            <option value="0">선택...</option>
+                            @foreach (var rt in rewardTableOptions)
+                            {
+                                <option value="@rt.Id">@rt.Code — @rt.Description (ID: @rt.Id)</option>
+                            }
+                        </select>
                     </div>
                     <div class="mb-2">
                         <label class="form-label small">일일 구매 한도 <span class="text-muted">(0=무제한)</span></label>

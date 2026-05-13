@@ -2,6 +2,7 @@ using Framework.Admin.Components;
 using Framework.Admin.Constants;
 using Framework.Admin.Http;
 using Framework.Admin.Json;
+using Framework.Application.Common;
 using Framework.Application.Features.Item;
 using Framework.Domain.Enums;
 using Microsoft.AspNetCore.Components;
@@ -51,13 +52,33 @@ public partial class Items : SafeComponentBase
     // 사용 효과 저장 피드백 메시지 (키: ItemId)
     private Dictionary<int, (string Message, bool IsSuccess)> useEffectMessages = new();
 
+    // 드롭다운용 RewardTable 캐시 — 초기화 시 전체 목록을 한 번만 로드
+    private List<DropdownRewardTableOption> allRewardTables = new();
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
+            // RewardTable 목록과 아이템 목록을 순서대로 로드
+            await SafeExecute(LoadRewardTables, _ => { });
             await SafeExecute(LoadItems, msg => listMessage = msg);
             StateHasChanged();
         }
+    }
+
+    /// <summary>보상 테이블 전체 목록 사전 로드 — 사용 효과 드롭다운에 사용</summary>
+    private async Task LoadRewardTables()
+    {
+        // 삭제 여부에 관계없이 최대 500개 로드 후 IsDeleted=true 필터링
+        var url = ApiRoutes.AdminRewardTables.Search(null, null, 1, 500);
+        var response = await ApiClient.GetRawAsync(url);
+        if (!response.IsSuccessStatusCode) return;
+
+        var paged = await response.Content.ReadFromJsonAsync<PagedResultDto<DropdownRewardTableOption>>(AdminJsonOptions.Default);
+        if (paged is null) return;
+
+        // 삭제된 항목은 드롭다운에서 제외
+        allRewardTables = paged.Items.Where(rt => !rt.IsDeleted).ToList();
     }
 
     /// <summary>목록 조회</summary>
@@ -218,8 +239,26 @@ public partial class Items : SafeComponentBase
         }
     }
 
+    /// <summary>RewardTable ID를 "[Code] Description" 형태의 라벨로 변환</summary>
+    /// <param name="id">표시할 RewardTable ID. null이면 "-" 반환</param>
+    private string FormatRewardTableLabel(int? id)
+    {
+        if (id is null) return "-";
+
+        var match = allRewardTables.FirstOrDefault(rt => rt.Id == id.Value);
+        if (match is null) return $"#{id} (삭제됨?)";
+
+        // Description이 있으면 "[Code] Description", 없으면 "[Code]"
+        return string.IsNullOrEmpty(match.Description)
+            ? $"[{match.Code}]"
+            : $"[{match.Code}] {match.Description}";
+    }
+
     // 보유 유저 수 조회 응답용 로컬 DTO — 서버 대응 타입 없음
     private record HolderCountDto(int Count);
+
+    // 드롭다운용 RewardTable 옵션 DTO — API 응답 역직렬화에 사용
+    private record DropdownRewardTableOption(int Id, string SourceType, string Code, string Description, bool IsDeleted);
 
     // ItemType enum 한글 표시명 반환
     private static string ItemTypeLabel(ItemType type) => type switch
