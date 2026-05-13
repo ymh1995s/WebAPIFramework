@@ -40,7 +40,7 @@ public class ItemsController : ControllerBase
     public async Task<IActionResult> UseItem(int itemId, [FromBody] UseItemRequest request)
     {
         var playerId = User.GetPlayerIdRequired();
-        var result = await _itemUseService.UseItemAsync(playerId, itemId, request.ClientRequestId);
+        var result = await _itemUseService.UseItemAsync(playerId, itemId, request.ClientRequestId, request.Quantity);
 
         return result.Status switch
         {

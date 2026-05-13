@@ -3,6 +3,7 @@ using System;
 using Framework.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Framework.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260512162404_AddRewardGrantPurchasedQuantity")]
+    partial class AddRewardGrantPurchasedQuantity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -74,7 +77,7 @@ namespace Framework.Infrastructure.Migrations
 
                     b.HasIndex("RequiredPrevStageId");
 
-                    b.ToTable("Stages", (string)null);
+                    b.ToTable("Stages");
                 });
 
             modelBuilder.Entity("Framework.Domain.Content.Entities.StageClear", b =>
@@ -118,7 +121,7 @@ namespace Framework.Infrastructure.Migrations
                     b.HasIndex("PlayerId", "StageId")
                         .IsUnique();
 
-                    b.ToTable("StageClears", (string)null);
+                    b.ToTable("StageClears");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.AdPolicy", b =>
@@ -175,7 +178,7 @@ namespace Framework.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = false");
 
-                    b.ToTable("AdPolicies", (string)null);
+                    b.ToTable("AdPolicies");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.AdminNotification", b =>
@@ -231,7 +234,7 @@ namespace Framework.Infrastructure.Migrations
 
                     b.HasIndex("IsRead", "CreatedAt");
 
-                    b.ToTable("AdminNotifications", (string)null);
+                    b.ToTable("AdminNotifications");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.AuditLog", b =>
@@ -281,7 +284,7 @@ namespace Framework.Infrastructure.Migrations
 
                     b.HasIndex("PlayerId");
 
-                    b.ToTable("AuditLogs", (string)null);
+                    b.ToTable("AuditLogs");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.BanLog", b =>
@@ -324,7 +327,7 @@ namespace Framework.Infrastructure.Migrations
 
                     b.HasIndex("PlayerId", "CreatedAt");
 
-                    b.ToTable("BanLogs", (string)null);
+                    b.ToTable("BanLogs");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.DailyLoginLog", b =>
@@ -351,7 +354,7 @@ namespace Framework.Infrastructure.Migrations
                     b.HasIndex("PlayerId", "LoginDate")
                         .IsUnique();
 
-                    b.ToTable("DailyLoginLogs", (string)null);
+                    b.ToTable("DailyLoginLogs");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.DailyRewardSlot", b =>
@@ -377,7 +380,7 @@ namespace Framework.Infrastructure.Migrations
 
                     b.HasIndex("ItemId");
 
-                    b.ToTable("DailyRewardSlots", (string)null);
+                    b.ToTable("DailyRewardSlots");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.GameResult", b =>
@@ -400,7 +403,7 @@ namespace Framework.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("GameResults", (string)null);
+                    b.ToTable("GameResults");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.GameResultParticipant", b =>
@@ -433,7 +436,7 @@ namespace Framework.Infrastructure.Migrations
                     b.HasIndex("MatchId", "PlayerId")
                         .IsUnique();
 
-                    b.ToTable("GameResultParticipants", (string)null);
+                    b.ToTable("GameResultParticipants");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.IapProduct", b =>
@@ -487,7 +490,7 @@ namespace Framework.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = false");
 
-                    b.ToTable("IapProducts", (string)null);
+                    b.ToTable("IapProducts");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.IapPurchase", b =>
@@ -584,7 +587,7 @@ namespace Framework.Infrastructure.Migrations
                     b.HasIndex("Store", "PurchaseToken")
                         .IsUnique();
 
-                    b.ToTable("IapPurchases", (string)null);
+                    b.ToTable("IapPurchases");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.Inquiry", b =>
@@ -617,7 +620,7 @@ namespace Framework.Infrastructure.Migrations
 
                     b.HasIndex("PlayerId");
 
-                    b.ToTable("Inquiries", (string)null);
+                    b.ToTable("Inquiries");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.Item", b =>
@@ -655,7 +658,7 @@ namespace Framework.Infrastructure.Migrations
 
                     b.HasIndex("UseRewardTableId");
 
-                    b.ToTable("Items", (string)null);
+                    b.ToTable("Items");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.LevelThreshold", b =>
@@ -674,7 +677,7 @@ namespace Framework.Infrastructure.Migrations
 
                     b.HasKey("Level");
 
-                    b.ToTable("LevelThresholds", (string)null);
+                    b.ToTable("LevelThresholds");
 
                     b.HasData(
                         new
@@ -846,7 +849,7 @@ namespace Framework.Infrastructure.Migrations
 
                     b.HasIndex("PlayerId");
 
-                    b.ToTable("Mails", (string)null);
+                    b.ToTable("Mails");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.MailItem", b =>
@@ -872,7 +875,7 @@ namespace Framework.Infrastructure.Migrations
 
                     b.HasIndex("MailId");
 
-                    b.ToTable("MailItems", (string)null);
+                    b.ToTable("MailItems");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.Notice", b =>
@@ -898,7 +901,7 @@ namespace Framework.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Notices", (string)null);
+                    b.ToTable("Notices");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.Player", b =>
@@ -967,7 +970,7 @@ namespace Framework.Infrastructure.Migrations
                     b.HasIndex("PublicId")
                         .IsUnique();
 
-                    b.ToTable("Players", (string)null);
+                    b.ToTable("Players");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.PlayerItem", b =>
@@ -1000,7 +1003,7 @@ namespace Framework.Infrastructure.Migrations
                     b.HasIndex("PlayerId", "ItemId")
                         .IsUnique();
 
-                    b.ToTable("PlayerItems", (string)null);
+                    b.ToTable("PlayerItems");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.PlayerProfile", b =>
@@ -1028,7 +1031,7 @@ namespace Framework.Infrastructure.Migrations
                     b.HasIndex("PlayerId")
                         .IsUnique();
 
-                    b.ToTable("PlayerProfiles", (string)null);
+                    b.ToTable("PlayerProfiles");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.RateLimitLog", b =>
@@ -1065,7 +1068,7 @@ namespace Framework.Infrastructure.Migrations
                     b.HasIndex("PlayerId")
                         .HasFilter("\"PlayerId\" IS NOT NULL");
 
-                    b.ToTable("RateLimitLogs", (string)null);
+                    b.ToTable("RateLimitLogs");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.RefreshToken", b =>
@@ -1107,7 +1110,7 @@ namespace Framework.Infrastructure.Migrations
                     b.HasIndex("TokenHash")
                         .IsUnique();
 
-                    b.ToTable("RefreshTokens", (string)null);
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.RewardGrant", b =>
@@ -1160,7 +1163,7 @@ namespace Framework.Infrastructure.Migrations
                     b.HasIndex("PlayerId", "SourceType", "SourceKey")
                         .IsUnique();
 
-                    b.ToTable("RewardGrants", (string)null);
+                    b.ToTable("RewardGrants");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.RewardTable", b =>
@@ -1192,7 +1195,7 @@ namespace Framework.Infrastructure.Migrations
                     b.HasIndex("SourceType", "Code")
                         .IsUnique();
 
-                    b.ToTable("RewardTables", (string)null);
+                    b.ToTable("RewardTables");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.RewardTableEntry", b =>
@@ -1221,7 +1224,7 @@ namespace Framework.Infrastructure.Migrations
 
                     b.HasIndex("RewardTableId");
 
-                    b.ToTable("RewardTableEntries", (string)null);
+                    b.ToTable("RewardTableEntries");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.ShopProduct", b =>
@@ -1293,7 +1296,7 @@ namespace Framework.Infrastructure.Migrations
 
                     b.HasIndex("SortOrder");
 
-                    b.ToTable("ShopProducts", (string)null);
+                    b.ToTable("ShopProducts");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.Shout", b =>
@@ -1326,7 +1329,7 @@ namespace Framework.Infrastructure.Migrations
 
                     b.HasIndex("PlayerId");
 
-                    b.ToTable("Shouts", (string)null);
+                    b.ToTable("Shouts");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.SystemConfig", b =>
@@ -1340,7 +1343,7 @@ namespace Framework.Infrastructure.Migrations
 
                     b.HasKey("Key");
 
-                    b.ToTable("SystemConfigs", (string)null);
+                    b.ToTable("SystemConfigs");
                 });
 
             modelBuilder.Entity("Framework.Domain.Entities.TutorialProgress", b =>
@@ -1374,7 +1377,7 @@ namespace Framework.Infrastructure.Migrations
                     b.HasIndex("PlayerId", "Key")
                         .IsUnique();
 
-                    b.ToTable("TutorialProgresses", (string)null);
+                    b.ToTable("TutorialProgresses");
                 });
 
             modelBuilder.Entity("Framework.Domain.Content.Entities.Stage", b =>

@@ -14,7 +14,8 @@ public record ShopProductDto(
     bool IsEnabled,
     int SortOrder,
     DateTime CreatedAt,
-    DateTime UpdatedAt
+    DateTime UpdatedAt,
+    int? MaxPerCall = null  // 1회 구매 최대 수량 — null이면 무제한
 );
 
 // 상점 상품 생성 요청 DTO
@@ -44,7 +45,10 @@ public record CreateShopProductRequest(
     bool IsEnabled,
 
     // 정렬 순서
-    int SortOrder
+    int SortOrder,
+
+    // 1회 최대 구매 수량 — null이면 무제한
+    int? MaxPerCall = null
 );
 
 // 상점 상품 수정 요청 DTO — 부분 수정 지원
@@ -74,5 +78,9 @@ public record UpdateShopProductRequest(
     bool? IsEnabled,
 
     // 정렬 순서 변경 (null이면 유지)
-    int? SortOrder
+    int? SortOrder,
+
+    // 1회 최대 구매 수량 변경 — null이면 유지, 0이면 무제한으로 초기화
+    // (UpdateShopProductRequest에서 int?이므로 명시적으로 0을 전달해 무제한 처리 가능)
+    int? MaxPerCall = null
 );

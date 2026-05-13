@@ -39,6 +39,11 @@ public class RewardGrant
     // 취소를 수행한 Admin ID — 감사 목적 기록, null 허용 (시스템 자동 취소 대비)
     public int? CancelledByAdminId { get; set; }
 
+    // 구매 수량 — ShopPurchase 유형에서 N개 구매 시 실제 구매 수량 기록
+    // DailyLimit/TotalLimit 집계 기준: 건수(COUNT) → 수량(SUM) 전환 시 활용
+    // 기타 원천 타입(DailyLogin, MatchComplete 등)은 default 1 유지
+    public int PurchasedQuantity { get; set; } = 1;
+
     // 플레이어 네비게이션 프로퍼티
     public Player Player { get; set; } = null!;
 

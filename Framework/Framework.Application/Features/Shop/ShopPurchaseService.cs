@@ -66,14 +66,16 @@ public class ShopPurchaseService : IShopPurchaseService
             p.IsEnabled,
             p.SortOrder,
             p.CreatedAt,
-            p.UpdatedAt
+            p.UpdatedAt,
+            p.MaxPerCall
         )).ToList();
     }
 
-    // 상품 구매 처리 — 재화 차감 + 보상 지급 원자 트랜잭션
+    // 상품 구매 처리 — N개 구매, 재화 차감 + 보상 지급 원자 트랜잭션
     // [멱등성] GrantAsync 내부의 RewardGrant 선기록(UNIQUE 위반 catch)이 중복 요청 차단 담당
     // [원자성] IUnitOfWork.ExecuteInTransactionAsync<T>로 차감 + 지급 전체를 단일 트랜잭션으로 묶음
-    public async Task<ShopPurchaseResult> BuyAsync(int playerId, int productId, string clientRequestId)
+    // [N개 구매] quantity > 1 시 가격·보상·감사 로그 모두 quantity 배율로 처리
+    public async Task<ShopPurchaseResult> BuyAsync(int playerId, int productId, string clientRequestId, int quantity = 1)
     {
         // 1단계: 상품 존재·활성화 여부 확인 (트랜잭션 밖에서 사전 검증)
         var product = await _shopRepo.GetByIdAsync(productId);
@@ -85,47 +87,72 @@ public class ShopPurchaseService : IShopPurchaseService
             return new ShopPurchaseResult(ShopPurchaseStatus.ProductNotFound);
         }
 
-        // 2단계: 가격 재화 보유량 사전 확인 (트랜잭션 밖 — 빠른 실패)
-        var priceItem = await _itemRepo.GetByPlayerAndItemAsync(playerId, product.PriceItemId);
-        if (priceItem is null || priceItem.Quantity < product.PriceAmount)
+        // 1-1단계: MaxPerCall 검증 — 설정된 경우 요청 수량이 1회 한도 초과 여부 확인
+        if (product.MaxPerCall.HasValue && quantity > product.MaxPerCall.Value)
         {
             _logger.LogWarning(
-                "상점 구매 실패 — 재화 부족: PlayerId={PlayerId}, ProductId={ProductId}, 필요={Need}, 보유={Have}",
-                playerId, productId, product.PriceAmount, priceItem?.Quantity ?? 0);
+                "상점 구매 실패 — 1회 최대 수량 초과: PlayerId={PlayerId}, ProductId={ProductId}, MaxPerCall={Max}, 요청={Qty}",
+                playerId, productId, product.MaxPerCall.Value, quantity);
+            return new ShopPurchaseResult(ShopPurchaseStatus.MaxPerCallExceeded);
+        }
+
+        // 2단계: N개 총 가격 계산 (long으로 오버플로우 방어)
+        var totalPrice = (long)product.PriceAmount * quantity;
+
+        // 총 가격이 int 범위를 초과하면 재화 부족으로 처리 (현실적으로 발생 불가하나 안전장치)
+        if (totalPrice > int.MaxValue)
+        {
+            _logger.LogWarning(
+                "상점 구매 실패 — 총 가격 오버플로우: PlayerId={PlayerId}, ProductId={ProductId}, 총가격={Total}",
+                playerId, productId, totalPrice);
             return new ShopPurchaseResult(ShopPurchaseStatus.NotEnoughCurrency);
         }
 
-        // 3단계: 구매 한도 확인 — RewardGrant 이력에서 SourceKey prefix로 카운트
+        var totalPriceInt = (int)totalPrice;
+
+        // 2-1단계: 가격 재화 보유량 사전 확인 (트랜잭션 밖 — 빠른 실패)
+        var priceItem = await _itemRepo.GetByPlayerAndItemAsync(playerId, product.PriceItemId);
+        if (priceItem is null || priceItem.Quantity < totalPriceInt)
+        {
+            _logger.LogWarning(
+                "상점 구매 실패 — 재화 부족: PlayerId={PlayerId}, ProductId={ProductId}, 필요={Need}, 보유={Have}",
+                playerId, productId, totalPriceInt, priceItem?.Quantity ?? 0);
+            return new ShopPurchaseResult(ShopPurchaseStatus.NotEnoughCurrency);
+        }
+
+        // 3단계: 구매 한도 확인 — RewardGrant 이력에서 SourceKey prefix로 수량 합계 집계
         // SourceKey 형식: "shop:{playerId}:{productId}:{clientRequestId}"
-        // prefix "shop:{playerId}:{productId}:"로 이 상품의 구매 건수 집계
+        // prefix "shop:{playerId}:{productId}:"로 이 상품의 누적 구매 수량 집계
         var sourceKeyPrefix = $"shop:{playerId}:{productId}:";
 
         if (product.TotalLimit > 0)
         {
-            // 총 구매 한도 확인 — DateTime.MinValue를 utcDayStart로 전달하면 전체 기간 카운트
-            var totalCount = await _grantRepo.CountTodayAsync(
+            // 총 구매 한도 확인 — DateTime.MinValue를 utcDayStart로 전달하면 전체 기간 수량 합계
+            var totalSum = await _grantRepo.SumQuantityAsync(
                 playerId, RewardSourceType.ShopPurchase, sourceKeyPrefix, DateTime.MinValue);
-            if (totalCount >= product.TotalLimit)
+            var totalRemaining = product.TotalLimit - totalSum;
+            if (quantity > totalRemaining)
             {
                 _logger.LogWarning(
-                    "상점 구매 실패 — 총 구매 한도 초과: PlayerId={PlayerId}, ProductId={ProductId}, 한도={Limit}, 누적={Count}",
-                    playerId, productId, product.TotalLimit, totalCount);
-                return new ShopPurchaseResult(ShopPurchaseStatus.TotalLimitExceeded);
+                    "상점 구매 실패 — 총 구매 한도 초과: PlayerId={PlayerId}, ProductId={ProductId}, 한도={Limit}, 누적={Sum}, 요청={Qty}, 잔여={Remaining}",
+                    playerId, productId, product.TotalLimit, totalSum, quantity, totalRemaining);
+                return new ShopPurchaseResult(ShopPurchaseStatus.LimitWouldExceed, RemainingQuantity: Math.Max(0, totalRemaining));
             }
         }
 
         if (product.DailyLimit > 0)
         {
-            // 일일 구매 한도 확인 — UTC 기준 오늘 00:00 이후 카운트
+            // 일일 구매 한도 확인 — UTC 기준 오늘 00:00 이후 수량 합계
             var utcDayStart = DateTime.UtcNow.Date;
-            var todayCount = await _grantRepo.CountTodayAsync(
+            var todaySum = await _grantRepo.SumQuantityAsync(
                 playerId, RewardSourceType.ShopPurchase, sourceKeyPrefix, utcDayStart);
-            if (todayCount >= product.DailyLimit)
+            var dailyRemaining = product.DailyLimit - todaySum;
+            if (quantity > dailyRemaining)
             {
                 _logger.LogWarning(
-                    "상점 구매 실패 — 일일 구매 한도 초과: PlayerId={PlayerId}, ProductId={ProductId}, 한도={Limit}, 오늘={Count}",
-                    playerId, productId, product.DailyLimit, todayCount);
-                return new ShopPurchaseResult(ShopPurchaseStatus.DailyLimitExceeded);
+                    "상점 구매 실패 — 일일 구매 한도 초과: PlayerId={PlayerId}, ProductId={ProductId}, 한도={Limit}, 오늘={Sum}, 요청={Qty}, 잔여={Remaining}",
+                    playerId, productId, product.DailyLimit, todaySum, quantity, dailyRemaining);
+                return new ShopPurchaseResult(ShopPurchaseStatus.LimitWouldExceed, RemainingQuantity: Math.Max(0, dailyRemaining));
             }
         }
 
@@ -139,9 +166,14 @@ public class ShopPurchaseService : IShopPurchaseService
             return new ShopPurchaseResult(ShopPurchaseStatus.RewardTableEmpty);
         }
 
-        // 보상 번들 구성 — RewardTableEntry 목록을 RewardItem 리스트로 변환
+        // 보상 번들 구성 — quantity 배율 적용 (각 항목 수량 × quantity)
+        // checked 블록으로 int 오버플로우 감지 (매우 큰 quantity + Count 조합 방어)
         var rewardItems = rewardTable.Entries
-            .Select(e => new RewardItem(e.ItemId, e.Count))
+            .Select(e =>
+            {
+                var rewardQty = checked(e.Count * quantity);
+                return new RewardItem(e.ItemId, rewardQty);
+            })
             .ToList();
         var bundle = new RewardBundle(Items: rewardItems);
 
@@ -151,25 +183,27 @@ public class ShopPurchaseService : IShopPurchaseService
         {
             // 5-1: 재화 최신 잔량 재확인 — 사전 검증 이후 동시 소비로 잔량이 부족해진 경우(TOCTOU) 방지
             var freshPriceItem = await _itemRepo.GetByPlayerAndItemAsync(playerId, product.PriceItemId);
-            if (freshPriceItem is null || freshPriceItem.Quantity < product.PriceAmount)
+            if (freshPriceItem is null || freshPriceItem.Quantity < totalPriceInt)
             {
                 return new ShopPurchaseResult(ShopPurchaseStatus.NotEnoughCurrency);
             }
 
             // 5-2: 재화 차감 기록 (EF ChangeTracker에만 반영 — SaveChangesAsync 이전)
             var quantityBefore = freshPriceItem.Quantity;
-            freshPriceItem.Quantity -= product.PriceAmount;
+            freshPriceItem.Quantity -= totalPriceInt;
 
             // 5-3: 보상 지급 — RewardDispatcher가 UNIQUE 선기록 + 지급 + 멱등성을 한 번에 처리
             // 이미 외부 트랜잭션이 활성화되어 있으므로 GrantAsync는 참여자로 합류
+            // PurchasedQuantity = quantity로 전달 — DailyLimit/TotalLimit SUM 집계용
             var grantResult = await _rewardDispatcher.GrantAsync(new GrantRewardRequest(
                 PlayerId: playerId,
                 SourceType: RewardSourceType.ShopPurchase,
                 SourceKey: SourceKeys.ShopPurchase(playerId, productId, clientRequestId),
                 Bundle: bundle,
                 MailTitle: $"상점 구매 보상: {product.Name}",
-                MailBody: $"'{product.Name}' 상품 구매 보상입니다.",
-                Mode: DispatchMode.Direct
+                MailBody: $"'{product.Name}' 상품 {quantity}개 구매 보상입니다.",
+                Mode: DispatchMode.Direct,
+                PurchasedQuantity: quantity
             ));
 
             if (grantResult.AlreadyGranted)
@@ -193,17 +227,18 @@ public class ShopPurchaseService : IShopPurchaseService
             }
 
             // 5-4: 보상 지급 성공 확인 후 감사 로그 기록 — 실제 차감이 확정된 시점에만 기록
+            // changeAmount는 총 차감량 (단가 × 수량)의 음수값
             await _auditLogService.RecordAsync(
                 playerId,
                 product.PriceItemId,
                 reason: AuditLogReasons.ShopPurchase,
-                changeAmount: -product.PriceAmount,
+                changeAmount: -totalPriceInt,
                 balanceBefore: quantityBefore,
                 balanceAfter: freshPriceItem.Quantity);
 
             _logger.LogInformation(
-                "상점 구매 완료 — PlayerId={PlayerId}, ProductId={ProductId}, 상품={Name}",
-                playerId, productId, product.Name);
+                "상점 구매 완료 — PlayerId={PlayerId}, ProductId={ProductId}, 상품={Name}, 수량={Qty}",
+                playerId, productId, product.Name, quantity);
 
             return new ShopPurchaseResult(ShopPurchaseStatus.Success);
         });

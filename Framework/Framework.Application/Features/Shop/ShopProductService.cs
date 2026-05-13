@@ -49,6 +49,8 @@ public class ShopProductService : IShopProductService
             TotalLimit = request.TotalLimit,
             IsEnabled = request.IsEnabled,
             SortOrder = request.SortOrder,
+            // MaxPerCall — null이면 무제한, 값이 있으면 1회 최대 수량으로 설정
+            MaxPerCall = request.MaxPerCall,
             IsDeleted = false,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -99,6 +101,11 @@ public class ShopProductService : IShopProductService
         if (request.SortOrder.HasValue)
             product.SortOrder = request.SortOrder.Value;
 
+        // MaxPerCall 업데이트 — 명시적으로 null이 아닌 경우만 변경
+        // UpdateShopProductRequest.MaxPerCall이 int?이므로 null이면 유지, 0이면 DB null(무제한)으로 설정
+        if (request.MaxPerCall.HasValue)
+            product.MaxPerCall = request.MaxPerCall.Value == 0 ? null : request.MaxPerCall.Value;
+
         // 수정 시각 갱신
         product.UpdatedAt = DateTime.UtcNow;
 
@@ -142,6 +149,7 @@ public class ShopProductService : IShopProductService
         p.IsEnabled,
         p.SortOrder,
         p.CreatedAt,
-        p.UpdatedAt
+        p.UpdatedAt,
+        p.MaxPerCall
     );
 }

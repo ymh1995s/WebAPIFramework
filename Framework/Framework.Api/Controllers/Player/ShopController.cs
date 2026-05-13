@@ -41,7 +41,7 @@ public class ShopController : ControllerBase
         // JWT 클레임에서 PlayerId 추출
         var playerId = User.GetPlayerIdRequired();
 
-        var result = await _shopService.BuyAsync(playerId, productId, request.ClientRequestId);
+        var result = await _shopService.BuyAsync(playerId, productId, request.ClientRequestId, request.Quantity);
 
         return result.Status switch
         {
@@ -64,21 +64,25 @@ public class ShopController : ControllerBase
                 type: "https://framework.api/errors/shop-not-enough-currency",
                 extensions: new Dictionary<string, object?> { ["errorCode"] = ErrorCodes.ShopNotEnoughCurrency })),
 
-            // 일일 구매 한도 초과 — 400
-            ShopPurchaseStatus.DailyLimitExceeded => BadRequest(Problem(
-                title: "일일 구매 한도 초과",
-                detail: "오늘 이 상품의 구매 한도를 초과하였습니다. 내일 다시 시도해 주세요.",
+            // 구매 수량이 잔여 한도를 초과 — 400 (잔여 수량 포함 응답)
+            ShopPurchaseStatus.LimitWouldExceed => BadRequest(Problem(
+                title: "구매 한도 초과",
+                detail: "요청 수량이 구매 가능한 잔여 한도를 초과합니다.",
                 statusCode: StatusCodes.Status400BadRequest,
-                type: "https://framework.api/errors/shop-daily-limit-exceeded",
-                extensions: new Dictionary<string, object?> { ["errorCode"] = ErrorCodes.ShopDailyLimitExceeded })),
+                type: "https://framework.api/errors/shop-limit-would-exceed",
+                extensions: new Dictionary<string, object?>
+                {
+                    ["errorCode"] = ErrorCodes.ShopLimitWouldExceed,
+                    ["remainingQuantity"] = result.RemainingQuantity
+                })),
 
-            // 총 구매 한도 초과 — 400
-            ShopPurchaseStatus.TotalLimitExceeded => BadRequest(Problem(
-                title: "총 구매 한도 초과",
-                detail: "이 상품의 총 구매 한도를 초과하였습니다.",
+            // 1회 최대 구매 수량 초과 — 400
+            ShopPurchaseStatus.MaxPerCallExceeded => BadRequest(Problem(
+                title: "1회 구매 한도 초과",
+                detail: "1회에 구매 가능한 최대 수량을 초과하였습니다.",
                 statusCode: StatusCodes.Status400BadRequest,
-                type: "https://framework.api/errors/shop-total-limit-exceeded",
-                extensions: new Dictionary<string, object?> { ["errorCode"] = ErrorCodes.ShopTotalLimitExceeded })),
+                type: "https://framework.api/errors/shop-max-per-call-exceeded",
+                extensions: new Dictionary<string, object?> { ["errorCode"] = ErrorCodes.ShopMaxPerCallExceeded })),
 
             // 중복 요청 — 409
             ShopPurchaseStatus.Duplicate => Conflict(Problem(

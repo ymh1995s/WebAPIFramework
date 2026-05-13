@@ -612,6 +612,11 @@ public class AppDbContext : DbContext
             .Property(p => p.TotalLimit)
             .HasDefaultValue(0);
 
+        // ShopProduct: MaxPerCall nullable — null이면 무제한, 설정 시 1회 요청 최대 수량 제한
+        modelBuilder.Entity<ShopProduct>()
+            .Property(p => p.MaxPerCall)
+            .IsRequired(false);
+
         // ShopProduct: SortOrder 기본값 0
         modelBuilder.Entity<ShopProduct>()
             .Property(p => p.SortOrder)

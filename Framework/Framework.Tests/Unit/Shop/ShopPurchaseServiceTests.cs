@@ -56,7 +56,7 @@ public class ShopPurchaseServiceTests
     private static ShopProduct MakeProduct(
         int id = 10, int priceItemId = 1, int priceAmount = 100,
         int rewardTableId = 20, int dailyLimit = 0, int totalLimit = 0,
-        bool isEnabled = true, bool isDeleted = false) =>
+        bool isEnabled = true, bool isDeleted = false, int? maxPerCall = null) =>
         new()
         {
             Id           = id,
@@ -68,6 +68,8 @@ public class ShopPurchaseServiceTests
             TotalLimit   = totalLimit,
             IsEnabled    = isEnabled,
             IsDeleted    = isDeleted,
+            // 1회 최대 구매 수량 — null이면 무제한
+            MaxPerCall   = maxPerCall,
         };
 
     // 기본 PlayerItem 인스턴스 생성 (인벤토리 행)
@@ -274,51 +276,53 @@ public class ShopPurchaseServiceTests
         await _uow.DidNotReceive().ExecuteInTransactionAsync(Arg.Any<Func<Task<ShopPurchaseResult>>>());
     }
 
-    // ── 7. 일일 구매 한도 초과 → DailyLimitExceeded, 트랜잭션 미진입 ─────────
+    // ── 7. 일일 구매 한도 초과(수량 초과) → LimitWouldExceed + RemainingQuantity 반환, 트랜잭션 미진입 ─────────
 
     [Fact]
     public async Task BuyAsync_DailyLimitExceeded_ReturnsBeforeTransaction()
     {
-        // Arrange: DailyLimit=3, 오늘 이미 3회 구매
+        // Arrange: DailyLimit=3, 오늘 이미 3 수량 구매 → 잔여 0
         var product = MakeProduct(dailyLimit: 3);
         _shopRepo.GetByIdAsync(10).Returns(product);
         _itemRepo.GetByPlayerAndItemAsync(1, product.PriceItemId)
                  .Returns(MakePlayerItem(qty: 1000));
 
-        // 오늘 구매 횟수 = 한도와 동일 → 초과
+        // 오늘 구매 수량 합계 = 한도와 동일 → 잔여 0
         var sourceKeyPrefix = $"shop:1:10:";
-        _grantRepo.CountTodayAsync(1, RewardSourceType.ShopPurchase, sourceKeyPrefix, Arg.Any<DateTime>())
+        _grantRepo.SumQuantityAsync(1, RewardSourceType.ShopPurchase, sourceKeyPrefix, Arg.Any<DateTime>())
                   .Returns(3);
 
-        // Act
+        // Act: 기본 수량 1 요청 → 잔여 0이므로 초과
         var result = await _sut.BuyAsync(1, 10, "req-001");
 
-        // Assert: DailyLimitExceeded 반환, 트랜잭션 미진입
-        Assert.Equal(ShopPurchaseStatus.DailyLimitExceeded, result.Status);
+        // Assert: LimitWouldExceed 반환, RemainingQuantity=0, 트랜잭션 미진입
+        Assert.Equal(ShopPurchaseStatus.LimitWouldExceed, result.Status);
+        Assert.Equal(0, result.RemainingQuantity);
         await _uow.DidNotReceive().ExecuteInTransactionAsync(Arg.Any<Func<Task<ShopPurchaseResult>>>());
     }
 
-    // ── 8. 총 구매 한도 초과 → TotalLimitExceeded, 트랜잭션 미진입 ───────────
+    // ── 8. 총 구매 한도 초과(수량 초과) → LimitWouldExceed + RemainingQuantity 반환, 트랜잭션 미진입 ───────────
 
     [Fact]
     public async Task BuyAsync_TotalLimitExceeded_ReturnsBeforeTransaction()
     {
-        // Arrange: TotalLimit=10, 전체 기간 이미 10회 구매
+        // Arrange: TotalLimit=10, 전체 기간 이미 10 수량 구매 → 잔여 0
         var product = MakeProduct(totalLimit: 10);
         _shopRepo.GetByIdAsync(10).Returns(product);
         _itemRepo.GetByPlayerAndItemAsync(1, product.PriceItemId)
                  .Returns(MakePlayerItem(qty: 1000));
 
-        // DateTime.MinValue를 utcDayStart로 전달하면 전체 기간 카운트
+        // DateTime.MinValue를 utcDayStart로 전달하면 전체 기간 수량 합계
         var sourceKeyPrefix = $"shop:1:10:";
-        _grantRepo.CountTodayAsync(1, RewardSourceType.ShopPurchase, sourceKeyPrefix, DateTime.MinValue)
+        _grantRepo.SumQuantityAsync(1, RewardSourceType.ShopPurchase, sourceKeyPrefix, DateTime.MinValue)
                   .Returns(10);
 
-        // Act
+        // Act: 기본 수량 1 요청 → 잔여 0이므로 초과
         var result = await _sut.BuyAsync(1, 10, "req-001");
 
-        // Assert: TotalLimitExceeded 반환, 트랜잭션 미진입
-        Assert.Equal(ShopPurchaseStatus.TotalLimitExceeded, result.Status);
+        // Assert: LimitWouldExceed 반환, RemainingQuantity=0, 트랜잭션 미진입
+        Assert.Equal(ShopPurchaseStatus.LimitWouldExceed, result.Status);
+        Assert.Equal(0, result.RemainingQuantity);
         await _uow.DidNotReceive().ExecuteInTransactionAsync(Arg.Any<Func<Task<ShopPurchaseResult>>>());
     }
 
@@ -408,5 +412,298 @@ public class ShopPurchaseServiceTests
         Assert.NotNull(captured);
         Assert.Equal(RewardSourceType.ShopPurchase, captured!.SourceType);
         Assert.Equal(SourceKeys.ShopPurchase(playerId, productId, clientReqId), captured.SourceKey);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // N개 구매 시나리오 (12~20번)
+    // ════════════════════════════════════════════════════════════════════════
+
+    // ── 12. 수량 5개 구매 → 재화 5배 차감 ───────────────────────────────────
+
+    [Fact]
+    public async Task BuyAsync_Quantity5_DeductsPriceTimes5()
+    {
+        // Arrange: priceAmount=100, 보유량=1000, 수량=5 → 총 차감=500
+        const int quantity = 5;
+        const int priceAmount = 100;
+        const int initialQty = 1000;
+
+        var product   = MakeProduct(priceAmount: priceAmount);
+        var priceItem = MakePlayerItem(qty: initialQty);
+        var rewardTable = MakeRewardTable();
+
+        _shopRepo.GetByIdAsync(10).Returns(product);
+        // 두 번 모두 동일 인스턴스 반환 → 트랜잭션 내 freshPriceItem 차감이 priceItem에 반영됨
+        _itemRepo.GetByPlayerAndItemAsync(1, product.PriceItemId)
+                 .Returns(priceItem, priceItem);
+        _rewardTableRepo.GetByIdWithEntriesAsync(product.RewardTableId).Returns(rewardTable);
+        _rewardDispatcher.GrantAsync(Arg.Any<GrantRewardRequest>())
+                         .Returns(GrantRewardResult.DirectSuccess());
+
+        // Act
+        var result = await _sut.BuyAsync(1, 10, "req-q5", quantity);
+
+        // Assert: 성공 + 재화 5배 차감
+        Assert.Equal(ShopPurchaseStatus.Success, result.Status);
+        Assert.Equal(initialQty - priceAmount * quantity, priceItem.Quantity);
+    }
+
+    // ── 13. 수량 5개 구매 → 보상 번들 수량 5배 ──────────────────────────────
+
+    [Fact]
+    public async Task BuyAsync_Quantity5_RewardBundleEntriesMultiplied()
+    {
+        // Arrange: 보상 테이블 1개 항목(ItemId=99, Count=5) + 구매 수량 5 → 번들 수량=25
+        const int quantity = 5;
+        const int rewardCount = 5;  // RewardTableEntry.Count
+        const int expectedBundleQty = rewardCount * quantity;  // 25
+
+        var product = MakeProduct();
+        var priceItem = MakePlayerItem(qty: 1000);
+        var rewardTable = MakeRewardTable(entries: new List<RewardTableEntry>
+        {
+            new() { ItemId = 99, Count = rewardCount }
+        });
+
+        _shopRepo.GetByIdAsync(10).Returns(product);
+        _itemRepo.GetByPlayerAndItemAsync(1, product.PriceItemId)
+                 .Returns(priceItem, MakePlayerItem(qty: 1000));
+        _rewardTableRepo.GetByIdWithEntriesAsync(product.RewardTableId).Returns(rewardTable);
+
+        // GrantAsync 캡처 — 번들 수량 검증용
+        GrantRewardRequest? captured = null;
+        _rewardDispatcher.GrantAsync(Arg.Do<GrantRewardRequest>(r => captured = r))
+                         .Returns(GrantRewardResult.DirectSuccess());
+
+        // Act
+        await _sut.BuyAsync(1, 10, "req-bundle", quantity);
+
+        // Assert: 번들 내 ItemId=99의 수량이 5×5=25
+        Assert.NotNull(captured);
+        var bundleItem = captured!.Bundle.Items!.First(i => i.ItemId == 99);
+        Assert.Equal(expectedBundleQty, bundleItem.Quantity);
+    }
+
+    // ── 14. 수량 5개 구매 → 감사 로그 총 차감량이 -500 ──────────────────────
+
+    [Fact]
+    public async Task BuyAsync_Quantity5_AuditLogChangeAmountNegativeTimes5()
+    {
+        // Arrange: priceAmount=100, quantity=5 → changeAmount=-500
+        const int quantity    = 5;
+        const int priceAmount = 100;
+        const int initialQty  = 1000;
+
+        var product   = MakeProduct(priceAmount: priceAmount);
+        var priceItem = MakePlayerItem(qty: initialQty);
+        var rewardTable = MakeRewardTable();
+
+        _shopRepo.GetByIdAsync(10).Returns(product);
+        _itemRepo.GetByPlayerAndItemAsync(1, product.PriceItemId)
+                 .Returns(priceItem, MakePlayerItem(qty: initialQty));
+        _rewardTableRepo.GetByIdWithEntriesAsync(product.RewardTableId).Returns(rewardTable);
+        _rewardDispatcher.GrantAsync(Arg.Any<GrantRewardRequest>())
+                         .Returns(GrantRewardResult.DirectSuccess());
+
+        // Act
+        await _sut.BuyAsync(1, 10, "req-audit", quantity);
+
+        // Assert: changeAmount = -(priceAmount * quantity) = -500
+        await _auditLogService.Received(1).RecordAsync(
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string>(),
+            -(priceAmount * quantity),  // -500
+            initialQty,
+            initialQty - priceAmount * quantity);
+    }
+
+    // ── 15. 수량 요청이 일일 잔여 한도를 초과 → LimitWouldExceed + RemainingQuantity ──
+
+    [Fact]
+    public async Task BuyAsync_QuantityExceedsDailyRemainder_LimitWouldExceed_WithRemainingQuantity()
+    {
+        // Arrange: DailyLimit=10, 오늘 합산=8, 잔여=2, 요청=5 → 초과
+        const int dailyLimit = 10;
+        const int sumToday   = 8;
+        const int requestQty = 5;
+
+        var product = MakeProduct(dailyLimit: dailyLimit);
+        _shopRepo.GetByIdAsync(10).Returns(product);
+        _itemRepo.GetByPlayerAndItemAsync(1, product.PriceItemId).Returns(MakePlayerItem(qty: 1000));
+
+        var sourceKeyPrefix = $"shop:1:10:";
+        _grantRepo.SumQuantityAsync(1, RewardSourceType.ShopPurchase, sourceKeyPrefix, Arg.Any<DateTime>())
+                  .Returns(sumToday);
+
+        // Act
+        var result = await _sut.BuyAsync(1, 10, "req-exceed", requestQty);
+
+        // Assert: LimitWouldExceed + 잔여=2
+        Assert.Equal(ShopPurchaseStatus.LimitWouldExceed, result.Status);
+        Assert.Equal(dailyLimit - sumToday, result.RemainingQuantity);
+    }
+
+    // ── 16. 수량 요청이 일일 잔여 한도와 정확히 일치 → 성공 ──────────────────
+
+    [Fact]
+    public async Task BuyAsync_QuantityEqualsDailyRemainder_Succeeds()
+    {
+        // Arrange: DailyLimit=10, 오늘 합산=7, 잔여=3, 요청=3 → 정확히 일치 → 성공
+        const int dailyLimit = 10;
+        const int sumToday   = 7;
+        const int requestQty = 3;
+
+        var product   = MakeProduct(dailyLimit: dailyLimit, priceAmount: 100);
+        var priceItem = MakePlayerItem(qty: 1000);
+        var rewardTable = MakeRewardTable();
+
+        _shopRepo.GetByIdAsync(10).Returns(product);
+        _itemRepo.GetByPlayerAndItemAsync(1, product.PriceItemId)
+                 .Returns(priceItem, MakePlayerItem(qty: 1000));
+        _rewardTableRepo.GetByIdWithEntriesAsync(product.RewardTableId).Returns(rewardTable);
+
+        var sourceKeyPrefix = $"shop:1:10:";
+        _grantRepo.SumQuantityAsync(1, RewardSourceType.ShopPurchase, sourceKeyPrefix, Arg.Any<DateTime>())
+                  .Returns(sumToday);
+        _rewardDispatcher.GrantAsync(Arg.Any<GrantRewardRequest>())
+                         .Returns(GrantRewardResult.DirectSuccess());
+
+        // Act
+        var result = await _sut.BuyAsync(1, 10, "req-exact", requestQty);
+
+        // Assert: Success (정확히 한도까지 허용)
+        Assert.Equal(ShopPurchaseStatus.Success, result.Status);
+    }
+
+    // ── 17. MaxPerCall 초과 → MaxPerCallExceeded ──────────────────────────
+
+    [Fact]
+    public async Task BuyAsync_QuantityExceedsMaxPerCall_Rejected()
+    {
+        // Arrange: MaxPerCall=3, 요청 수량=5 → 초과
+        var product = MakeProduct(maxPerCall: 3);
+        _shopRepo.GetByIdAsync(10).Returns(product);
+
+        // Act
+        var result = await _sut.BuyAsync(1, 10, "req-maxpercall", 5);
+
+        // Assert: MaxPerCallExceeded, 이후 로직 미진입
+        Assert.Equal(ShopPurchaseStatus.MaxPerCallExceeded, result.Status);
+        await _itemRepo.DidNotReceive().GetByPlayerAndItemAsync(Arg.Any<int>(), Arg.Any<int>());
+    }
+
+    // ── 18. MaxPerCall=null → 대용량 수량도 허용 ──────────────────────────
+
+    [Fact]
+    public async Task BuyAsync_MaxPerCallNull_AllowsLargeQuantity()
+    {
+        // Arrange: MaxPerCall=null(무제한), 요청 수량=100
+        var product   = MakeProduct(maxPerCall: null, priceAmount: 1);
+        var priceItem = MakePlayerItem(qty: 10_000);
+        var rewardTable = MakeRewardTable();
+
+        _shopRepo.GetByIdAsync(10).Returns(product);
+        _itemRepo.GetByPlayerAndItemAsync(1, product.PriceItemId)
+                 .Returns(priceItem, MakePlayerItem(qty: 10_000));
+        _rewardTableRepo.GetByIdWithEntriesAsync(product.RewardTableId).Returns(rewardTable);
+        _rewardDispatcher.GrantAsync(Arg.Any<GrantRewardRequest>())
+                         .Returns(GrantRewardResult.DirectSuccess());
+
+        // Act: 수량=100, MaxPerCall=null → 허용
+        var result = await _sut.BuyAsync(1, 10, "req-unlim", 100);
+
+        // Assert: MaxPerCallExceeded 없이 Success
+        Assert.Equal(ShopPurchaseStatus.Success, result.Status);
+    }
+
+    // ── 19. 가격 × 수량 오버플로우 → NotEnoughCurrency 반환 ─────────────────
+
+    [Fact]
+    public async Task BuyAsync_PriceTimesQuantityOverflow_HandledSafely()
+    {
+        // Arrange: priceAmount=int.MaxValue, quantity=2 → long 오버플로우 → NotEnoughCurrency
+        var product = MakeProduct(priceAmount: int.MaxValue);
+        _shopRepo.GetByIdAsync(10).Returns(product);
+        // 재화 보유량은 충분하지만 총 가격이 int.MaxValue를 넘음
+        _itemRepo.GetByPlayerAndItemAsync(1, product.PriceItemId)
+                 .Returns(MakePlayerItem(qty: int.MaxValue));
+
+        // Act: quantity=2 → totalPrice = int.MaxValue * 2 > int.MaxValue → NotEnoughCurrency
+        var result = await _sut.BuyAsync(1, 10, "req-overflow", 2);
+
+        // Assert: 오버플로우 안전 처리 — NotEnoughCurrency 반환
+        Assert.Equal(ShopPurchaseStatus.NotEnoughCurrency, result.Status);
+        // 트랜잭션 미진입
+        await _uow.DidNotReceive().ExecuteInTransactionAsync(Arg.Any<Func<Task<ShopPurchaseResult>>>());
+    }
+
+    // ── 21. 취소된 지급 이력은 일일 한도 집계에서 제외 ──────────────────────
+    // IsCancelled=true 행은 SumQuantityAsync mock 반환값에 포함되지 않아야 함을 검증
+    // → mock이 취소 제외 후 합계(3)를 반환 → 잔여=DailyLimit-3=7 → 요청수량=5 통과
+
+    [Fact]
+    public async Task BuyAsync_CancelledGrantsExcluded_FromDailyLimitCount()
+    {
+        // Arrange: DailyLimit=10, 취소 전 합산=5, 취소 2건 → 유효 합산=3, 잔여=7, 요청=5 → 통과
+        const int dailyLimit        = 10;
+        const int sumExcludingCancelled = 3; // IsCancelled=true 건 제외 후 유효 수량
+        const int requestQty        = 5;
+
+        var product     = MakeProduct(dailyLimit: dailyLimit, priceAmount: 100);
+        var priceItem   = MakePlayerItem(qty: 1000);
+        var rewardTable = MakeRewardTable();
+
+        _shopRepo.GetByIdAsync(10).Returns(product);
+        _itemRepo.GetByPlayerAndItemAsync(1, product.PriceItemId)
+                 .Returns(priceItem, MakePlayerItem(qty: 1000));
+        _rewardTableRepo.GetByIdWithEntriesAsync(product.RewardTableId).Returns(rewardTable);
+        _rewardDispatcher.GrantAsync(Arg.Any<GrantRewardRequest>())
+                         .Returns(GrantRewardResult.DirectSuccess());
+
+        // SumQuantityAsync가 취소된 행을 제외한 합계(3)를 반환 — DB 쿼리 레벨 필터링을 가정
+        var sourceKeyPrefix = $"shop:1:10:";
+        _grantRepo.SumQuantityAsync(1, RewardSourceType.ShopPurchase, sourceKeyPrefix, Arg.Any<DateTime>())
+                  .Returns(sumExcludingCancelled);
+
+        // Act: 잔여=7, 요청=5 → 한도 내 → 성공이어야 함
+        var result = await _sut.BuyAsync(1, 10, "req-cancelled-excluded", requestQty);
+
+        // Assert: Success — 취소 건이 한도에서 복원되어 구매 가능
+        Assert.Equal(ShopPurchaseStatus.Success, result.Status);
+        // SumQuantityAsync가 정확히 1회 호출되었는지 확인 (한도 체크 경로 진입 검증)
+        await _grantRepo.Received(1).SumQuantityAsync(
+            1, RewardSourceType.ShopPurchase, sourceKeyPrefix, Arg.Any<DateTime>());
+    }
+
+    // ── 20. 중복 요청 수량 5개 → 재화 전체(500) 복원 확인 ───────────────────
+
+    [Fact]
+    public async Task BuyAsync_Duplicate_WithQuantity5_RestoresFullDeduction()
+    {
+        // Arrange: priceAmount=100, quantity=5, 총 차감 예정=500 → Duplicate 시 전액 복원
+        const int quantity = 5;
+        const int priceAmount = 100;
+        const int initialQty = 1000;
+
+        var product   = MakeProduct(priceAmount: priceAmount);
+        var priceItem = MakePlayerItem(qty: initialQty);
+        var rewardTable = MakeRewardTable();
+
+        _shopRepo.GetByIdAsync(10).Returns(product);
+        _itemRepo.GetByPlayerAndItemAsync(1, product.PriceItemId)
+                 .Returns(priceItem, MakePlayerItem(qty: initialQty));
+        _rewardTableRepo.GetByIdWithEntriesAsync(product.RewardTableId).Returns(rewardTable);
+        // 중복 요청 시뮬레이션
+        _rewardDispatcher.GrantAsync(Arg.Any<GrantRewardRequest>())
+                         .Returns(GrantRewardResult.Duplicate());
+
+        // Act
+        var result = await _sut.BuyAsync(1, 10, "req-dup-q5", quantity);
+
+        // Assert: Duplicate 반환 + 재화 전체 복원 (500 차감 예정이었으므로 1000으로 복원)
+        Assert.Equal(ShopPurchaseStatus.Duplicate, result.Status);
+        Assert.Equal(initialQty, priceItem.Quantity);
+        await _auditLogService.DidNotReceive().RecordAsync(
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>());
     }
 }

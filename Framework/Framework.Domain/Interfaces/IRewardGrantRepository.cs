@@ -27,6 +27,11 @@ public interface IRewardGrantRepository
     // 광고 일일 한도 체크에 사용 — SourceKey가 특정 prefix로 시작하는 건수 카운트
     Task<int> CountTodayAsync(int playerId, RewardSourceType sourceType, string sourceKeyPrefix, DateTime utcDayStart);
 
+    // 특정 플레이어의 SourceKey 패턴에 해당하는 PurchasedQuantity 합계 조회
+    // 상점 DailyLimit/TotalLimit 집계: 건수(COUNT) 대신 수량(SUM) 기준으로 한도 체크
+    // utcDayStart=DateTime.MinValue이면 전체 기간 집계, 그 외에는 해당 일(UTC) 이후 집계
+    Task<int> SumQuantityAsync(int playerId, RewardSourceType sourceType, string sourceKeyPrefix, DateTime utcDayStart);
+
     // 변경사항 저장
     Task SaveChangesAsync();
 }

@@ -33,5 +33,8 @@ public record GrantRewardRequest(
     AuditActorType ActorType = AuditActorType.System,
 
     // 감사 로그 행위자 ID — Admin 등 식별자가 필요한 경우 지정, 일반 시스템 보상은 null
-    int? ActorId = null
+    int? ActorId = null,
+
+    // 구매 수량 — RewardGrant.PurchasedQuantity 세팅용, 일반 보상은 1, 상점 N개 구매 시 N
+    int PurchasedQuantity = 1
 );

@@ -35,7 +35,9 @@ public static class ErrorCodes
     // 인게임 상점 구매 관련 오류
     public const string ShopProductNotFound = "SHOP_PRODUCT_NOT_FOUND";
     public const string ShopNotEnoughCurrency = "SHOP_NOT_ENOUGH_CURRENCY";
-    public const string ShopDailyLimitExceeded = "SHOP_DAILY_LIMIT_EXCEEDED";
-    public const string ShopTotalLimitExceeded = "SHOP_TOTAL_LIMIT_EXCEEDED";
     public const string ShopDuplicateRequest = "SHOP_DUPLICATE_REQUEST";
+    // 구매 수량이 잔여 한도를 초과 — 클라이언트가 수량을 줄여 재시도하도록 안내
+    public const string ShopLimitWouldExceed = "SHOP_LIMIT_WOULD_EXCEED";
+    // 1회 최대 구매 수량(MaxPerCall) 초과
+    public const string ShopMaxPerCallExceeded = "SHOP_MAX_PER_CALL_EXCEEDED";
 }

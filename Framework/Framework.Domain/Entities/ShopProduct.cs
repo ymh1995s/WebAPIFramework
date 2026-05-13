@@ -32,6 +32,9 @@ public class ShopProduct
     // 활성화 여부 — false이면 구매 요청 거부
     public bool IsEnabled { get; set; } = true;
 
+    // 1회 구매 최대 수량 — null이면 무제한, 설정 시 요청 수량이 이 값을 초과하면 거부
+    public int? MaxPerCall { get; set; } = null;
+
     // 소프트 삭제 여부 — true이면 논리 삭제 (실제 DB 행은 유지)
     public bool IsDeleted { get; set; } = false;
 

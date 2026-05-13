@@ -84,7 +84,9 @@ public class RewardDispatcher : IRewardDispatcher
                         SourceType = request.SourceType,
                         SourceKey = request.SourceKey,
                         GrantedAt = DateTime.UtcNow,
-                        BundleSnapshot = JsonSerializer.Serialize(request.Bundle)
+                        BundleSnapshot = JsonSerializer.Serialize(request.Bundle),
+                        // 구매 수량 반영 — 일반 보상은 1, 상점 N개 구매 시 N (DailyLimit/TotalLimit SUM 집계용)
+                        PurchasedQuantity = request.PurchasedQuantity
                     };
                     await _grantRepo.AddAsync(grant);
 

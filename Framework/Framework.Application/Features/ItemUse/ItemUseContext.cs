@@ -10,5 +10,8 @@ public record ItemUseContext(
     int ItemId,
 
     // 사용한 아이템의 타입 (Domain.Enums.ItemType 정수값)
-    int ItemType
+    int ItemType,
+
+    // 사용한 수량 — N개 사용 시 확장 효과에서 수량 기반 로직 분기 가능
+    int Quantity = 1
 );

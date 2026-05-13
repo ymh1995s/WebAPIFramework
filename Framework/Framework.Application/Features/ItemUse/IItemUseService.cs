@@ -8,5 +8,6 @@ public interface IItemUseService
     // playerId: 사용 주체 플레이어 ID
     // itemId: 사용할 아이템 마스터 ID
     // clientRequestId: 클라이언트 생성 UUID — 중복 처리 방지(멱등성) 보장
-    Task<ItemUseResult> UseItemAsync(int playerId, int itemId, string clientRequestId, CancellationToken ct = default);
+    // quantity: 사용 수량 (기본값 1)
+    Task<ItemUseResult> UseItemAsync(int playerId, int itemId, string clientRequestId, int quantity = 1, CancellationToken ct = default);
 }

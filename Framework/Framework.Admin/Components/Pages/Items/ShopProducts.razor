@@ -76,6 +76,7 @@ else
                 <th>RewardTableId</th>
                 <th>일일 한도</th>
                 <th>총 한도</th>
+                <th>1회 최대</th>
                 <th>활성</th>
                 <th>정렬</th>
                 <th>설명</th>
@@ -93,6 +94,7 @@ else
                     <td>@p.RewardTableId</td>
                     <td>@(p.DailyLimit == 0 ? "무제한" : p.DailyLimit.ToString())</td>
                     <td>@(p.TotalLimit == 0 ? "무제한" : p.TotalLimit.ToString())</td>
+                    <td>@(p.MaxPerCall.HasValue ? p.MaxPerCall.Value.ToString() : "무제한")</td>
                     <td>
                         @if (p.IsEnabled)
                         {
@@ -162,6 +164,10 @@ else
                         <input type="number" class="form-control form-control-sm" @bind="newTotalLimit" min="0" />
                     </div>
                     <div class="mb-2">
+                        <label class="form-label small">1회 최대 구매 수량 <span class="text-muted">(미입력=무제한)</span></label>
+                        <input type="number" class="form-control form-control-sm" @bind="newMaxPerCall" min="1" placeholder="무제한이면 비워두세요" />
+                    </div>
+                    <div class="mb-2">
                         <label class="form-label small">정렬 순서</label>
                         <input type="number" class="form-control form-control-sm" @bind="newSortOrder" min="0" />
                     </div>
@@ -221,6 +227,10 @@ else
                     <div class="mb-2">
                         <label class="form-label small">총 구매 한도 <span class="text-muted">(0=무제한)</span></label>
                         <input type="number" class="form-control form-control-sm" @bind="editTotalLimit" min="0" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">1회 최대 구매 수량 <span class="text-muted">(미입력=무제한)</span></label>
+                        <input type="number" class="form-control form-control-sm" @bind="editMaxPerCall" min="1" placeholder="무제한이면 비워두세요" />
                     </div>
                     <div class="mb-2">
                         <label class="form-label small">정렬 순서</label>

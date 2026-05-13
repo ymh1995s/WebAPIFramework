@@ -39,6 +39,7 @@ public partial class ShopProducts : SafeComponentBase
     private int newRewardTableId;
     private int newDailyLimit = 0;
     private int newTotalLimit = 0;
+    private int? newMaxPerCall = null;  // null = 무제한 (기본값)
     private int newSortOrder = 0;
     private bool newIsEnabled = true;
     private string? createError;
@@ -53,6 +54,7 @@ public partial class ShopProducts : SafeComponentBase
     private int editRewardTableId;
     private int editDailyLimit;
     private int editTotalLimit;
+    private int? editMaxPerCall;  // null = 무제한
     private int editSortOrder;
     private bool editIsEnabled;
     private string? editError;
@@ -122,6 +124,7 @@ public partial class ShopProducts : SafeComponentBase
         newRewardTableId = 0;
         newDailyLimit = 0;
         newTotalLimit = 0;
+        newMaxPerCall = null;
         newSortOrder = 0;
         newIsEnabled = true;
         createError = null;
@@ -167,6 +170,8 @@ public partial class ShopProducts : SafeComponentBase
             RewardTableId = newRewardTableId,
             DailyLimit = newDailyLimit,
             TotalLimit = newTotalLimit,
+            // MaxPerCall — null이면 무제한, 입력값이 있으면 1회 최대 수량
+            MaxPerCall = newMaxPerCall,
             IsEnabled = newIsEnabled,
             SortOrder = newSortOrder
         };
@@ -195,6 +200,8 @@ public partial class ShopProducts : SafeComponentBase
         editRewardTableId = product.RewardTableId;
         editDailyLimit = product.DailyLimit;
         editTotalLimit = product.TotalLimit;
+        // MaxPerCall — 기존 값 그대로 바인딩 (null이면 무제한 표시)
+        editMaxPerCall = product.MaxPerCall;
         editSortOrder = product.SortOrder;
         editIsEnabled = product.IsEnabled;
         editError = null;
@@ -219,6 +226,8 @@ public partial class ShopProducts : SafeComponentBase
             RewardTableId = editRewardTableId,
             DailyLimit = editDailyLimit,
             TotalLimit = editTotalLimit,
+            // MaxPerCall — null이면 변경 없음, 값 있으면 해당 값으로 업데이트
+            MaxPerCall = editMaxPerCall,
             IsEnabled = editIsEnabled,
             SortOrder = editSortOrder
         };
@@ -284,6 +293,7 @@ public partial class ShopProducts : SafeComponentBase
         bool IsEnabled,
         int SortOrder,
         DateTime CreatedAt,
-        DateTime UpdatedAt
+        DateTime UpdatedAt,
+        int? MaxPerCall = null  // 1회 최대 구매 수량 — null이면 무제한
     );
 }

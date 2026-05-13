@@ -53,9 +53,10 @@ public class ItemUseService : IItemUseService
         _logger = logger;
     }
 
-    // 아이템 사용 처리 — 수량 차감 → 감사 로그 → 보상 지급(옵션) → 확장 효과(옵션) → 커밋
+    // 아이템 사용 처리 — 수량 차감(quantity개) → 감사 로그 → 보상 지급(옵션) → 확장 효과(옵션) → 커밋
     // [동시성] DbUpdateConcurrencyException 발생 시 ChangeTracker 초기화 후 최대 3회 재시도
-    public async Task<ItemUseResult> UseItemAsync(int playerId, int itemId, string clientRequestId, CancellationToken ct = default)
+    // [N개 사용] quantity > 1 시 보유량 검증, 차감, 감사 로그, 보상 번들 모두 quantity 배율 적용
+    public async Task<ItemUseResult> UseItemAsync(int playerId, int itemId, string clientRequestId, int quantity = 1, CancellationToken ct = default)
     {
         // xmin 낙관적 동시성 충돌 시 재시도 루프 — 최대 3회
         const int maxAttempts = 3;
@@ -73,16 +74,16 @@ public class ItemUseService : IItemUseService
                         return new ItemUseResult(ItemUseResultStatus.ItemNotFound);
                     }
 
-                    // 2단계: 수량 검증 — 1 이상이어야 사용 가능
-                    if (playerItem.Quantity < 1)
+                    // 2단계: 수량 검증 — 요청 수량(quantity) 이상이어야 사용 가능
+                    if (playerItem.Quantity < quantity)
                     {
-                        _logger.LogWarning("아이템 사용 실패 — 수량 부족: PlayerId={PlayerId}, ItemId={ItemId}, Quantity={Qty}", playerId, itemId, playerItem.Quantity);
+                        _logger.LogWarning("아이템 사용 실패 — 수량 부족: PlayerId={PlayerId}, ItemId={ItemId}, 보유={Qty}, 요청={ReqQty}", playerId, itemId, playerItem.Quantity, quantity);
                         return new ItemUseResult(ItemUseResultStatus.NotEnoughQuantity);
                     }
 
-                    // 3단계: 수량 차감 — 실패 시 각 분기에서 복원(++)하고 조기 반환
+                    // 3단계: 수량 차감 — 실패 시 각 분기에서 복원하고 조기 반환
                     var quantityBefore = playerItem.Quantity;
-                    playerItem.Quantity--;
+                    playerItem.Quantity -= quantity;
 
                     // 4단계: 아이템 마스터 조회 — UseRewardTableId 확인용
                     var item = await _itemRepository.GetByIdAsync(itemId);
@@ -93,14 +94,14 @@ public class ItemUseService : IItemUseService
                     // 실제 사용 사례가 발생하면 별도 중복 검출 메커니즘 추가 필요.
                     if (item?.UseRewardTableId is not null)
                     {
-                        // 보상 테이블 항목을 번들로 변환하여 직접 지급
-                        var bundle = await BuildBundleFromTableAsync(item.UseRewardTableId.Value);
+                        // 보상 테이블 항목을 번들로 변환하여 직접 지급 — quantity 배율 적용
+                        var bundle = await BuildBundleFromTableAsync(item.UseRewardTableId.Value, quantity);
 
                         // 보상 테이블이 비어 있으면 수량 차감 취소 후 RewardTableEmpty 반환
                         if (bundle.IsEmpty)
                         {
                             // 수량 복원 — 빈 보상 테이블로 인해 사용 처리 불가
-                            playerItem.Quantity++;
+                            playerItem.Quantity += quantity;
                             _logger.LogWarning("아이템 사용 실패 — 보상 테이블 비어있음: PlayerId={PlayerId}, ItemId={ItemId}, RewardTableId={TableId}",
                                 playerId, itemId, item.UseRewardTableId.Value);
                             return new ItemUseResult(ItemUseResultStatus.RewardTableEmpty);
@@ -117,7 +118,7 @@ public class ItemUseService : IItemUseService
                         if (grantResult.AlreadyGranted)
                         {
                             // 동일 clientRequestId로 이미 처리된 요청 — 수량 복원 후 Duplicate 반환
-                            playerItem.Quantity++;  // 수량 복원 — 보상 미지급 시 차감 취소
+                            playerItem.Quantity += quantity;  // 수량 복원 — 보상 미지급 시 차감 취소
                             _logger.LogWarning("아이템 사용 중복 요청 — PlayerId={PlayerId}, ItemId={ItemId}, ClientRequestId={Req}", playerId, itemId, clientRequestId);
                             return new ItemUseResult(ItemUseResultStatus.Duplicate);
                         }
@@ -125,7 +126,7 @@ public class ItemUseService : IItemUseService
                         if (!grantResult.Success)
                         {
                             // 보상 지급 실패 — 수량 복원 후 RewardGrantFailed 반환
-                            playerItem.Quantity++;
+                            playerItem.Quantity += quantity;
                             _logger.LogError("아이템 사용 보상 지급 실패 — PlayerId={PlayerId}, ItemId={ItemId}, 사유={Msg}", playerId, itemId, grantResult.Message);
                             return new ItemUseResult(ItemUseResultStatus.RewardGrantFailed);
                         }
@@ -137,18 +138,20 @@ public class ItemUseService : IItemUseService
                         playerId,
                         itemId,
                         reason: AuditLogReasons.ItemUse,
-                        changeAmount: -1,
+                        changeAmount: -quantity,
                         balanceBefore: quantityBefore,
                         balanceAfter: playerItem.Quantity);
 
                     // 6단계: 게임 특화 확장 효과 순차 실행 (등록된 구현체가 없으면 건너뜀)
+                    // ItemUseContext에 Quantity 전달 — 확장 효과가 사용 수량 기반 분기 가능
                     var effectsList = _effects.ToList();
                     if (effectsList.Count > 0)
                     {
                         var context = new ItemUseContext(
                             PlayerId: playerId,
                             ItemId: itemId,
-                            ItemType: (int)(item?.ItemType ?? 0)
+                            ItemType: (int)(item?.ItemType ?? 0),
+                            Quantity: quantity
                         );
                         foreach (var effect in effectsList)
                         {
@@ -159,7 +162,7 @@ public class ItemUseService : IItemUseService
                     // 7단계: 변경사항 저장 — 수량 차감 커밋
                     await _playerItemRepository.SaveChangesAsync();
 
-                    _logger.LogInformation("아이템 사용 완료 — PlayerId={PlayerId}, ItemId={ItemId}", playerId, itemId);
+                    _logger.LogInformation("아이템 사용 완료 — PlayerId={PlayerId}, ItemId={ItemId}, 수량={Qty}", playerId, itemId, quantity);
                     return new ItemUseResult(ItemUseResultStatus.Success);
                 });
             }
@@ -186,17 +189,18 @@ public class ItemUseService : IItemUseService
         throw new InvalidOperationException("아이템 사용 재시도 루프가 비정상 종료되었습니다.");
     }
 
-    // 보상 테이블 ID로 RewardBundle 구성
+    // 보상 테이블 ID로 RewardBundle 구성 — quantity 배율 적용
     // RewardTable의 Entries(ItemId + Quantity 쌍)를 RewardItem 리스트로 변환
-    private async Task<RewardBundle> BuildBundleFromTableAsync(int rewardTableId)
+    // quantity > 1이면 각 항목 수량에 배율을 곱하여 N개 사용에 대응
+    private async Task<RewardBundle> BuildBundleFromTableAsync(int rewardTableId, int quantity = 1)
     {
         var table = await _rewardTableRepository.GetByIdWithEntriesAsync(rewardTableId);
         if (table is null || table.Entries.Count == 0)
             return new RewardBundle();
 
-        // 각 항목을 RewardItem으로 변환하여 번들 구성 (RewardTableEntry.Count가 지급 수량)
+        // 각 항목을 RewardItem으로 변환 — quantity 배율 적용 (checked로 오버플로우 감지)
         var rewardItems = table.Entries
-            .Select(e => new RewardItem(e.ItemId, e.Count))
+            .Select(e => new RewardItem(e.ItemId, checked(e.Count * quantity)))
             .ToList();
 
         return new RewardBundle(Items: rewardItems);

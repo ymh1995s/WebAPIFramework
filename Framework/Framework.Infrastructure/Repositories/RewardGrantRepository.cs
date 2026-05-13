@@ -87,6 +87,20 @@ public class RewardGrantRepository : IRewardGrantRepository
                 g.SourceKey.StartsWith(sourceKeyPrefix) &&
                 g.GrantedAt >= utcDayStart);
 
+    // PurchasedQuantity 합계 조회 — 상점 한도를 건수(COUNT) 대신 수량(SUM) 기준으로 집계
+    // utcDayStart=DateTime.MinValue이면 전체 기간(TotalLimit), 그 외에는 해당 일(DailyLimit)
+    // 취소된 보상은 한도 카운트에서 제외 — Admin 환불 시 한도 복원
+    public async Task<int> SumQuantityAsync(
+        int playerId, RewardSourceType sourceType, string sourceKeyPrefix, DateTime utcDayStart)
+        => await _db.RewardGrants
+            .Where(g =>
+                g.PlayerId == playerId &&
+                g.SourceType == sourceType &&
+                g.SourceKey.StartsWith(sourceKeyPrefix) &&
+                g.GrantedAt >= utcDayStart &&
+                !g.IsCancelled)
+            .SumAsync(g => g.PurchasedQuantity);
+
     // 변경사항 저장
     public async Task SaveChangesAsync()
         => await _db.SaveChangesAsync();

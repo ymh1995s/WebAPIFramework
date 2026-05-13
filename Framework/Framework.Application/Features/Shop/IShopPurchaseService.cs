@@ -10,5 +10,6 @@ public interface IShopPurchaseService
     // playerId: 구매 주체 플레이어 ID
     // productId: 구매할 ShopProduct ID
     // clientRequestId: 클라이언트 생성 UUID — 중복 처리 방지(멱등성) 보장
-    Task<ShopPurchaseResult> BuyAsync(int playerId, int productId, string clientRequestId);
+    // quantity: 구매 수량 (기본값 1)
+    Task<ShopPurchaseResult> BuyAsync(int playerId, int productId, string clientRequestId, int quantity = 1);
 }
