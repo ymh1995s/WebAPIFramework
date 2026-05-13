@@ -1,5 +1,6 @@
 using Framework.Application.Common;
 using Framework.Application.Features.AuditLog;
+using Framework.Application.Features.Quest;
 using Framework.Application.Features.Reward;
 using Framework.Application.Features.Shop;
 using Framework.Domain.Constants;
@@ -23,17 +24,20 @@ public class ShopPurchaseServiceTests
     private readonly IRewardTableRepository   _rewardTableRepo;
     private readonly IRewardDispatcher        _rewardDispatcher;
     private readonly IAuditLogService         _auditLogService;
+    private readonly IQuestProgressService    _questProgressService;
     private readonly IUnitOfWork              _uow;
     private readonly ShopPurchaseService      _sut;
 
     public ShopPurchaseServiceTests()
     {
-        _shopRepo        = Substitute.For<IShopProductRepository>();
-        _itemRepo        = Substitute.For<IPlayerItemRepository>();
-        _grantRepo       = Substitute.For<IRewardGrantRepository>();
-        _rewardTableRepo = Substitute.For<IRewardTableRepository>();
-        _rewardDispatcher = Substitute.For<IRewardDispatcher>();
-        _auditLogService = Substitute.For<IAuditLogService>();
+        _shopRepo             = Substitute.For<IShopProductRepository>();
+        _itemRepo             = Substitute.For<IPlayerItemRepository>();
+        _grantRepo            = Substitute.For<IRewardGrantRepository>();
+        _rewardTableRepo      = Substitute.For<IRewardTableRepository>();
+        _rewardDispatcher     = Substitute.For<IRewardDispatcher>();
+        _auditLogService      = Substitute.For<IAuditLogService>();
+        // 퀘스트 진행 서비스 — 상점 구매 시 퀘스트 조건 트리거용 (테스트에서는 동작 불필요)
+        _questProgressService = Substitute.For<IQuestProgressService>();
 
         // IUnitOfWork 패스스루 설정 — Task<ShopPurchaseResult> 오버로드 포함
         _uow = UnitOfWorkSubstitute.CreatePassthrough();
@@ -46,6 +50,7 @@ public class ShopPurchaseServiceTests
             _rewardTableRepo,
             _rewardDispatcher,
             _auditLogService,
+            _questProgressService,
             _uow,
             NullLogger<ShopPurchaseService>.Instance);
     }

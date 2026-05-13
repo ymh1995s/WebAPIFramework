@@ -78,6 +78,12 @@ public class AppDbContext : DbContext
     // 튜토리얼 진행 상태 테이블 — 플레이어별 key-value 저장소
     public DbSet<TutorialProgress> TutorialProgresses { get; set; }
 
+    // 퀘스트 정의 마스터 테이블 — 일일/주간/메인 퀘스트 조건·보상 정의
+    public DbSet<QuestDefinition> QuestDefinitions { get; set; }
+
+    // 플레이어 퀘스트 진행 상태 테이블 — 주기(PeriodKey)별 달성량·수령 여부
+    public DbSet<PlayerQuestProgress> PlayerQuestProgresses { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // SystemConfig: Key를 PK로 사용
@@ -679,6 +685,119 @@ public class AppDbContext : DbContext
         // TutorialProgress: PlayerId 인덱스 — 전체 조회 최적화
         modelBuilder.Entity<TutorialProgress>()
             .HasIndex(t => t.PlayerId);
+
+        // ─────────────────────────────────────────────
+        // 퀘스트 — QuestDefinition / PlayerQuestProgress
+        // ─────────────────────────────────────────────
+
+        // QuestDefinition: Code UNIQUE 인덱스 (소프트 삭제 포함 전체 유일)
+        modelBuilder.Entity<QuestDefinition>()
+            .HasIndex(q => q.Code)
+            .IsUnique()
+            .HasDatabaseName("UX_QuestDefinitions_Code");
+
+        // QuestDefinition: IsActive/IsDeleted 기본값
+        modelBuilder.Entity<QuestDefinition>()
+            .Property(q => q.IsActive)
+            .HasDefaultValue(true);
+
+        modelBuilder.Entity<QuestDefinition>()
+            .Property(q => q.IsDeleted)
+            .HasDefaultValue(false);
+
+        // QuestDefinition: SortOrder 기본값 0
+        modelBuilder.Entity<QuestDefinition>()
+            .Property(q => q.SortOrder)
+            .HasDefaultValue(0);
+
+        // QuestDefinition: Title/Code/Description 최대 길이
+        modelBuilder.Entity<QuestDefinition>()
+            .Property(q => q.Code)
+            .HasMaxLength(64);
+
+        modelBuilder.Entity<QuestDefinition>()
+            .Property(q => q.Title)
+            .HasMaxLength(128);
+
+        modelBuilder.Entity<QuestDefinition>()
+            .Property(q => q.Description)
+            .HasMaxLength(512);
+
+        // QuestDefinition → RewardTable (N:1, Restrict) — 테이블 삭제 시 퀘스트 먼저 삭제 필요
+        modelBuilder.Entity<QuestDefinition>()
+            .HasOne(q => q.RewardTable)
+            .WithMany()
+            .HasForeignKey(q => q.RewardTableId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // QuestDefinition: 선행 퀘스트 자기참조 FK (ON DELETE SET NULL)
+        // 선행 퀘스트 삭제 시 PrerequisiteQuestId를 null로 초기화
+        modelBuilder.Entity<QuestDefinition>()
+            .HasOne(q => q.PrerequisiteQuest)
+            .WithMany()
+            .HasForeignKey(q => q.PrerequisiteQuestId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // QuestDefinition: 주기+활성 조회 복합 인덱스
+        modelBuilder.Entity<QuestDefinition>()
+            .HasIndex(q => new { q.Period, q.IsActive, q.IsDeleted })
+            .HasDatabaseName("IX_QuestDefinitions_Period_IsActive_IsDeleted");
+
+        // QuestDefinition: 조건 타입 + 대상 ID 필터 인덱스 (IncrementAsync 매칭용)
+        modelBuilder.Entity<QuestDefinition>()
+            .HasIndex(q => new { q.ConditionType, q.ConditionTargetId })
+            .HasFilter("\"IsActive\" = true AND \"IsDeleted\" = false")
+            .HasDatabaseName("IX_QuestDefinitions_ConditionType_ConditionTargetId");
+
+        // PlayerQuestProgress: UNIQUE(PlayerId, QuestId, PeriodKey) — 주기별 진행 상태 중복 방지
+        modelBuilder.Entity<PlayerQuestProgress>()
+            .HasIndex(p => new { p.PlayerId, p.QuestId, p.PeriodKey })
+            .IsUnique()
+            .HasDatabaseName("UX_PlayerQuestProgresses_Player_Quest_PeriodKey");
+
+        // PlayerQuestProgress: 플레이어별+주기별 조회 인덱스
+        modelBuilder.Entity<PlayerQuestProgress>()
+            .HasIndex(p => new { p.PlayerId, p.PeriodKey })
+            .HasDatabaseName("IX_PlayerQuestProgresses_Player_PeriodKey");
+
+        // PlayerQuestProgress: IsClaimed 기본값 false
+        modelBuilder.Entity<PlayerQuestProgress>()
+            .Property(p => p.IsClaimed)
+            .HasDefaultValue(false);
+
+        // PlayerQuestProgress: CurrentAmount 기본값 0
+        modelBuilder.Entity<PlayerQuestProgress>()
+            .Property(p => p.CurrentAmount)
+            .HasDefaultValue(0);
+
+        // PlayerQuestProgress: PeriodKey 최대 길이 16 ("2026-01-13" or "2026-W03" or "permanent")
+        modelBuilder.Entity<PlayerQuestProgress>()
+            .Property(p => p.PeriodKey)
+            .HasMaxLength(16);
+
+        // PlayerQuestProgress → Player (N:1, Cascade) — 플레이어 삭제 시 진행 상태도 삭제
+        modelBuilder.Entity<PlayerQuestProgress>()
+            .HasOne(p => p.Player)
+            .WithMany()
+            .HasForeignKey(p => p.PlayerId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // PlayerQuestProgress → QuestDefinition (N:1, Restrict) — 퀘스트 정의 삭제 시 진행 상태 먼저 삭제 필요
+        modelBuilder.Entity<PlayerQuestProgress>()
+            .HasOne(p => p.Quest)
+            .WithMany()
+            .HasForeignKey(p => p.QuestId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // PlayerQuestProgress: xmin 낙관적 동시성 토큰 (PlayerItem.xmin 패턴 동일)
+        // ClaimAsync 동시 요청 시 두 번째 요청이 DbUpdateConcurrencyException을 발생시켜 중복 지급 차단
+        modelBuilder.Entity<PlayerQuestProgress>()
+            .Property<uint>("xmin")
+            .HasColumnName("xmin")
+            .HasColumnType("xid")
+            .ValueGeneratedOnAddOrUpdate()
+            .IsConcurrencyToken();
 
         // LevelThreshold: Level을 PK로 사용
         modelBuilder.Entity<LevelThreshold>().HasKey(t => t.Level);

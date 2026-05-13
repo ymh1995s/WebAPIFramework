@@ -1,5 +1,6 @@
 using Framework.Application.Common;
 using Framework.Application.Features.AuditLog;
+using Framework.Application.Features.Quest;
 using Framework.Application.Features.Reward;
 using Framework.Domain.Constants;
 using Framework.Domain.Enums;
@@ -28,6 +29,7 @@ public class ItemUseService : IItemUseService
     private readonly IRewardTableRepository _rewardTableRepository;
     private readonly IRewardDispatcher _rewardDispatcher;
     private readonly IAuditLogService _auditLogService;
+    private readonly IQuestProgressService _questProgressService;
     private readonly IUnitOfWork _unitOfWork;
     // IEnumerable 주입 — 등록된 구현체가 없어도 빈 컬렉션으로 안전하게 처리됨
     private readonly IEnumerable<IItemUseEffectExtension> _effects;
@@ -39,6 +41,7 @@ public class ItemUseService : IItemUseService
         IRewardTableRepository rewardTableRepository,
         IRewardDispatcher rewardDispatcher,
         IAuditLogService auditLogService,
+        IQuestProgressService questProgressService,
         IUnitOfWork unitOfWork,
         IEnumerable<IItemUseEffectExtension> effects,
         ILogger<ItemUseService> logger)
@@ -48,6 +51,7 @@ public class ItemUseService : IItemUseService
         _rewardTableRepository = rewardTableRepository;
         _rewardDispatcher = rewardDispatcher;
         _auditLogService = auditLogService;
+        _questProgressService = questProgressService;
         _unitOfWork = unitOfWork;
         _effects = effects;
         _logger = logger;
@@ -59,12 +63,13 @@ public class ItemUseService : IItemUseService
     public async Task<ItemUseResult> UseItemAsync(int playerId, int itemId, string clientRequestId, int quantity = 1, CancellationToken ct = default)
     {
         // xmin 낙관적 동시성 충돌 시 재시도 루프 — 최대 3회
+        ItemUseResult? finalResult = null;
         const int maxAttempts = 3;
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
             try
             {
-                return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+                finalResult = await _unitOfWork.ExecuteInTransactionAsync(async () =>
                 {
                     // 1단계: 플레이어 아이템 보유 여부 조회
                     var playerItem = await _playerItemRepository.GetByPlayerAndItemAsync(playerId, itemId);
@@ -165,6 +170,9 @@ public class ItemUseService : IItemUseService
                     _logger.LogInformation("아이템 사용 완료 — PlayerId={PlayerId}, ItemId={ItemId}, 수량={Qty}", playerId, itemId, quantity);
                     return new ItemUseResult(ItemUseResultStatus.Success);
                 });
+
+                // 성공 시 루프 탈출
+                break;
             }
             catch (DbUpdateConcurrencyException)
             {
@@ -182,11 +190,19 @@ public class ItemUseService : IItemUseService
                     "아이템 사용 xmin 동시성 충돌 — 재시도 {Attempt}/{Max} (PlayerId={PlayerId}, ItemId={ItemId})",
                     attempt, maxAttempts, playerId, itemId);
                 _unitOfWork.ClearChangeTracker();
+                finalResult = null;
             }
         }
 
-        // 이 지점은 도달 불가 (위 루프에서 반드시 return 또는 throw) — 컴파일러 만족용
-        throw new InvalidOperationException("아이템 사용 재시도 루프가 비정상 종료되었습니다.");
+        // 이 지점은 도달 불가 (위 루프에서 반드시 break 또는 throw) — 컴파일러 만족용
+        if (finalResult is null)
+            throw new InvalidOperationException("아이템 사용 재시도 루프가 비정상 종료되었습니다.");
+
+        // 트랜잭션 커밋 후 퀘스트 카운터 증가 — 성공한 경우에만 호출
+        if (finalResult.Status == ItemUseResultStatus.Success)
+            await _questProgressService.IncrementAsync(playerId, QuestConditionType.ItemUsed, quantity, itemId);
+
+        return finalResult;
     }
 
     // 보상 테이블 ID로 RewardBundle 구성 — quantity 배율 적용

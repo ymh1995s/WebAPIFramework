@@ -1,6 +1,7 @@
 using Framework.Application.Common;
 using Framework.Application.Features.AdminNotification;
 using Framework.Application.Features.DailyReward;
+using Framework.Application.Features.Quest;
 using Framework.Application.Features.Reward;
 using Framework.Application.Features.SystemConfig;
 using Framework.Domain.Constants;
@@ -26,6 +27,7 @@ public class DailyLoginService : IDailyLoginService
     private readonly IPlayerRepository _playerRepository;
     private readonly ISystemConfigService _systemConfigService;
     private readonly IAdminNotificationService _notificationService;
+    private readonly IQuestProgressService _questProgressService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<DailyLoginService> _logger;
 
@@ -37,6 +39,7 @@ public class DailyLoginService : IDailyLoginService
         IPlayerRepository playerRepository,
         ISystemConfigService systemConfigService,
         IAdminNotificationService notificationService,
+        IQuestProgressService questProgressService,
         IUnitOfWork unitOfWork,
         ILogger<DailyLoginService> logger)
     {
@@ -47,6 +50,7 @@ public class DailyLoginService : IDailyLoginService
         _playerRepository = playerRepository;
         _systemConfigService = systemConfigService;
         _notificationService = notificationService;
+        _questProgressService = questProgressService;
         _unitOfWork = unitOfWork;
         _logger = logger;
     }
@@ -198,6 +202,9 @@ public class DailyLoginService : IDailyLoginService
 
             return false;
         }
+
+        // 로그인 성공 후 퀘스트 카운터 증가 — targetId=null (특정 아이템이 아닌 로그인 횟수)
+        await _questProgressService.IncrementAsync(playerId, QuestConditionType.Login, 1, null);
 
         return true;
     }

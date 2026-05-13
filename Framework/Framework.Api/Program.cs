@@ -94,6 +94,7 @@ builder.Services.AddAdRewardRepositories();  // 광고 보상 저장소
 builder.Services.AddIapRepositories();       // 인앱결제 저장소
 builder.Services.AddContentRepositories();   // 컨텐츠(스테이지) 저장소
 builder.Services.AddGameRepositories();      // 게임 결과/매치 저장소
+builder.Services.AddQuestRepositories();     // 퀘스트 정의 + 플레이어 진행 상태 저장소
 
 // ── 서비스 ────────────────────────────────────────────────────
 builder.Services.AddAuthServices();          // 인증 (로그인, OAuth, 보상 파이프라인 등)
@@ -106,6 +107,7 @@ builder.Services.AddMatchmakingServices(builder.Configuration); // 매치메이�
 builder.Services.AddAdRewardServices();      // 광고 SSV (UnityAds, IronSource)
 builder.Services.AddIapServices();           // 인앱결제 (Google Play)
 builder.Services.AddContentServices();       // 게임 컨텐츠 (스테이지 등)
+builder.Services.AddQuestServices();         // 퀘스트 시스템 (일일/주간/메인)
 builder.Services.AddTutorialRepositories();  // 튜토리얼 진행 저장소
 builder.Services.AddTutorialServices();       // 튜토리얼 진행 서비스
 

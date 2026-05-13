@@ -1,5 +1,6 @@
 using Framework.Application.Common;
 using Framework.Application.Features.AuditLog;
+using Framework.Application.Features.Quest;
 using Framework.Application.Features.Reward;
 using Framework.Domain.Constants;
 using Framework.Domain.Enums;
@@ -26,6 +27,7 @@ public class ShopPurchaseService : IShopPurchaseService
     private readonly IRewardTableRepository _rewardTableRepo;
     private readonly IRewardDispatcher _rewardDispatcher;
     private readonly IAuditLogService _auditLogService;
+    private readonly IQuestProgressService _questProgressService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<ShopPurchaseService> _logger;
 
@@ -36,6 +38,7 @@ public class ShopPurchaseService : IShopPurchaseService
         IRewardTableRepository rewardTableRepo,
         IRewardDispatcher rewardDispatcher,
         IAuditLogService auditLogService,
+        IQuestProgressService questProgressService,
         IUnitOfWork unitOfWork,
         ILogger<ShopPurchaseService> logger)
     {
@@ -45,6 +48,7 @@ public class ShopPurchaseService : IShopPurchaseService
         _rewardTableRepo = rewardTableRepo;
         _rewardDispatcher = rewardDispatcher;
         _auditLogService = auditLogService;
+        _questProgressService = questProgressService;
         _unitOfWork = unitOfWork;
         _logger = logger;
     }
@@ -178,8 +182,8 @@ public class ShopPurchaseService : IShopPurchaseService
         var bundle = new RewardBundle(Items: rewardItems);
 
         // 5단계: 트랜잭션 내부에서 재화 차감 + 보상 지급 원자 처리
-        // ExecuteInTransactionAsync<T>를 사용하여 결과를 직접 반환 — 외부 변수 없이 명확한 흐름 유지
-        return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        // 결과를 변수에 받아 성공 시 퀘스트 카운터 증가 (트랜잭션 외부 호출)
+        var purchaseResult = await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             // 5-1: 재화 최신 잔량 재확인 — 사전 검증 이후 동시 소비로 잔량이 부족해진 경우(TOCTOU) 방지
             var freshPriceItem = await _itemRepo.GetByPlayerAndItemAsync(playerId, product.PriceItemId);
@@ -242,5 +246,11 @@ public class ShopPurchaseService : IShopPurchaseService
 
             return new ShopPurchaseResult(ShopPurchaseStatus.Success);
         });
+
+        // 트랜잭션 커밋 후 퀘스트 카운터 증가 — 구매 성공 시에만 호출
+        if (purchaseResult.Status == ShopPurchaseStatus.Success)
+            await _questProgressService.IncrementAsync(playerId, QuestConditionType.ShopPurchased, quantity, productId);
+
+        return purchaseResult;
     }
 }

@@ -31,6 +31,7 @@ using Framework.Application.Features.RewardTable;
 using Framework.Application.Features.SystemConfig;
 using Framework.Application.Features.Exp;
 using Framework.Application.Features.Tutorial;
+using Framework.Application.Features.Quest;
 using Framework.Application.Content.Stage;
 using Framework.Domain.Constants;
 using Framework.Domain.Entities;
@@ -112,6 +113,14 @@ public static class ServiceExtensions
     {
         services.AddScoped<IStageRepository, StageRepository>();
         services.AddScoped<IStageClearRepository, StageClearRepository>();
+        return services;
+    }
+
+    // 저장소 등록 - 퀘스트 시스템 관련
+    public static IServiceCollection AddQuestRepositories(this IServiceCollection services)
+    {
+        services.AddScoped<IQuestDefinitionRepository, QuestDefinitionRepository>();
+        services.AddScoped<IPlayerQuestProgressRepository, PlayerQuestProgressRepository>();
         return services;
     }
 
@@ -315,6 +324,21 @@ public static class ServiceExtensions
     public static IServiceCollection AddTutorialServices(this IServiceCollection services)
     {
         services.AddScoped<ITutorialService, TutorialService>();
+        return services;
+    }
+
+    // 서비스 등록 - 퀘스트 시스템
+    public static IServiceCollection AddQuestServices(this IServiceCollection services)
+    {
+        // 주기 키 계산기 — KST 기준 Daily/Weekly/Permanent 키 반환
+        services.AddScoped<IQuestPeriodKeyResolver, QuestPeriodKeyResolver>();
+
+        // 플레이어 퀘스트 진행 서비스 — IncrementAsync(게임 액션 후 호출) + ClaimAsync
+        services.AddScoped<IQuestProgressService, QuestProgressService>();
+
+        // Admin 퀘스트 관리 서비스 — CRUD + 플레이어 진행 상태 조회
+        services.AddScoped<IQuestAdminService, QuestAdminService>();
+
         return services;
     }
 

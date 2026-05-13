@@ -545,6 +545,37 @@ public static class ApiRoutes
         public static string Buy(int productId) => $"{Base}/{productId}/buy";
     }
 
+    // ── 퀘스트 Admin (AdminQuestsController: Route = "api/admin/quests") ──
+    public static class AdminQuests
+    {
+        private const string Base = "api/admin/quests";
+
+        /// <summary>목록 조회 (GET) / 생성 (POST)</summary>
+        public const string Collection = Base;
+
+        /// <summary>단건 조회 (GET) / 수정 (PUT) / 소프트 삭제 (DELETE)</summary>
+        public static string ById(int id) => $"{Base}/{id}";
+
+        /// <summary>키워드 + 주기 + 활성 여부 + 페이지네이션 검색</summary>
+        public static string Search(string? keyword, int? period, bool? isActive, int page, int pageSize)
+        {
+            var parts = new List<string>();
+            if (!string.IsNullOrEmpty(keyword)) parts.Add($"keyword={Uri.EscapeDataString(keyword)}");
+            if (period.HasValue) parts.Add($"period={period.Value}");
+            if (isActive.HasValue) parts.Add($"isActive={isActive.Value.ToString().ToLower()}");
+            parts.Add($"page={page}");
+            parts.Add($"pageSize={pageSize}");
+            return $"{Base}?{string.Join("&", parts)}";
+        }
+    }
+
+    // ── 플레이어 퀘스트 Admin (AdminPlayerQuestsController) ──────────────
+    public static class AdminPlayerQuests
+    {
+        /// <summary>플레이어 퀘스트 진행 상태 조회 (GET)</summary>
+        public static string ByPlayer(int playerId) => $"api/admin/players/{playerId}/quests";
+    }
+
     // ── 헬스체크 (Framework.Api MapHealthChecks 엔드포인트) ──────────────
     public static class Health
     {

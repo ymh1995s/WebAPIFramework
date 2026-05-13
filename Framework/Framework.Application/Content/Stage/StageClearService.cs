@@ -6,6 +6,7 @@
 
 using Framework.Application.Common;
 using Framework.Application.Features.Exp;
+using Framework.Application.Features.Quest;
 using Framework.Application.Features.Reward;
 using Framework.Domain.Content.Entities;
 using Framework.Domain.Content.Interfaces;
@@ -25,6 +26,7 @@ public class StageClearService : IStageClearService
     private readonly IRewardDispatcher _rewardDispatcher;
     private readonly IRewardTableRepository _rewardTableRepo;
     private readonly IExpService _expService;
+    private readonly IQuestProgressService _questProgressService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<StageClearService> _logger;
 
@@ -34,6 +36,7 @@ public class StageClearService : IStageClearService
         IRewardDispatcher rewardDispatcher,
         IRewardTableRepository rewardTableRepo,
         IExpService expService,
+        IQuestProgressService questProgressService,
         IUnitOfWork unitOfWork,
         ILogger<StageClearService> logger)
     {
@@ -42,6 +45,7 @@ public class StageClearService : IStageClearService
         _rewardDispatcher = rewardDispatcher;
         _rewardTableRepo = rewardTableRepo;
         _expService = expService;
+        _questProgressService = questProgressService;
         _unitOfWork = unitOfWork;
         _logger = logger;
     }
@@ -55,7 +59,8 @@ public class StageClearService : IStageClearService
     // 5. 경험치 지급 (ExpService 위임)
     public async Task<StageClearResponseDto> CompleteAsync(int playerId, int stageId, StageClearRequestDto request)
     {
-        return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        // 스테이지 클리어 처리 트랜잭션 — 커밋 후 퀘스트 카운터 증가
+        var result = await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             // 1단계: 스테이지 마스터 조회
             var stage = await _stageRepo.GetByIdAsync(stageId);
@@ -165,6 +170,12 @@ public class StageClearService : IStageClearService
                 ReplayRewardMessage: replayRewardMessage
             );
         });
+
+        // 트랜잭션 커밋 후 퀘스트 카운터 증가 — 실패해도 클리어 결과에 영향 없음
+        // ConditionTargetId: stageId (특정 스테이지 퀘스트) 또는 null (모든 스테이지 퀘스트) 매칭
+        await _questProgressService.IncrementAsync(playerId, QuestConditionType.StageCleared, 1, stageId);
+
+        return result;
     }
 
     // 최초 클리어 보상 지급 헬퍼
