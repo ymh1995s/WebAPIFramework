@@ -166,13 +166,20 @@ dotnet ef database update --project Framework/Framework.Infrastructure --startup
 
 기준 시각(00:00 기본) 미만이면 전날 날짜로 게임 날짜 계산. cycleDay는 이번 달 로그인 횟수 기반(1번째 로그인 = Day 1, 28번째 = Day 28, 29번째 이후 = 기본 보상).
 
+### 7.4 클라이언트 설정 (RemoteConfig)
+| 키 형식 | 설명 |
+|---|---|
+| `client.*` | `client.` 접두사를 가진 키-값 쌍. Admin > 시스템 설정 > RemoteConfig 섹션에서 동적 추가/삭제. 클라이언트 API(`GET /api/remoteconfig`)에서 접두사 제거 후 반환 |
+
+> `client.*` 키는 운영 중 동적으로 관리되므로 고정 목록이 없다. 서버 내부 키(`maintenance_mode` 등)와 네임스페이스가 분리되어 클라이언트에 노출되지 않는다.
+
 ---
 
 ## 8. 모니터링 & 헬스체크
 
 | 항목 | 위치 | 비고 |
 |---|---|---|
-| `/health` | API | DB 연결 + 서비스 상태. 200 OK / 503 Unhealthy |
+| `/health` | API | `database` (DbContextCheck) + `pii-retention` (PiiRetentionHealthCheck) 두 가지 체크. 200 OK / 503 Unhealthy |
 | Admin 헤더 헬스 인디케이터 | Admin Blazor 헤더 | API `/health` 호출 결과 시각화 |
 | Serilog 파일 로그 | `logs/` 디렉토리 (환경별) | RequestLogging + Enricher 4종 (FromLogContext / MachineName / Environment / Application) |
 | AdminNotification 알림 | Admin > `/admin-notifications` 페이지 | RTDN 환불, 동시성 충돌 한도 초과 등 운영 이슈 |
@@ -194,9 +201,18 @@ dotnet ef database update --project Framework/Framework.Infrastructure --startup
 - 비상 정지: `appsettings.json`의 `PiiRetention.Enabled = false`
 - 보관기간/실행 시각 변경: `appsettings.json` `PiiRetention` 섹션 (재배포 필요)
 
-**모니터링 권고**
-- HealthCheck 통합은 미적용 — 정지 시 보관기간 위반 위험. 별도 라운드 권고 (`DEVNOTES.md [미구현]` 참조)
-- 마지막 성공 시각 추적 시스템 도입 검토 (예: `Serilog` + 외부 알림)
+**HealthCheck 통합 (`pii-retention`)**
+
+`PiiRetentionHealthCheck`가 `/health` 엔드포인트에 등록되어 있다. `PiiRetentionHealthState` (Singleton) 공유 객체로 마지막 성공/실패 시각을 추적한다.
+
+| 판정 | 조건 |
+|---|---|
+| Healthy | LastSuccessUtc로부터 30시간 이내 |
+| Degraded | 30시간 초과 ~ 54시간 이내 |
+| Unhealthy | LastSuccessUtc 없음 또는 54시간 초과 |
+
+- 실행 실패 시 `PiiRetentionHealthState.MarkFailure` 기록 → `UnhealthyThresholdHours`(기본 54h) 초과 시 AdminNotification(1일 1회 dedupKey)
+- Unhandled 예외 시 Critical AdminNotification 발송 → `RestartDelay`(1분) 후 외곽 보호 루프 재시작
 
 **다중 인스턴스 운영 시 주의**
 - 현재 단일 인스턴스 가정. 다중 컨테이너 운영 시 PostgreSQL advisory lock(`pg_try_advisory_lock`) 도입 필요 — `DEVNOTES.md [미구현]` 참조
@@ -214,6 +230,12 @@ dotnet ef database update --project Framework/Framework.Infrastructure --startup
 - `Unit/Smoke/` — DI 스모크 테스트 (서비스 Resolve 가능 여부)
 - `Unit/Exp/` — ExpService 단위 테스트 (AddExpAsync 10케이스)
 - `Unit/Auth/` — AuthService 단위 테스트 (GuestLogin/Refresh/Logout/GoogleLogin/Withdraw/LinkGoogle/ResolveConflict 31케이스)
+- `Unit/Debug/` — DebugRewardController 단위 테스트
+- `Unit/Resilience/` — Polly 정책 단위 테스트
+- `Unit/Shop/` — ShopPurchaseService 단위 테스트
+- `Unit/SystemConfig/` — SystemConfigService 단위 테스트
+- `Unit/Tutorial/` — TutorialService 단위 테스트
+- `*MetaTests.cs` (루트) — Enum Meta 레지스트리 일관성 테스트 (RewardSourceType, AdminNotificationCategory, QuestPeriod, QuestConditionType, Tier, MatchState, AdNetworkType, AdPlacementType)
 - `Integration/` — PostgreSQL 의존 테스트 (Testcontainers 도입 후 사용 예정, 현재 빈 폴더)
 
 ### 10.2 작성 규칙
@@ -256,8 +278,9 @@ dotnet ef database update --project Framework/Framework.Infrastructure --startup
 
 ### 10.5 도입 배경
 - H-4 (round_20260503) — 인프라/스모크 셋업 완료
-- 2026-05-07 — 1단계 단위 테스트 구현: ExpService(10개) + AuthService GuestLogin/Refresh/Logout(16개). 총 31개 통과. GoogleLoginAsync 등 나머지 AuthService 메서드는 2단계로 보류
+- 2026-05-07 — 1단계 단위 테스트 구현: ExpService(10개) + AuthService GuestLogin/Refresh/Logout(16개). 총 31개 통과
 - 2026-05-07 — 2단계: AuthService GoogleLoginAsync/WithdrawAsync/LinkGoogleAsync/ResolveGoogleConflictAsync(15개) 추가. AuthService 누적 31개, 전체 41개 통과
+- 이후 추가: PolicyTests(9개), DebugRewardControllerTests(8개, #if DEBUG), ShopPurchaseServiceTests(20개), SystemConfigServiceTests(7개), TutorialServiceTests(8개), Enum Meta 완전성 테스트 8개(RewardSourceType/AdminNotificationCategory/QuestPeriod/QuestConditionType/Tier/MatchState/AdNetworkType/AdPlacementType). 전체 104개
 
 ---
 

@@ -61,7 +61,7 @@ Content-Type: application/json
 - [ ] 어떤 API 호출이든 503 수신 시 점검 화면으로 전환
 - [ ] 재시도 시 자동 복귀
 
-**서버 코드 참조**: `Framework/Framework.Api/Program.cs:170-186`
+**서버 코드 참조**: `Framework/Framework.Api/Program.cs:199-217`
 
 ---
 
@@ -477,7 +477,7 @@ Authorization: Bearer {AccessToken}
 
 **선행 조건**: 로그인 완료
 **UI 필요**: HUD 텍스트 영역 (배너/상단 띠)
-**호출 시점**: 메인 진입 시 1회 (폴링 주기는 클라 자율 — 권장: 5~10분 간격 또는 화면 전환 시)
+**호출 시점**: 메인 진입 시 1회 + 5분 주기 코루틴 폴링
 
 **요청**
 ```http
@@ -497,11 +497,12 @@ Authorization: Bearer {AccessToken}
 **처리**
 - 배열 순회하여 만료 안 된 메시지를 HUD에 표시
 - 빈 배열이면 HUD 숨김
-- 같은 메시지 중복 표시는 클라가 제어 (id 기반)
+- 같은 메시지 중복 표시는 클라가 제어 (id 기반, `PlayerPrefs`에 seenIds CSV로 영속화)
 
 **구현 인수 기준**
 - [ ] 활성 메시지 표시
 - [ ] 빈 배열 시 HUD 숨김
+- [ ] seenIds 영속화로 중복 표시 방지
 
 **서버 코드 참조**: `Framework/Framework.Api/Controllers/Player/ShoutsController.cs:26`
 
@@ -962,15 +963,28 @@ Authorization: Bearer {AccessToken}
 | `INTERNAL_ERROR` | 500 | 서버 내부 예외 | 일반 에러 안내 + 재시도 |
 | `INVALID_ENUM_VALUE` | 400 | enum 파라미터 오류 | 클라 버그 — 로그 |
 | `VALIDATION_FAILED` | 400 | DTO 검증 실패 | 입력 검증 (`detail` 사용자에 표시) |
+| `AUTH_BANNED` | 403 | 정지된 계정 로그인 시도 | 밴 안내 팝업 → 앱 종료 |
+| `AUTH_TOKEN_INVALID` | 401 | 유효하지 않은 리프래시 토큰 | 로그인 화면 이동 |
+| `AUTH_TOKEN_EXPIRED` | 401 | 만료된 리프래시 토큰 | 로그인 화면 이동 |
+| `AUTH_TOKEN_REVOKED` | 401 | 폐기된 리프래시 토큰 | 로그인 화면 이동 |
+| `AUTH_GOOGLE_TOKEN_INVALID` | 401 | 유효하지 않은 구글 IdToken | 재로그인 유도 |
+| `AUTH_GOOGLE_VERIFY_TIMEOUT` | 503 | 구글 토큰 검증 타임아웃 | 잠시 후 재시도 |
+| `GOOGLE_ACCOUNT_CONFLICT` | 409 | 구글 계정 충돌 | 충돌 해소 다이얼로그 (5번/6번) |
 | `AD_SIGNATURE_INVALID` | 401 | 광고 SSV 서명 오류 | 클라 호출 안 함 (서버↔서버) |
-| `AD_POLICY_NOT_FOUND` | 200 | 광고 정책 없음 | 보상 미지급 안내 |
-| `AD_DAILY_LIMIT_EXCEEDED` | 200 | 일일 한도 초과 | "내일 다시 시도" 안내 |
+| `AD_POLICY_NOT_FOUND` | 200 | 광고 정책 없음 | 클라 호출 안 함 (서버↔서버, 재시도 방지 200) |
+| `AD_DAILY_LIMIT_EXCEEDED` | 200 | 일일 한도 초과 | 클라 호출 안 함 (서버↔서버, 재시도 방지 200) |
 | `IAP_PRODUCT_NOT_FOUND` | 404 | 상품 마스터 없음 | 운영자 문의 + 결제 환불 안내 |
 | `IAP_RECEIPT_INVALID` | 409 | 영수증 위변조/이상 | 재시도 X, 운영자 문의 |
 | `IAP_TOKEN_OWNERSHIP_MISMATCH` | 422 | 타 플레이어 토큰 | 보안 사고 — 강제 로그아웃 권장 |
 | `IAP_VERIFIER_ERROR` | 502 | Google API 장애 | 백오프 재시도 |
 | `IAP_VERIFY_CONCURRENCY_EXHAUSTED` | 503 | verify 동시성 한도 초과 | 잠시 후 재시도 (멱등) |
-| `GOOGLE_ACCOUNT_CONFLICT` | 409 | 구글 계정 충돌 | 충돌 해소 다이얼로그 (5번/6번) |
+| `IAP_VERIFY_TIMEOUT` | 503 | Polly 타임아웃 초과 | 잠시 후 재시도 (멱등) |
+| `IAP_VERIFY_UNAVAILABLE` | 503 | 서킷브레이커 OPEN | 잠시 후 재시도 (멱등) |
+| `SHOP_PRODUCT_NOT_FOUND` | 404 | 상품 미존재 또는 비활성화 | 상점 목록 갱신 |
+| `SHOP_NOT_ENOUGH_CURRENCY` | 400 | 재화 부족 | 에러 표시 |
+| `SHOP_DUPLICATE_REQUEST` | 409 | 중복 구매 요청 | 로그만, 상점 갱신 |
+| `SHOP_LIMIT_WOULD_EXCEED` | 400 | 구매 수량이 잔여 한도 초과 | 잔여 수량 포함 토스트 |
+| `SHOP_MAX_PER_CALL_EXCEEDED` | 400 | 1회 최대 구매 수량 초과 | 토스트 표시 |
 
 > 추가될 때마다 서버 `Framework/Framework.Api/ProblemDetails/ErrorCodes.cs` 갱신.
 
@@ -1060,11 +1074,15 @@ Retry-After: 30
 
 | 영역 | 현재 상태 | 클라 임시 처리 |
 |---|---|---|
-| **인벤토리 조회 API** | Player용 엔드포인트 없음 (Admin만 존재) | 우편 수령 시 응답으로 갱신, 또는 향후 도입 대기 |
+| **인벤토리 조회 API** | `GET /api/items/inventory` 구현 완료 — 부록 B-2 참조 | — |
 | **IAP 상품 목록 API** | Admin CRUD만. 클라용 GET 엔드포인트 없음 | Google Play Billing SDK의 `QueryProductDetailsAsync`로 직접 조회 |
 | **게임 결과 기록 API** | 엔드포인트 부재 | 스테이지 클리어(17번)로 부분 대체. PvP/매치메이킹은 미구현 |
 | **매치메이킹** | SignalR 허브 코드 존재하나 UX 흐름 미정 | 향후 라운드 |
 | **플레이어 프로필 조회 API** | 엔드포인트 부재 | TokenResponseDto의 PlayerId/IsNewPlayer로만 구분 |
+| **퀘스트** | `GET /api/quests` + `POST /api/quests/{questId}/claim` 서버 구현 완료 | 클라이언트 API 클래스 미작성 |
+| **튜토리얼** | `GET /api/tutorial` + `PUT /api/tutorial/{key}` 서버 구현 완료 | 클라이언트 API 클래스 미작성 |
+| **리모트 설정** | `GET /api/remoteconfig` 서버 구현 완료 (key-value 사전 반환) | 클라이언트 API 클래스 미작성 |
+| **서버 시간 조회** | `GET /api/time` 서버 구현 완료 (UTC/KST/UnixMs) | 클라이언트는 HTTP Date 헤더 기반 `ServerTime` 동기화 사용 중 |
 
 ---
 
@@ -1072,8 +1090,9 @@ Retry-After: 30
 
 | 기능 | API | 클라이언트 할 일 |
 |---|---|---|
+| **인벤토리 조회** | `GET /api/items/inventory` | 보유 아이템 목록(통화 포함) 조회. 응답: `[{ "itemId": 1, "itemName": "Gold", "quantity": 1000, ... }]` |
 | **아이템 사용** | `POST /api/items/{itemId}/use` — Body: `{ "clientRequestId": "<UUID>", "quantity": N }` | 인벤토리 팝업에 Consumable 아이템 대상 사용 버튼 추가. clientRequestId는 `Guid.NewGuid().ToString()`으로 생성. quantity 기본값 1. 응답: 200(성공) / 400(수량 부족·아이템 없음) / 409(중복 요청) / 422(보상 테이블 오류) / 500(보상 지급 실패) |
-| **인게임 상점** | `GET /api/shop` (상품 목록) + `POST /api/shop/{id}/buy` — Body: `{ "clientRequestId": "<UUID>", "quantity": N }` | 상품 목록 표시 → 구매 버튼. quantity 기본값 1. clientRequestId로 중복 구매 방지. 응답: 200(성공) / 400(MaxPerCallExceeded 또는 LimitWouldExceed + remainingQuantity 포함) / 402(재화 부족) / 404(상품 없음) / 409(중복 요청) |
+| **인게임 상점** | `GET /api/shop` (상품 목록) + `POST /api/shop/{id}/buy` — Body: `{ "clientRequestId": "<UUID>", "quantity": N }` | 상품 목록 표시 → 구매 버튼. quantity 기본값 1. clientRequestId로 중복 구매 방지. 응답: 200(성공) / 400(MaxPerCallExceeded 또는 LimitWouldExceed + remainingQuantity 포함 또는 재화 부족) / 404(상품 없음) / 409(중복 요청) |
 
 ---
 
@@ -1131,7 +1150,7 @@ Content-Type: application/json
 
 **응답 (성공)** — 200 OK
 ```json
-{ "grantId": 88 }
+{ "message": "지급이 완료되었습니다.", "sourceKey": "debug:qa-scenario-shop-limit" }
 ```
 
 **에러 처리**
@@ -1147,7 +1166,7 @@ await ApiClient.PostAsync("/api/debug/grant", new { items = ... });
 #endif
 ```
 
-**sourceKey 중복 주의**: 동일 sourceKey 재호출 시 `alreadyGranted` (중복 지급 차단). 테스트 반복 시 sourceKey 생략하거나 매번 다른 값 사용.
+**sourceKey 중복 주의**: 동일 sourceKey 재호출 시 서버 내부적으로 중복 지급이 차단되며 200 응답은 동일하게 반환됨 (멱등). 테스트 반복 시 sourceKey 생략하거나 매번 다른 값 사용.
 
 ---
 
@@ -1155,5 +1174,6 @@ await ApiClient.PostAsync("/api/debug/grant", new { items = ... });
 
 | 일자 | 라운드 | 변경 |
 |---|---|---|
+| 2026-05-14 | round_20260514 | 코드 동기화 — ErrorCodes 표 확장(Auth/Shop/IAP 추가), 외침 폴링 주기 5분 명시, 부록 B 미구현 영역 추가(퀘스트/튜토리얼/리모트설정/서버시간), 부록 D sourceKey 중복 설명 수정 |
 | 2026-05-13 | - | 부록 B-2 아이템 사용 quantity 파라미터 + 상점 추가. 부록 D(DEBUG 재화 지급) 추가 |
 | 2026-05-05 | round_20260503 종결 | 최초 작성 — 20개 엔드포인트 + 공통 처리 패턴 + 부록 |
