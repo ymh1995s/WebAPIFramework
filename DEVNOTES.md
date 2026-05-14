@@ -290,7 +290,49 @@ PlayerItem.Quantity / Mail.IsClaimed / IapPurchase.Status 등 동시 갱신이 �
 
 - **공지사항 페이지** [선택] — 현재는 1회성 텍스트 공지만 구현됨. 공지 이력 열람, 카테고리 분류 등 게시판 형태가 필요해지면 별도 페이지 추가 고려
 - **이벤트 기간 관리** [중요도 낮음] — 기간 한정 이벤트 시작/종료 관리. 클라이언트가 현재 이벤트 진행 여부를 서버에 질의. 게임마다 구조가 달라 범용 설계 필요
-- **로그/APM 도구 연동** [중요도 낮음] — 현재 파일 로그(Serilog) 기반. 유저 증가 시 ELK Stack + Elastic APM 연동 권장 (APM이 ELK 위에서 동작하므로 세트로 도입). 가벼운 대안으로 Seq(컨테이너 1개, .NET 친화적) 또는 Grafana+Loki 가능. Serilog 싱크 추가 + Program.cs 한 줄로 연동 가능
+- **로그/APM 도구 연동** [중요도 낮음] — 현재 파일 로그(Serilog) 기반. 유저 증가 시 **ELK Stack(Elasticsearch + Kibana) + Elastic APM** 연동. Unity 클라 크래시는 별도(Unity Cloud Diagnostics에서 이미 자동 수집). 구현 절차:
+
+  1. **docker-compose.yml에 3개 서비스 추가** — 기존 PostgreSQL과 같은 파일에 컨테이너만 추가
+     - `Elasticsearch` (9200) — 로그/APM 데이터 저장소
+     - `Kibana` (5601) — 시각화 UI (Elasticsearch 조회)
+     - `apm-server` (8200) — 성능 트레이스 수집기
+     - `Logstash`는 채택하지 않음 — Serilog가 Elasticsearch로 직접 전송하므로 불필요
+
+  2. **NuGet 패키지 2개 추가** (Framework.Api)
+     - `Serilog.Sinks.Elasticsearch`
+     - `Elastic.Apm.NetCoreAll`
+
+  3. **Program.cs 코드 추가** — 기존 `#if !DEBUG` File sink 옆에 Elasticsearch sink 병기, 미들웨어 등록 1줄
+     ```csharp
+     #if !DEBUG
+     .WriteTo.Elasticsearch(new ElasticsearchSinkOptions(new Uri("http://localhost:9200"))
+     {
+         IndexFormat = "framework-api-{0:yyyy.MM}",
+         AutoRegisterTemplate = true
+     })
+     #endif
+     ...
+     app.UseAllElasticApm(builder.Configuration);
+     ```
+
+  4. **appsettings.json에 APM 설정 추가**
+     ```json
+     "ElasticApm": {
+       "ServerUrl": "http://localhost:8200",
+       "ServiceName": "Framework.Api",
+       "Environment": "production"
+     }
+     ```
+
+  5. **Kibana 최초 설정** — `http://localhost:5601` 접속 후
+     - 일반 로그: `Stack Management → Data Views → Create data view` (Name: `framework-api`, Index pattern: `framework-api-*`, Timestamp: `@timestamp`)
+     - APM: 별도 설정 불필요. `apm-*` 인덱스는 Kibana가 자동 인식 (Elastic 공식 명명 규약 고정)
+
+  6. **사용 방법**
+     - 로그 확인 → Kibana `Discover` 탭 (KQL 검색·필터링)
+     - 성능 분석 → Kibana `APM` 탭 (Transactions/Errors/Dependencies)
+
+  데이터 흐름: Serilog → Elasticsearch(9200), .NET APM Agent → apm-server(8200) → Elasticsearch(9200). 모든 데이터가 Elasticsearch 한 곳에 모이고 Kibana가 통합 조회.
 - **SignalR 허브 Rate Limiting** — `/hubs/matchmaking` 등 SignalR 허브 연결에 대한 Rate Limiting 미구현. HTTP 요청과 달리 앱 백그라운드/포그라운드 전환 시 재연결이 발생해 game 정책 직접 적용 불가. 별도 설계 필요. 구현 시점: 실 서비스 직전 또는 연결 폭주 사례 발생 시
 - **계정 탈퇴 안내 UI (Unity 클라이언트)** — 백엔드 탈퇴 처리(`DELETE /api/auth/withdraw`)와 별개로 클라이언트 탈퇴 화면에 안내 팝업 필수. 법적/마켓 정책 의무 항목·구현 요구사항은 `CLIENT_GUIDE.md` 10번 + 부록 A 참조
 
