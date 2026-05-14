@@ -34,6 +34,9 @@ review/
 REVIEW_PLAN.md
 REVIEW_REPORT.md
 
+# doc-sync 라운드 산출물 (로컬 전용 — 매 스킬 실행마다 자동 재생성됨)
+doc-sync/
+
 
 # By default unity supports Blender asset imports, *.blend1 blender files do not need to be commited to version control.
 *.blend1
