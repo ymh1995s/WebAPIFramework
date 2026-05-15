@@ -60,6 +60,9 @@ doc-sync/
 # Visual Studio cache directory
 .vs/
 
+# Visual Studio Language Service cache (Roslyn/IntelliSense .csproj 파싱 캐시)
+*.lscache
+
 # Gradle cache directory
 .gradle/
 
@@ -121,3 +124,6 @@ ServerData
 
 # Auto-generated scenes by play mode tests
 [Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+# K6 부하테스트 결과 (HTML 리포트는 로컬, 비교표만 커밋)
+loadtest/results/

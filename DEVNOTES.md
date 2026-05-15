@@ -5,6 +5,13 @@
 > - **`SERVER_GUIDE.md`** — 서버 운영자 절차 (시크릿 / 배포 / 마이그레이션 / SystemConfig / 이슈 대응)
 > - **`CLIENT_GUIDE.md`** — Unity 클라이언트 구현 walkthrough (앱 부팅~결제 순차)
 
+## [Caution] Temporary code in repository
+
+- `Framework.Api/Program.cs` `#if DEBUG || LOADTEST` block — Debug 또는 LOADTEST 심볼 박힌 빌드 전용 인증 우회 (PlayerId=1 고정). 운영 Release 빌드는 컴파일 제외.
+- `Framework.Admin/Program.cs` `#if DEBUG` block — Debug 빌드 전용 Admin 자동 로그인. Release 빌드 컴파일 제외.
+- `Framework.Api/Program.cs` `#if !LOADTEST` block — LOADTEST 심볼이 정의된 빌드에서는 Rate Limit 미적용 (부하테스트용). 운영 빌드(LOADTEST 미정의)는 정상 적용. Debug 빌드도 정상 적용됨.
+- `Framework.Api/Controllers/Diagnostics/LoadTestController.cs` — `#if LOADTEST` 파일 가드. LOADTEST 심볼이 정의된 빌드에서만 컴파일. 운영/Debug 빌드(LOADTEST 미정의)는 제외.
+
 ## Feature Status
 
 | 기능 | 설명 |
@@ -333,6 +340,156 @@ PlayerItem.Quantity / Mail.IsClaimed / IapPurchase.Status 등 동시 갱신이 �
      - 성능 분석 → Kibana `APM` 탭 (Transactions/Errors/Dependencies)
 
   데이터 흐름: Serilog → Elasticsearch(9200), .NET APM Agent → apm-server(8200) → Elasticsearch(9200). 모든 데이터가 Elasticsearch 한 곳에 모이고 Kibana가 통합 조회.
+
+- **K8s 적용 버전 / 미적용 버전 병행 지원** [학습+상용 겸용] — 프레임워크로서 두 배포 방식 동시 제공. **코어 코드 변경 최소, 배포 매니페스트만 분리** (12-Factor App). 단일 노트북에서 K8s 학습·부하테스트 가능, 동일 코드가 클라우드 K8s로 그대로 이전 가능.
+
+  **채택 이유 (3단계 의사결정)**:
+
+  **① K8s 도입 자체**:
+  - **포트폴리오·학습 가치** — K8s 운영 경험 + 파드/HPA/롤링업데이트/노드 장애 시뮬레이션 직접 체험. 프레임워크 상품성 강화 (K8s Ready 게임 백엔드)
+  - **파드 자원 분산 실습** — 사용자 증가 시 파드 동적 추가/축소, 노드 간 분산 스케줄링을 노트북 환경에서 실증
+
+  **② 단계 분할 방식 (ELK는 외부 Docker Compose 유지)**:
+  - **기존 ELK 유산 활용** — Docker Compose로 구축한 ELK+APM 그대로 유지. K8s 안 Framework.Api 파드가 외부 ELK로 로그/트레이스 전송. 새로 배울 인프라 도구 최소화, 학습 본질(파드 분산)에 집중
+  - K8s에 익숙해진 후 Phase 8에서 ELK도 K8s 안으로 이전 (선택 사항)
+
+  **③ kind 런타임 채택** (`kind` = **K**ubernetes **IN** **D**ocker — 도커 컨테이너 안에 K8s 노드를 띄우는 도구. 노드 1개 = 도커 컨테이너 1개):
+  - 멀티 노드 클러스터 30초 생성, 라이브 운영 가장 가능, 클라우드 K8s(EKS/GKE)와 매니페스트 거의 100% 호환 → 학습 자산이 그대로 실 운영 자산이 됨
+  - **선택지 비교**:
+
+    | 런타임 | 멀티노드 | 시작속도 | 라이브가장 | 클라우드 K8s 친화 | 비고 |
+    |---|:---:|:---:|:---:|:---:|---|
+    | **kind** ⭐ | ✓ | 30초 | ✓ | 매우 높음 | 채택. CI/CD 표준, 분산 실습 적합 |
+    | Docker Desktop K8s | ✗ (단일) | 즉시 | ✗ | 낮음 | 단일 노드라 파드 분산 실습 자체가 불가능 |
+    | minikube | ✓ | 1~2분 | ◯ | 높음 | kind 대비 시작 느림, 학습 이점 동등 |
+    | k3d | ✓ | 20초 | ◯ | 보통 | k3s 기반 — 표준 K8s 일부 축소(PSP 등) |
+    | kubeadm 직접 설치 | ✓ | 10분+ | ◎ | 높음 | 노트북에서 멀티노드 띄우려면 VM 여러 개 필요, 1인 환경엔 무거움 |
+
+  **본질 목표**: Framework.Api 파드의 **자원 분산·HPA·롤링업데이트 실습** + 라이브 서비스 운영 시뮬레이션.
+
+  **채택 구조** — K8s 안엔 Framework.Api만, 의존 인프라/관측 도구는 모두 외부 Docker Compose:
+  ```
+  [kind K8s 클러스터]                       [Docker Compose 외부]
+  ├── framework-api-pod-1  ──┐              ├── PostgreSQL (:5432)
+  ├── framework-api-pod-2  ──┤── 로그/APM   ├── Elasticsearch (:9200)
+  ├── framework-api-pod-3  ──┤── 전송       ├── Kibana (:5601)
+  └── framework-api-pod-N  ──┘              └── APM Server (:8200)
+                                            (※ Phase 7 추가 시 Redis)
+  ```
+  - K8s 파드 → 외부 ELK/PostgreSQL 접근은 `host.docker.internal:포트` 또는 호스트 IP 사용
+  - 여러 파드 → 단일 APM Server로 동시 전송 (메타데이터로 파드별 자동 구분: `service.node.name`, `kubernetes.pod.name`)
+  - 단일 APM Server / Elasticsearch로 노트북 16GB·파드 10~20개 트래픽 충분 처리
+
+  **목표 디렉토리 구조**:
+  ```
+  WebAPIFramework/
+  ├── Framework/                       ← 코어 (변경 거의 없음)
+  │   └── Framework.Api/Dockerfile     ← 공통 이미지
+  └── deploy/
+      ├── docker-compose/              ← 로컬 개발 / 의존 인프라 / 관측 도구
+      │   ├── docker-compose.yml       (PostgreSQL + ELK + APM Server)
+      │   └── .env.example
+      └── k8s/                         ← K8s 학습 / Framework.Api 분산 실습
+          ├── helm/framework-api/
+          │   ├── Chart.yaml
+          │   ├── values.yaml
+          │   └── templates/{deployment,service,hpa,ingress}.yaml
+          ├── kind-config.yaml         (멀티 노드 클러스터 정의)
+          └── README.md
+  ```
+
+  **단계별 진행 순서**:
+
+  1. **Phase 1 — 코어 K8s 친화 리팩토링** (둘 다 공유하는 전제 조건)
+     - `appsettings.json` 하드코딩 → 환경변수/Secret 외부화 (DB 연결문자열, JWT 시크릿, AdminKey 등)
+     - `Framework.Api/Dockerfile` 작성 (멀티스테이지 빌드, 단일 이미지로 양쪽 재사용)
+     - 부팅 시 `db.Database.Migrate()` 자동 호출 분리 — K8s 멀티 파드 경합 방지 → Init Container 또는 K8s Job으로 이관
+     - HealthCheck (`/health`) 이미 존재 ✓, Serilog Console sink 이미 존재 ✓
+
+  2. **Phase 2 — docker-compose 디렉토리 정리**
+     - `/deploy/docker-compose/` 디렉토리 생성, 기존 PostgreSQL compose 파일 이동
+     - ELK + APM Server 서비스 추가 (위 ELK 항목 절차 적용)
+     - `.env.example` 작성 (시크릿 키 매핑 표기)
+     - `docker compose up`으로 정상 동작 회귀 검증
+
+  3. **Phase 3 — 로컬 K8s 런타임 설치 + raw 매니페스트 작성** (학습 첫 단계)
+
+     **3-A. K8s 런타임 — `kind` 채택** (채택 이유·선택지 비교는 위 ③ 항목 참조)
+     - **설치**: `winget install Kubernetes.kind`
+     - **클러스터 생성** (control-plane 1 + worker 3):
+       ```yaml
+       # deploy/k8s/kind-config.yaml
+       kind: Cluster
+       apiVersion: kind.x-k8s.io/v1alpha4
+       nodes:
+       - role: control-plane
+       - role: worker
+       - role: worker
+       - role: worker
+       ```
+       ```bash
+       kind create cluster --config deploy/k8s/kind-config.yaml
+       ```
+
+     **3-B. CLI 도구 설치**
+     - `kubectl` — `winget install Kubernetes.kubectl`
+     - `helm` — `winget install Helm.Helm` (Phase 4부터 사용)
+     - 검증: `kubectl version --client`, `helm version`
+
+     **3-C. 동작 확인**
+     - `kubectl cluster-info` — 클러스터 응답 확인
+     - `kubectl get nodes` — `kind-control-plane` + `kind-worker` × 3 Ready 상태 확인
+     - `kubectl get pods -A` — 시스템 파드 모두 Running 확인
+
+     **3-D. raw yaml 매니페스트 작성** (Helm 없이 시작 — 원리 학습 우선)
+     - `Deployment + Service + ConfigMap + Secret` 작성
+     - DB/ELK 연결: ConfigMap에 `host.docker.internal:5432`, `host.docker.internal:9200`, `host.docker.internal:8200` 주입
+     - `kubectl apply -f deployment.yaml`
+     - `kubectl get pods -o wide` → 파드가 worker 노드들에 분산되는지 확인
+     - `kubectl logs <pod>`, `kubectl describe pod <pod>` 트러블슈팅 명령 습득
+     - `kubectl port-forward svc/framework-api 8080:80` → `curl localhost:8080/health` 동작 검증
+
+  4. **Phase 4 — Helm Chart 패키징**
+     - `/deploy/k8s/helm/framework-api/` 디렉토리 생성
+     - `Chart.yaml`, `values.yaml`, `templates/` 구성
+     - `values-dev.yaml` / `values-prod.yaml` 분리 (환경별 오버라이드)
+     - `helm install framework-api ./...` 검증
+
+  5. **Phase 5 — HPA + metrics-server** (자원 동적 할당 = 본질 도달)
+     - `metrics-server` 설치 (HPA 동작 필수 의존, kind는 기본 미포함이므로 명시 설치 필요)
+     - `Resource Limits/Requests` 정의 (CPU 100m~500m, Memory 256Mi~512Mi 등)
+     - HPA 매니페스트 추가 (min=1, max=5, CPU 70% 트리거)
+
+  6. **Phase 6 — 부하 테스트 (k6) = 분산 실습 핵심 단계**
+     - k6 시나리오 스크립트 작성 (점진 VU 증가: 100 → 500 → 1000)
+     - `kubectl get hpa -w`로 파드 증감 실시간 관찰
+     - `kubectl get pods -o wide -w`로 노드 간 파드 분산 관찰
+     - 노드 장애 시뮬레이션: `docker stop kind-worker2` → 파드 재스케줄링 확인
+     - 외부 Kibana APM 탭에서 파드별 응답시간·에러율 측정
+     - 시나리오 예시: 로그인 → 인벤토리 조회 → 상점 구매 → 우편 수령
+
+  7. **Phase 7 — SignalR Redis Backplane** (매치메이킹 K8s 호환, 후순위)
+     - Redis 컨테이너 추가 (docker-compose 외부에 둠 — ELK와 동일 정책)
+     - `AddSignalR().AddStackExchangeRedis(connectionString)` 설정
+     - 멀티 파드 환경에서 매치메이킹 분산 검증
+     - 매치메이킹 사용 게임 출시 전 필수. 코드 늘기 전에 박는 게 retrofit보다 저렴
+
+  8. **Phase 8 — ELK K8s 안으로 이전** (단계 분할의 마지막, 선택 사항)
+     - **선결 조건**: Phase 1~6 완료 후 K8s 운영에 익숙해진 시점에만 진행
+     - **중간 단계** (권장): Filebeat DaemonSet만 K8s 안에 추가 — 파드 로그 자동 수집, ELK 본체는 여전히 외부
+     - **최종 단계** (선택): ECK Operator 또는 Bitnami Helm Chart로 ELK 본체까지 K8s 안으로 이전
+     - 학습 부담 큼 — 본질(파드 분산) 충분히 익힌 후에만 시도
+
+  **재사용 패턴** (프레임워크 README 가이드):
+  ```
+  옵션 A — 로컬 개발 (5분):  cd deploy/docker-compose && docker compose up
+  옵션 B — K8s 분산 실습:    cd deploy/docker-compose && docker compose up (의존 인프라/ELK)
+                            → kind create cluster --config deploy/k8s/kind-config.yaml
+                            → helm install framework-api ./deploy/k8s/helm/framework-api
+  ```
+
+  **부담 추정**: Phase 1~2 (1주) + Phase 3~6 (2~3주, kind 학습 포함) + Phase 7 (3일) = 총 3~4주. Phase 8은 별도 라운드 권장. 기능 개발과 병행 시 게임 출시 일정에 영향 큰 점 인지 필요.
+
 - **SignalR 허브 Rate Limiting** — `/hubs/matchmaking` 등 SignalR 허브 연결에 대한 Rate Limiting 미구현. HTTP 요청과 달리 앱 백그라운드/포그라운드 전환 시 재연결이 발생해 game 정책 직접 적용 불가. 별도 설계 필요. 구현 시점: 실 서비스 직전 또는 연결 폭주 사례 발생 시
 - **계정 탈퇴 안내 UI (Unity 클라이언트)** — 백엔드 탈퇴 처리(`DELETE /api/auth/withdraw`)와 별개로 클라이언트 탈퇴 화면에 안내 팝업 필수. 법적/마켓 정책 의무 항목·구현 요구사항은 `CLIENT_GUIDE.md` 10번 + 부록 A 참조
 

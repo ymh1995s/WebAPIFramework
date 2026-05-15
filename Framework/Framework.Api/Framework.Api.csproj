@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <Configurations>Debug;Release;LoadTest</Configurations>
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,5 +33,15 @@
     <ProjectReference Include="..\Framework.Infrastructure\Framework.Infrastructure.csproj" />
     <ProjectReference Include="..\Framework.Domain\Framework.Domain.csproj" />
   </ItemGroup>
+
+  <!-- 부하테스트 전용 Configuration "LoadTest"
+       VS 상단 드롭다운에서 LoadTest 선택 시 → Release 최적화 + LOADTEST 심볼 정의
+       LoadTestController 컴파일 포함 + Rate Limiter 미적용 (부하테스트 측정 가능)
+       운영 빌드(Release 선택)는 LOADTEST 미정의 → 부하테스트 코드 컴파일 제외 -->
+  <PropertyGroup Condition="'$(Configuration)' == 'LoadTest'">
+    <DefineConstants>LOADTEST</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
 
 </Project>

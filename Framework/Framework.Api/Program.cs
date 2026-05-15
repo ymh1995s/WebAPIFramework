@@ -192,8 +192,12 @@ app.UseSecurityHeaders(app.Environment);
 // ─────────────────────────────────────────────────────────────
 app.UseExceptionHandler();
 
-// Rate Limiter는 인증보다 앞에 위치해야 함
+// Rate Limit 가드 — LOADTEST 심볼이 정의된 빌드에서는 미적용 (부하테스트용)
+// 운영 빌드(LOADTEST 미정의)는 정상 적용
+// ※ Debug 빌드도 정상 적용됨 — 개발 중 Rate Limit 동작 검증 가능
+#if !LOADTEST
 app.UseRateLimiter();
+#endif
 
 // 점검 모드 미들웨어 — X-Admin-Key 헤더가 있는 요청(Admin Blazor)은 통과, 나머지는 수동/예약 여부 확인 후 503 반환
 app.Use(async (context, next) =>
@@ -219,10 +223,10 @@ app.Use(async (context, next) =>
 // 인증 → 인가 순서 중요
 app.UseAuthentication();
 
-#if DEBUG
-// 디버그 빌드 전용 - 릴리즈 빌드에서는 이 코드가 컴파일되지 않음
+#if DEBUG || LOADTEST
+// Debug 빌드 또는 LOADTEST 심볼 박힌 빌드 전용 - 운영 Release 빌드에서는 컴파일되지 않음
 // PlayerId = 1 로 고정된 가짜 인증을 주입하여 토큰 없이 API 테스트 가능
-// 적용 대상: Swagger, Admin 어드민 직접 호출 등 토큰 없이 플레이어 API를 테스트할 때
+// 적용 대상: Swagger, Admin 어드민 직접 호출, K6 부하테스트 등 토큰 없이 플레이어 API를 테스트할 때
 // 미적용 대상: Admin > 문의 관리 > 문의 테스트처럼 실제 Bearer 토큰을 발급·사용하는 시나리오
 app.Use(async (context, next) =>
 {
