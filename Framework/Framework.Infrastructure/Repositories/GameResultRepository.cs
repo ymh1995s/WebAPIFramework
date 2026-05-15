@@ -34,25 +34,6 @@ public class GameResultRepository : IGameResultRepository
     public async Task AddAsync(GameResult match)
         => await _db.GameResults.AddAsync(match);
 
-    // 플레이어별 최고 점수 기준 상위 N명 조회 — PublicId 포함 (내부 Id 직접 반환 금지)
-    public async Task<List<(int PlayerId, Guid PublicId, string Nickname, int BestScore)>> GetTopRankingsAsync(int count)
-    {
-        return await _db.GameResultParticipants
-            .Where(p => p.Score.HasValue && p.HumanType == Domain.Enums.HumanType.Human)
-            .GroupBy(p => new { p.PlayerId, p.Player.PublicId, p.Player.Nickname })
-            .Select(g => new
-            {
-                g.Key.PlayerId,
-                g.Key.PublicId,
-                g.Key.Nickname,
-                BestScore = g.Max(p => p.Score!.Value)
-            })
-            .OrderByDescending(x => x.BestScore)
-            .Take(count)
-            .Select(x => ValueTuple.Create(x.PlayerId, x.PublicId, x.Nickname, x.BestScore))
-            .ToListAsync();
-    }
-
     // 특정 플레이어의 최고 점수 조회
     public async Task<int> GetPlayerBestScoreAsync(int playerId)
         => await _db.GameResultParticipants

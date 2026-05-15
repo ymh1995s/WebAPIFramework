@@ -17,7 +17,10 @@ public class RankingRepository : IRankingRepository
     // 플레이어별 최고 점수 기준 상위 N명 조회 — PublicId 포함 (내부 Id 직접 반환 금지)
     public async Task<List<(int PlayerId, Guid PublicId, string Nickname, int BestScore)>> GetTopRankingsAsync(int count)
     {
-        return await _db.GameResultParticipants
+        // ValueTuple.Create(...)를 Select 안에서 SQL로 푸시하면
+        // PostgreSQL이 composite type(record)으로 묶어 반환 → Npgsql이 ValueTuple로 매핑 실패 → InvalidCastException
+        // 따라서 anonymous projection으로 ToListAsync() 후 메모리 단계에서 ValueTuple 변환
+        var rows = await _db.GameResultParticipants
             .Where(p => p.Score.HasValue && p.HumanType == Domain.Enums.HumanType.Human)
             .GroupBy(p => new { p.PlayerId, p.Player.PublicId, p.Player.Nickname })
             .Select(g => new
@@ -29,8 +32,12 @@ public class RankingRepository : IRankingRepository
             })
             .OrderByDescending(x => x.BestScore)
             .Take(count)
-            .Select(x => ValueTuple.Create(x.PlayerId, x.PublicId, x.Nickname, x.BestScore))
             .ToListAsync();
+
+        // SQL 완료 후 메모리에서 ValueTuple로 변환
+        return rows
+            .Select(x => (x.PlayerId, x.PublicId, x.Nickname, x.BestScore))
+            .ToList();
     }
 
     // 특정 플레이어의 순위 조회 (내 최고점수보다 높은 플레이어 수 + 1)

@@ -15,9 +15,6 @@ public interface IGameResultRepository
     // 새 게임 결과 추가
     Task AddAsync(GameResult match);
 
-    // 플레이어별 최고 점수 기준 상위 N명 조회 (랭킹용)
-    Task<List<(int PlayerId, Guid PublicId, string Nickname, int BestScore)>> GetTopRankingsAsync(int count);
-
     // 특정 플레이어의 최고 점수 조회
     Task<int> GetPlayerBestScoreAsync(int playerId);
 
