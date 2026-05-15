@@ -1,0 +1,29 @@
+# kind 클러스터 설정 파일
+# 부하테스트 시나리오 3(CPU 집약), 4(DB 집약) 전용 로컬 K8s 클러스터 정의
+# 노드 구성: control-plane 1개 + worker 3개
+
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+# 클러스터 이름 — kubectl context 에서 kind-framework-loadtest 로 참조됨
+name: framework-loadtest
+
+# 노드 이미지 버전 명시 — kind 기본은 최신(v1.35+)이지만 Docker Desktop WSL2 환경에서
+# cgroup/kubelet 호환 이슈로 부팅 실패 가능. v1.31.2는 안정 LTS 버전으로 검증됨
+nodes:
+  # control-plane: API 서버, etcd, 스케줄러 담당
+  - role: control-plane
+    image: kindest/node:v1.31.2
+    extraPortMappings:
+      # 호스트 30080 → 클러스터 내부 NodePort 30080 포워딩
+      # k6 시나리오 BASE_URL=http://localhost:30080 과 일치
+      - containerPort: 30080
+        hostPort: 30080
+        protocol: TCP
+
+  # worker 노드 3개 — HPA maxReplicas=4 까지 파드를 분산 스케줄링
+  - role: worker
+    image: kindest/node:v1.31.2
+  - role: worker
+    image: kindest/node:v1.31.2
+  - role: worker
+    image: kindest/node:v1.31.2

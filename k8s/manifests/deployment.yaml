@@ -1,0 +1,83 @@
+# Framework.Api Deployment — 부하테스트 시나리오 3/4 전용
+# replicas=1 은 초기값. HPA가 CPU 부하에 따라 최대 4까지 자동 조정
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: framework-api
+  labels:
+    app: framework-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: framework-api
+  template:
+    metadata:
+      labels:
+        app: framework-api
+    spec:
+      containers:
+        - name: framework-api
+          # 02-build-image.ps1 에서 kind load 로 로컬 로드한 이미지 사용
+          image: framework-api:loadtest
+          # IfNotPresent: kind load 로 로컬에 존재하면 레지스트리 pull 시도 안 함
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+
+          env:
+            # ASP.NET Core 환경 (appsettings.Development.json 로드)
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+
+            # ────────────────────────────────────────────────────────────────────
+            # [필수 치환] <POSTGRES_PASSWORD> 를 실제 Postgres 패스워드로 교체할 것
+            # 예시: Password=postgres
+            # host.docker.internal = 호스트 머신(Docker Desktop) 접근용 DNS
+            # ────────────────────────────────────────────────────────────────────
+            - name: ConnectionStrings__Default
+              value: "Host=host.docker.internal;Port=5432;Database=framework_db;Username=postgres;Password=postgres"
+
+            # Admin API Key — 부하테스트용 더미값 (인증 우회 빌드이므로 실제 검증 없음)
+            - name: Admin__ApiKey
+              value: "loadtest-dummy"
+
+            # JWT SecretKey — 부하테스트용 더미값 (32바이트 이상 패딩 포함)
+            - name: Jwt__SecretKey
+              value: "loadtest-dummy-secret-key-32bytes-minimum-pad"
+
+            # Google OAuth ClientId — 부하테스트 환경에서 실제 OAuth 호출 없음
+            - name: Google__ClientId
+              value: "loadtest-dummy"
+
+          resources:
+            requests:
+              # HPA가 CPU 사용률(%) 계산 시 requests.cpu 를 기준으로 삼음
+              # 200m 으로 상향 — 70% 임계 = 140m, PBKDF2 단일 부하로 도달 가능
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              # 파드당 1코어까지 사용 — 단일 인스턴스 시나리오 1 수준 처리량 확보
+              # 8 파드 × 1코어 = 최대 8코어 (Docker Desktop 6+ CPU 할당 권장)
+              cpu: "1000m"
+              memory: "768Mi"
+
+          # readinessProbe: 파드가 트래픽을 받을 준비가 됐는지 확인
+          # /health 엔드포인트가 200 반환 전까지 Service 엔드포인트에서 제외
+          readinessProbe:
+            httpGet:
+              path: /api/load-test/ping
+              port: 8080
+            initialDelaySeconds: 10   # 앱 시작 대기
+            periodSeconds: 5
+            failureThreshold: 6       # 30초(=5×6) 이내 성공 필요
+
+          # livenessProbe: 파드가 교착/무한루프에 빠졌는지 주기적으로 확인
+          # 실패 시 파드 재시작
+          livenessProbe:
+            httpGet:
+              path: /api/load-test/ping
+              port: 8080
+            initialDelaySeconds: 30   # readiness 안정화 후 시작
+            periodSeconds: 15
+            failureThreshold: 3       # 45초 연속 실패 시 재시작

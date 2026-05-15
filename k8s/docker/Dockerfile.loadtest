@@ -1,0 +1,39 @@
+# 부하테스트 전용 멀티스테이지 Dockerfile
+# 빌드 컨텍스트: Framework/ 디렉토리 (sln 기준 루트)
+# 실행: docker build -t framework-api:loadtest -f k8s/docker/Dockerfile.loadtest .
+
+# ─── 1단계: 빌드 ───────────────────────────────────────────────────────────────
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# NuGet 복원을 레이어 캐시로 분리 — 소스 변경 시 복원 재실행 방지
+COPY Framework.Api/Framework.Api.csproj                       Framework.Api/
+COPY Framework.Application/Framework.Application.csproj       Framework.Application/
+COPY Framework.Domain/Framework.Domain.csproj                 Framework.Domain/
+COPY Framework.Infrastructure/Framework.Infrastructure.csproj Framework.Infrastructure/
+
+# 의존 프로젝트 전체 복원
+RUN dotnet restore Framework.Api/Framework.Api.csproj
+
+# 소스 전체 복사 후 LoadTest 구성으로 퍼블리시
+# LoadTest 빌드 구성 = 인증 우회 (#if DEBUG 블록 포함, Release 불포함)
+COPY . .
+RUN dotnet publish Framework.Api/Framework.Api.csproj \
+    -c LoadTest \
+    -o /app/publish \
+    /p:UseAppHost=false
+
+# ─── 2단계: 런타임 ─────────────────────────────────────────────────────────────
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+
+# HTTP 전용 (HTTPS 오프로드는 Ingress/서비스 레이어에서 처리)
+ENV ASPNETCORE_URLS=http://+:8080
+
+# 컨테이너 내부 포트 선언 (kind NodePort 서비스가 이 포트로 라우팅)
+EXPOSE 8080
+
+# 퍼블리시 산출물 복사
+COPY --from=build /app/publish .
+
+ENTRYPOINT ["dotnet", "Framework.Api.dll"]

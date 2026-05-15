@@ -1,0 +1,50 @@
+# HorizontalPodAutoscaler — CPU 기반 자동 스케일 아웃/인
+# 부하테스트 시나리오 3(CPU 집약)에서 스케일 아웃 동작을 검증하기 위한 설정
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: framework-api
+spec:
+  # 스케일 대상: framework-api Deployment
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: framework-api
+
+  # 최소 1개 유지, 최대 8개까지 확장 (worker 노드 3개에 평균 2~3 파드씩 분산)
+  minReplicas: 1
+  maxReplicas: 8
+
+  metrics:
+    # CPU 사용률이 requests.cpu(100m) 의 70% 초과 시 스케일 아웃 트리거
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+  behavior:
+    scaleUp:
+      # stabilizationWindowSeconds=0: 임계값 초과 즉시 스케일 아웃 (부하테스트 반응 속도 확인용)
+      stabilizationWindowSeconds: 0
+      policies:
+        # 현재 파드 수의 100% 를 15초마다 추가 가능 (빠른 배증)
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+        # 15초마다 최대 2개씩 추가 가능
+        - type: Pods
+          value: 2
+          periodSeconds: 15
+      # 두 정책 중 더 많이 스케일하는 쪽 선택 (공격적 확장)
+      selectPolicy: Max
+
+    scaleDown:
+      # 60초 안정화 후 스케일 인 — 부하 종료 직후 섣부른 축소 방지
+      stabilizationWindowSeconds: 60
+      policies:
+        # 30초마다 현재 파드 수의 100% 까지 제거 가능 (단, stabilizationWindow 내 최솟값 유지)
+        - type: Percent
+          value: 100
+          periodSeconds: 30
