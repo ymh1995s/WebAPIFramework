@@ -86,9 +86,14 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
     });
 
-// 인가 서비스 등록 — FallbackPolicy로 어노테이션 누락 페이지도 기본 인증 필수 적용 (Fail-safe)
+// 인가 서비스 등록 — FallbackPolicy=RequireAuthenticatedUser 복원
+// 어노테이션 없는 신규 비-컴포넌트 엔드포인트(예: 향후 추가될 Minimal API)를 자동 차단하는 안전망.
+// 컴포넌트 엔드포인트(MapRazorComponents·/_blazor SignalR 회로)와 정적자산(MapStaticAssets)은
+// 명시적 AllowAnonymous로 FallbackPolicy 대상에서 제외 → 백색화면 재발 방지.
+// 페이지 단위 보호는 _Imports.razor 전역 [Authorize] + AuthorizeRouteView 가 별도 담당(컴포넌트 레이어).
 builder.Services.AddAuthorization(options =>
 {
+    // 비-컴포넌트 엔드포인트 안전망: AllowAnonymous 명시 없는 신규 엔드포인트는 자동 인증 요구
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build();
@@ -137,8 +142,10 @@ app.UseSecurityHeaders(app.Environment);
 
 app.UseAuthentication();
 
-// Debug 빌드 전용 자동 로그인 - Release 빌드에서는 컴파일 제외
-#if DEBUG
+// 자동 로그인 — Debug 또는 LoadTest 심볼 정의 시 활성화, Release(둘 다 미정의)는 컴파일 제외
+// Api 프로젝트의 인증 우회 정책(#if DEBUG || LOADTEST)과 대칭 구성.
+// LoadTest = 격리된 부하테스트 환경에서 로그인 절차 없이 Admin 접속을 허용하기 위한 심볼.
+#if DEBUG || LOADTEST
 app.Use(async (context, next) =>
 {
     if (context.User.Identity?.IsAuthenticated != true)
@@ -154,7 +161,7 @@ app.Use(async (context, next) =>
     }
     await next();
 });
-#endif
+#endif // DEBUG || LOADTEST
 
 app.UseAuthorization();
 
@@ -183,9 +190,16 @@ app.MapGet("/logout", async (HttpContext context) =>
 
 app.UseAntiforgery();
 
-app.MapStaticAssets();
+// 정적자산/Blazor 프레임워크 전송 채널은 인증 대상 아님 —
+// FallbackPolicy(RequireAuthenticatedUser)가 _framework/*.js, collocated *.razor.js, css 등을
+// 차단하면 Release/LoadTest 빌드에서 백색화면 발생. 페이지·SignalR 회로 보호는 별도 유지 (Phase 2).
+app.MapStaticAssets().AllowAnonymous();
+// MapRazorComponents(초기 SSR + /_blazor SignalR 회로)를 FallbackPolicy 대상에서 명시 제외.
+// FallbackPolicy가 복원된 상태에서도 Blazor 회로 연결이 차단되지 않도록 AllowAnonymous 적용.
+// 페이지 보호는 _Imports.razor [Authorize] + AuthorizeRouteView 컴포넌트 레이어가 담당.
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+    .AddInteractiveServerRenderMode()
+    .AllowAnonymous();
 
 // API 서버가 먼저 기동될 수 있도록 1초 대기 후 시작
 await Task.Delay(TimeSpan.FromSeconds(1));

@@ -12,3 +12,11 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Framework.Admin.Logging
 @using Framework.Admin.Components.Shared
+@using Microsoft.AspNetCore.Authorization
+
+@* 페이지 보호 주체(컴포넌트 레이어): 모든 Razor 컴포넌트에 기본 인증 요구를 전역 적용.
+   Login.razor / Error.razor / NotFound.razor 등 익명 허용이 필요한 페이지는
+   [AllowAnonymous] 어트리뷰트가 이 설정보다 우선하므로 별도 수정 불필요.
+   FallbackPolicy(Program.cs)는 비-컴포넌트 신규 엔드포인트 안전망으로 별도 복원됨.
+   컴포넌트 엔드포인트(MapRazorComponents)는 FallbackPolicy에서 AllowAnonymous로 제외되어 있음. *@
+@attribute [Authorize]

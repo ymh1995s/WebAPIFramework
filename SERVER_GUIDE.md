@@ -182,13 +182,26 @@ dotnet ef database update --project Framework/Framework.Infrastructure --startup
 | `/health` | API | `database` (DbContextCheck) + `pii-retention` (PiiRetentionHealthCheck) 두 가지 체크. 200 OK / 503 Unhealthy |
 | Admin 헤더 헬스 인디케이터 | Admin Blazor 헤더 | API `/health` 호출 결과 시각화 |
 | Serilog 파일 로그 | `logs/` 디렉토리 (환경별) | RequestLogging + Enricher 4종 (FromLogContext / MachineName / Environment / Application) |
+| Serilog → Elasticsearch | Kibana `Discover` (data view `framework-api-*`, `@timestamp`) | **Release 빌드 전용**(`#if !DEBUG && !LOADTEST`). 파일 로그와 동일 이벤트를 ES에도 전송. 크래시·에러는 `level: "Fatal"`/`"Error"` KQL 필터 |
+| Elastic APM | Kibana `APM` 탭 → 서비스 `Framework_Api` | **Release 빌드 전용**. 트랜잭션·에러·의존성(EF/HTTP) 트레이스. `.NET 에이전트 → apm-server(8200) → ES` |
 | AdminNotification 알림 | Admin > `/admin-notifications` 페이지 | RTDN 환불, 동시성 충돌 한도 초과 등 운영 이슈 |
 
-### 8.1 점검할 메트릭 (수동 또는 외부 APM 연동 시)
-- `/health` 503 발생률
+### 8.1 관측 스택 (ELK + APM) 운영
+
+- **구성**: docker-compose에 `elasticsearch`(9200)/`kibana`(5601)/`apm-server`(8200) + `es-init`(1회성). 이미지 태그 `8.15.3` 동일 고정. 기동: `docker compose up -d elasticsearch kibana apm-server es-init`
+- **활성 조건**: Serilog ES sink·APM 모두 `#if !DEBUG && !LOADTEST` → **Release 빌드에서만 동작**(Debug/LoadTest는 컴파일 제외, 검증 불가). 평소 Debug 개발은 ELK 컨테이너 불필요
+- **보관(ILM)**: `framework-api-30d` 정책 — 인덱스 생성 30일 후 자동 삭제. `es-init`이 `docker compose up` 때마다 멱등 적용(`down -v`로 esdata 삭제해도 자동 복구)
+- **컨테이너 API 배포 시**: docker-compose api 서비스에 `Serilog__Elasticsearch__Url=http://elasticsearch:9200`, `ElasticApm__ServerUrl=http://apm-server:8200` 오버라이드 적용됨(컨테이너 내 localhost 함정 회피). VS 개발은 appsettings 기본값(localhost) 그대로
+- **Kibana 최초 1회**: `Stack Management → Data Views → Create data view`(패턴 `framework-api-*`, 타임스탬프 `@timestamp`). APM 탭은 자동 인식
+- ⚠️ docker-compose의 `xpack.security.enabled=false`·ES 힙 512MB는 **로컬 학습 전용** — 운영 배포 시 보안 활성·자원 재산정 필수
+- 설계 근거·자기참조 루프 차단 등 상세는 `DEVNOTES.md` `로그/APM 도구 연동` 참조
+
+### 8.2 점검할 메트릭
+- `/health` 503 발생률 (Kibana Discover `level:"Error"` + `HealthCheckEnd`)
 - DB 트랜잭션 retry 빈도 (`EnableRetryOnFailure` 5회)
 - IAP verify 동시성 충돌 (`IapVerifyConcurrencyExhausted` AdminNotification)
 - Rate Limit 429 누적 (Admin > 보안 감시 페이지 또는 `RateLimitLog` 테이블)
+- APM: `Framework_Api` 서비스 Latency/Throughput/Failed transaction rate 추이
 
 ---
 

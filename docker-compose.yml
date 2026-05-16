@@ -52,6 +52,12 @@ services:
       # 광고 SSV 서명 검증 키 - UnityAds/IronSource 콜백 서명 검증에 필수
       AdNetworks__UnityAds__SecretKey: ${UNITY_ADS_SECRET_KEY}
       AdNetworks__IronSource__SecretKey: ${IRONSOURCE_SECRET_KEY}
+
+      # 관측 엔드포인트 오버라이드 — 컨테이너 안 localhost는 자기 자신이라
+      # appsettings 기본값(localhost) 대신 compose 서비스명으로 지정.
+      # VS 개발은 compose env를 안 읽으므로 영향 없음 (12-Factor: 환경별 설정 분리)
+      Serilog__Elasticsearch__Url: http://elasticsearch:9200
+      ElasticApm__ServerUrl: http://apm-server:8200
     volumes:
       # 구글 플레이 서비스 계정 JSON 파일 마운트 - IAP 검증에 필수
       - ./secrets:/app/secrets:ro
@@ -60,6 +66,105 @@ services:
       # 초기 테스트용. 최종적으로는 Caddy(443)가 이 포트를 프록시한다
       - "5000:8080"
 
+  # ───────────────────────────────────────────────────────────
+  # 관측 스택 (M1) — Elasticsearch + Kibana + APM Server
+  #
+  # [목적] 로그/성능 트레이스 수집·시각화. M1 단계는 컨테이너 기동과
+  #        Kibana 접속 확인까지만 (코드 변경 없음). Serilog sink 연동은
+  #        M2, .NET APM 에이전트는 M3 — DEVNOTES.md line 318~360 참조.
+  #
+  # [주의] xpack.security.enabled=false, 힙 512MB 는 로컬 학습 전용.
+  #        운영 배포 시 보안 활성·자원 재산정 필수.
+  #
+  # [버전] 세 이미지 태그를 8.15.3 으로 동일 고정 (버전 불일치 시
+  #        Kibana ↔ ES 접속 거부). 업그레이드 시 셋 다 같이 변경.
+  # ───────────────────────────────────────────────────────────
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    container_name: framework-es
+    restart: unless-stopped
+    environment:
+      # 단일 노드 모드 (학습용, 클러스터 구성 아님)
+      - discovery.type=single-node
+      # 로컬 학습용 보안 비활성 — 운영 환경 절대 금지
+      - xpack.security.enabled=false
+      # 머신러닝 비활성 (메모리 절약)
+      - xpack.ml.enabled=false
+      # JVM 힙 512MB 고정 — 노트북 메모리 보호
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      # ES 권장 - 메모리 잠금 무제한 허용
+      memlock: { soft: -1, hard: -1 }
+    # 컨테이너 메모리 상한 1.5GB
+    mem_limit: 1536m
+    ports:
+      - "9200:9200"
+    volumes:
+      # 인덱스 데이터는 이름있는 볼륨에 보존 (컨테이너 삭제해도 유지)
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      # ES가 HTTP 응답 가능한 상태인지 확인 (kibana/apm-server 기동 게이트)
+      test: ["CMD-SHELL", "curl -s -f http://localhost:9200 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 24
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.3
+    container_name: framework-kibana
+    restart: unless-stopped
+    environment:
+      # 같은 compose 네트워크라 서비스명(elasticsearch)으로 접근
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    mem_limit: 1024m
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        # ES가 healthy 된 뒤에야 기동
+        condition: service_healthy
+
+  apm-server:
+    image: docker.elastic.co/apm/apm-server:8.15.3
+    container_name: framework-apm
+    restart: unless-stopped
+    # apm-server 컨테이너 권한 최소화 (공식 권장 set)
+    cap_add: [CHOWN, DAC_OVERRIDE, SETGID, SETUID]
+    cap_drop: [ALL]
+    command: >
+      apm-server -e
+        -E apm-server.host=0.0.0.0:8200
+        -E output.elasticsearch.hosts=["http://elasticsearch:9200"]
+    mem_limit: 512m
+    ports:
+      - "8200:8200"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  # ES 보관정책 1회성 초기화 — ES healthy 후 ILM(30일 삭제) 정책·템플릿을
+  # 멱등 적용하고 종료. docker compose up 때마다 재적용되므로 esdata 볼륨을
+  # 날려도(down -v) 다음 up에 자동 복구. 로컬 File sink 30개 보관과 등가 목적.
+  es-init:
+    image: curlimages/curl:8.10.1
+    container_name: framework-es-init
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["sh","-c"]
+    command:
+      - >
+        curl -sf -X PUT "http://elasticsearch:9200/_ilm/policy/framework-api-30d"
+        -H 'Content-Type: application/json'
+        -d '{"policy":{"phases":{"hot":{"min_age":"0ms","actions":{}},"delete":{"min_age":"30d","actions":{"delete":{}}}}}}'
+        && curl -sf -X PUT "http://elasticsearch:9200/_index_template/framework-api-ilm"
+        -H 'Content-Type: application/json'
+        -d '{"index_patterns":["framework-api-*"],"priority":500,"template":{"settings":{"index.lifecycle.name":"framework-api-30d"}}}'
+        && echo "[es-init] ILM 30d policy/template applied"
+
 volumes:
   # 이름있는 볼륨 - 컨테이너 삭제해도 데이터 보존
   pgdata:
+  # Elasticsearch 인덱스(로그/APM) 영속 볼륨
+  esdata:

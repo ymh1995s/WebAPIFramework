@@ -23,6 +23,9 @@
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+    <PackageReference Include="Serilog.Sinks.Elasticsearch" Version="10.0.0" />
+    <!-- Elastic APM — 분산 트레이싱·성능 분석. Release/LoadTest 전용 미들웨어와 쌍으로 동작 -->
+    <PackageReference Include="Elastic.Apm.NetCoreAll" Version="1.30.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <!-- EF Core DbContext 헬스체크 — /health 엔드포인트에서 DB 연결 상태 확인용 -->
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.6" />

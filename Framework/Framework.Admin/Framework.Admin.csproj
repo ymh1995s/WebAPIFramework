@@ -13,6 +13,16 @@
     <ProjectReference Include="..\Framework.Domain\Framework.Domain.csproj" />
   </ItemGroup>
 
+  <!-- 부하테스트 전용 빌드 구성. VS 드롭다운에서 LoadTest 선택 시에만 적용 (Api와 동형) -->
+  <PropertyGroup Condition="'$(Configuration)' == 'LoadTest'">
+    <!-- LOADTEST 심볼 정의 → 코드의 #if LOADTEST / #if DEBUG || LOADTEST 블록 활성화 -->
+    <DefineConstants>LOADTEST</DefineConstants>
+    <!-- 컴파일 최적화 ON — 부하테스트는 실성능 측정이라 Release급 빌드 필요 -->
+    <Optimize>true</Optimize>
+    <!-- 디버그 심볼 형식 지정 (portable: 크로스플랫폼 표준 포맷) -->
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.6" />

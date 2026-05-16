@@ -8,7 +8,9 @@ using Framework.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Elastic.Apm.NetCoreAll;
 using Serilog;
+using Serilog.Sinks.Elasticsearch;
 using System.Text.Json;
 
 // ─────────────────────────────────────────────────────────────
@@ -23,8 +25,33 @@ using System.Text.Json;
 // Admin 로그(logs/admin-.log)와 API 로그(logs/api-.log)를 분리하여
 // 문제 발생 시 어느 서버에서 발생했는지 즉시 구분 가능하다.
 // ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// [부트스트랩 설정 별도 로드 이유]
+// Log.Logger는 WebApplication.CreateBuilder(args) 보다 먼저 생성되어야 한다.
+// 이유: AppDomain.UnhandledException 훅이 Log.Logger를 직접 참조하기 때문에
+// builder 생성 전에 logger가 완성돼 있어야 한다(2단계 로거 미사용).
+// 따라서 appsettings에서 URL만 읽기 위한 최소 ConfigurationBuilder를 별도 구성한다.
+// ─────────────────────────────────────────────────────────────
+var bootstrapEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+var bootstrapConfig = new ConfigurationBuilder()
+    .SetBasePath(Directory.GetCurrentDirectory())
+    // 기본 설정 파일 (필수)
+    .AddJsonFile("appsettings.json", optional: false)
+    // 환경별 오버라이드 파일 (없어도 무방)
+    .AddJsonFile($"appsettings.{bootstrapEnv}.json", optional: true)
+    // 환경변수로 URL 주입 가능하도록 (컨테이너 배포 시 활용)
+    .AddEnvironmentVariables()
+    .Build();
+
+// Elasticsearch URL: 설정 키 없으면 localhost:9200 폴백
+var elasticsearchUrl = bootstrapConfig["Serilog:Elasticsearch:Url"] ?? "http://localhost:9200";
+
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
+    // 자기참조 루프 차단 — APM↔ES sink 되먹임 노이즈 억제, Warning/Error 이상은 유지(장애 가시성 보존)
+    // Elastic.Apm 에이전트가 ES sink의 HttpClient 호출을 계측 → Information 진단 이벤트 발생 → ES로 재전송 → 무한 되먹임
+    .MinimumLevel.Override("Elastic.Apm", Serilog.Events.LogEventLevel.Warning)
     // 요청 단위 컨텍스트(LogContext.PushProperty 등) 전파에 필수
     .Enrich.FromLogContext()
     // 컨테이너/노드 식별 — Docker 멀티 인스턴스 환경에서 어느 노드인지 구분
@@ -34,13 +61,23 @@ Log.Logger = new LoggerConfiguration()
     // 멀티 앱(Api/Admin) 로그 통합 시 필터링용 고정 속성
     .Enrich.WithProperty("Application", "Framework.Api")
     .WriteTo.Console()
-#if !DEBUG
+    // 외부 관측 sink — Release 빌드 전용
+    //   Debug 제외: 로컬 개발 시 외부 인프라(파일/ES) 의존 제거
+    //   LoadTest 제외: 부하테스트 합성 로그의 운영 인덱스 오염 및 측정 오버헤드 방지
+    //   AutoRegisterTemplateVersion.ESv8: 운영 ES 8.15.3 호환 필수 (누락 시 ES8이 legacy 템플릿 거부 → 로그 유실)
+#if !DEBUG && !LOADTEST
     .WriteTo.File(
         path: "logs/api-.log",
         rollingInterval: RollingInterval.Day,
         retainedFileCountLimit: 30,
         fileSizeLimitBytes: 50 * 1024 * 1024,
         rollOnFileSizeLimit: true)
+    .WriteTo.Elasticsearch(new ElasticsearchSinkOptions(new Uri(elasticsearchUrl))
+    {
+        IndexFormat = "framework-api-{0:yyyy.MM}",
+        AutoRegisterTemplate = true,
+        AutoRegisterTemplateVersion = AutoRegisterTemplateVersion.ESv8
+    })
 #endif
     .CreateLogger();
 
@@ -127,6 +164,16 @@ builder.Services.Configure<PiiRetentionOptions>(builder.Configuration.GetSection
 
 // PII 자동 정리 BackgroundService — KST DailyRunHourKst 시각 매일 1회 실행
 builder.Services.AddHostedService<PiiRetentionCleanupService>();
+
+// ── Elastic APM 서비스 등록 ────────────────────────────────────
+// AddAllElasticApm(): UseAllElasticApm(IApplicationBuilder) 미들웨어 방식 대비 권장 패턴 (1.30.0 기준 deprecated 해소)
+// IServiceCollection 확장 메서드로 등록 — builder.Configuration의 ElasticApm 섹션을 DI를 통해 자동 바인딩
+// Elastic APM — Release 빌드 전용 (Serilog 외부 sink와 동일 정책)
+//   Debug 제외: 로컬 개발 시 APM 서버(8200) 의존 제거
+//   LoadTest 제외: 부하테스트 측정값에 APM 에이전트 오버헤드 혼입 방지 + 부하환경 APM 서버 미배포
+#if !DEBUG && !LOADTEST
+builder.Services.AddAllElasticApm();
+#endif
 
 // JSON 직렬화 옵션 설정
 // - EnumMemberJsonConverterFactory: 잘못된 enum 값 수신 시 EnumDeserializationException을 발생시켜 400 반환

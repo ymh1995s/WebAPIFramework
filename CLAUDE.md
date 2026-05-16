@@ -30,7 +30,7 @@ For pre-deployment replacements, unimplemented items, index plans, and feature s
 
 ### [Caution] Temporary code in repository
 - `Framework.Api/Program.cs` `#if DEBUG` block — debug-build-only auth bypass (PlayerId fixed to 1). Excluded from Release compilation.
-- `Framework.Admin/Program.cs` `#if DEBUG` block — debug-build-only Admin auto-login. Excluded from Release compilation.
+- `Framework.Admin/Program.cs` `#if DEBUG || LOADTEST` block — Debug/LoadTest-build-only Admin auto-login (identity injection). Excluded from Release compilation. (symmetric with Api auth bypass)
 
 ### [Convention] Admin HTTP client pattern
 - **모든 Admin Blazor 페이지**는 `IHttpClientFactory` 대신 `ApiHttpClient` (`Framework.Admin/Http/ApiHttpClient.cs`)를 주입하여 사용한다.

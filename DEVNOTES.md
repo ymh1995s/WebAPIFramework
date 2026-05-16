@@ -8,9 +8,18 @@
 ## [Caution] Temporary code in repository
 
 - `Framework.Api/Program.cs` `#if DEBUG || LOADTEST` block — Debug 또는 LOADTEST 심볼 박힌 빌드 전용 인증 우회 (PlayerId=1 고정). 운영 Release 빌드는 컴파일 제외.
-- `Framework.Admin/Program.cs` `#if DEBUG` block — Debug 빌드 전용 Admin 자동 로그인. Release 빌드 컴파일 제외.
+- `Framework.Admin/Program.cs` `#if DEBUG || LOADTEST` block — Debug 또는 LOADTEST 빌드 전용 Admin 자동 로그인(신원 주입). 운영 Release 빌드는 컴파일 제외. (Api 인증우회 정책과 대칭)
 - `Framework.Api/Program.cs` `#if !LOADTEST` block — LOADTEST 심볼이 정의된 빌드에서는 Rate Limit 미적용 (부하테스트용). 운영 빌드(LOADTEST 미정의)는 정상 적용. Debug 빌드도 정상 적용됨.
 - `Framework.Api/Controllers/Diagnostics/LoadTestController.cs` — `#if LOADTEST` 파일 가드. LOADTEST 심볼이 정의된 빌드에서만 컴파일. 운영/Debug 빌드(LOADTEST 미정의)는 제외.
+
+### [보안 규율] Framework.Admin 인증 모델 (2026-05-17)
+
+Admin 백색화면 수정 과정에서 인증 모델 재정립. 핵심:
+
+- **2레이어 인가**: ① 엔드포인트 — `AddAuthorization` `FallbackPolicy=RequireAuthenticatedUser` (어노테이션 없는 엔드포인트 자동 deny 안전망) ② 컴포넌트 — `_Imports.razor` 전역 `@attribute [Authorize]` + `Routes.razor` `AuthorizeRouteView` (페이지 보호 주체)
+- **명시적 익명 엔드포인트**(FallbackPolicy 예외): `/admin-login`, `/`, `/logout`, `MapStaticAssets`, `MapRazorComponents`. 앞 3개는 의도된 익명, 정적자산·`MapRazorComponents`는 백색화면 방지용(회로/SSR 진입 허용 — 페이지 보호는 컴포넌트 레이어가 별도 담당, `prerender:false`라 미인증 스냅샷 경로 없음)
+- **[규율] 신규 비-컴포넌트 엔드포인트(`app.Map*` 미니멀 API/컨트롤러) 추가 시 인증 불필요가 아닌 한 `.AllowAnonymous()`를 붙이지 말 것.** 미부착 = FallbackPolicy 자동 인증(의도된 안전망). 익명이 꼭 필요하면 PR에 사유 명시 + 보안 검토
+- **잔여 부채(별도 트랙)**: `/admin-login`이 `.DisableAntiforgery()` — 로그인 CSRF 가능(피해자 브라우저로 강제 로그인). 본 작업과 무관한 기존 사항, 추후 보안 검토 대상
 
 ## Feature Status
 
@@ -281,6 +290,24 @@ PlayerItem.Quantity / Mail.IsClaimed / IapPurchase.Status 등 동시 갱신이 �
 ## [기술 부채] 검토 항목
 - **일괄 우편 발송 성능** — `MailService.BulkSendAsync`가 전체 플레이어를 메모리 로드 후 단일 트랜잭션으로 N건 INSERT. 유저 수 증가 시 메모리 압박 + DB 락 시간 문제 발생. 배치 분할(500건씩 끊어서 INSERT + SaveChanges) 도입 필요
 
+- **공유 통화 행(Gold/Gems) xmin hot-row 경합 — 관측성·UX·StageClear 재시도 실효 (round_20260516 설계 조사 완료, 수정 보류)**
+
+  Currency-as-Item으로 Gold(ItemId=1)/Gems(2)가 `PlayerItem` 단일 행에 통합. 한 플레이어의 거의 모든 보상 경로가 이 통화 행을 두고 경쟁. 클라 우편 전체수령(서버는 `MailsController.cs:34` per-mail, 클라가 N건 동시 발사)을 광클하면 서로 다른 우편(다른 SourceKey, UNIQUE 선기록 통과)의 공통 Gold가 같은 행에 read-modify-write 집중 → `PlayerItem.xmin` 충돌 빈발.
+
+  **데이터 정합성은 안전** — 코드 추적으로 확정. 트랜잭션 롤백으로 이중지급/원장 손상/영구 누락 없음. 우편은 `Mail.IsClaimed`가 트랜잭션 내부(`MailService.cs:154`)라 롤백 시 미수령 유지→재수령 가능. StageClear도 클리어 기록 upsert + `GrantAsync`가 동일 트랜잭션(`StageClearService.cs:63-172` → `UnitOfWork.cs:70-93` 참여자 합류)이라 실패 시 클리어째 롤백→재클리어로 복구. 따라서 긴급 핫픽스 불요.
+
+  **잔여 결함 3종 (수정 보류, 추후 검토)**:
+  1. *관측성* — 3회 소진 시 `LogWarning`(Error 아님)이라 운영 알림 안 뜸. `RewardDispatcher.cs:138`, `MailService.cs:255`. → 검토안 (c): `LogError` 격상 + `AdminNotification(Critical, RewardDispatchFailure)` 발송. M-17 daily-login 보전 모델과 동형, 마이그레이션 0
+  2. *우편 UX* — `ClaimAsync` 3회 소진 시 `return false` → `MailsController.cs:39`가 "이미 수령했거나 존재하지 않는 우편입니다" **거짓 메시지** 반환, 유저가 미수령을 수령으로 오인. → 검토안 (d): `ClaimAsync` bool→결과 enum, 동시성 일시 실패는 재시도 안내로 분리
+  3. *StageClear 재시도 실효 0회* — **비자명 사실**: StageClear 경로의 `GrantAsync`는 참여자 트랜잭션이라, 첫 xmin 충돌에서 PostgreSQL이 트랜잭션 abort → `RewardDispatcher.cs:72-152` 재시도 2·3회가 무의미 소진. 즉 `### 재시도 정책`의 "최대 3회" 박제가 **이 경로에서는 사실상 0회**. 단 1회 충돌에도 정상 클리어가 조용히 `null` 반환(`StageClearService.cs:204,241`). 데이터 손실은 없으나 UX 혼란이 우편보다 큼
+
+  **근본/추가 해결안 (출시 후 운영 데이터 기준 재평가)**:
+  - (a) 통화 행 한정 지수 백오프+지터 — 단독 GrantAsync/우편엔 효과, StageClear 참여자 경로엔 무효(abort 후 백오프 무의미). 부하테스트 인프라(커밋 811b872)로 충돌률 측정 후 도입 판단
+  - (b) claim-all 서버 단일 트랜잭션 엔드포인트 신설 — N우편 통화 1회 합산 갱신으로 hot-row 원인 제거(근본). 신규 API + 배치 부분실패 시맨틱 + 클라 변경 비용. claim-all이 실측 주 트리거로 확인되면 승격
+  - (e) 통화 갱신을 원자적 `UPDATE ... SET Quantity=Quantity+@d RETURNING`으로 전환 — read-modify-write 제거로 xmin 경합 물리적 소거. 단 감사 로그 Before/After를 RETURNING 역산해야 하고 `IPlayerItemRepository` 확장 + EF 우회 + 통화 전용 분기 + INSERT는 upsert 필요. 출시 전 과다, (a)+(c)로 감당 불가 시 최후 수단
+
+  권고 우선순위: (c)+(d) 즉시 가성비 최상(M-17 패턴 재사용, Application+Api 6파일, 마이그레이션 0) → (a) 측정 기반 → (b)/(e) 운영 데이터 기준. `### 재시도 정책` 박제는 정책 변경(c 도입 시 LogError+알림) 또는 StageClear 한계 각주 시 동반 갱신 필요.
+
 ### REVIEW_REPORT.md 우선순위 처리 결과 (round_20260503 종결: 2026-05-05)
 
 - **Critical** (2/2) 모두 해결: C-1 Admin 인가 누락, C-2 auth Rate Limit 파티션
@@ -297,49 +324,15 @@ PlayerItem.Quantity / Mail.IsClaimed / IapPurchase.Status 등 동시 갱신이 �
 
 - **공지사항 페이지** [선택] — 현재는 1회성 텍스트 공지만 구현됨. 공지 이력 열람, 카테고리 분류 등 게시판 형태가 필요해지면 별도 페이지 추가 고려
 - **이벤트 기간 관리** [중요도 낮음] — 기간 한정 이벤트 시작/종료 관리. 클라이언트가 현재 이벤트 진행 여부를 서버에 질의. 게임마다 구조가 달라 범용 설계 필요
-- **로그/APM 도구 연동** [중요도 낮음] — 현재 파일 로그(Serilog) 기반. 유저 증가 시 **ELK Stack(Elasticsearch + Kibana) + Elastic APM** 연동. Unity 클라 크래시는 별도(Unity Cloud Diagnostics에서 이미 자동 수집). 구현 절차:
+- **로그/APM 도구 연동** [구현·런타임검증 완료 2026-05-16] — ELK + Elastic APM 연동 완료. **설치/사용 절차는 별도 가이드 참조 — 여기는 결정·함정만 보존.** Unity 클라 크래시는 별도(Unity Cloud Diagnostics).
 
-  1. **docker-compose.yml에 3개 서비스 추가** — 기존 PostgreSQL과 같은 파일에 컨테이너만 추가
-     - `Elasticsearch` (9200) — 로그/APM 데이터 저장소
-     - `Kibana` (5601) — 시각화 UI (Elasticsearch 조회)
-     - `apm-server` (8200) — 성능 트레이스 수집기
-     - `Logstash`는 채택하지 않음 — Serilog가 Elasticsearch로 직접 전송하므로 불필요
-
-  2. **NuGet 패키지 2개 추가** (Framework.Api)
-     - `Serilog.Sinks.Elasticsearch`
-     - `Elastic.Apm.NetCoreAll`
-
-  3. **Program.cs 코드 추가** — 기존 `#if !DEBUG` File sink 옆에 Elasticsearch sink 병기, 미들웨어 등록 1줄
-     ```csharp
-     #if !DEBUG
-     .WriteTo.Elasticsearch(new ElasticsearchSinkOptions(new Uri("http://localhost:9200"))
-     {
-         IndexFormat = "framework-api-{0:yyyy.MM}",
-         AutoRegisterTemplate = true
-     })
-     #endif
-     ...
-     app.UseAllElasticApm(builder.Configuration);
-     ```
-
-  4. **appsettings.json에 APM 설정 추가**
-     ```json
-     "ElasticApm": {
-       "ServerUrl": "http://localhost:8200",
-       "ServiceName": "Framework.Api",
-       "Environment": "production"
-     }
-     ```
-
-  5. **Kibana 최초 설정** — `http://localhost:5601` 접속 후
-     - 일반 로그: `Stack Management → Data Views → Create data view` (Name: `framework-api`, Index pattern: `framework-api-*`, Timestamp: `@timestamp`)
-     - APM: 별도 설정 불필요. `apm-*` 인덱스는 Kibana가 자동 인식 (Elastic 공식 명명 규약 고정)
-
-  6. **사용 방법**
-     - 로그 확인 → Kibana `Discover` 탭 (KQL 검색·필터링)
-     - 성능 분석 → Kibana `APM` 탭 (Transactions/Errors/Dependencies)
-
-  데이터 흐름: Serilog → Elasticsearch(9200), .NET APM Agent → apm-server(8200) → Elasticsearch(9200). 모든 데이터가 Elasticsearch 한 곳에 모이고 Kibana가 통합 조회.
+  - **활성 정책 — `#if !DEBUG && !LOADTEST` (File/ES sink + APM 공통, Release 전용)**: 진리표 File/ES/APM 모두 Debug OFF / Release ON / LoadTest OFF (Console만 전 구성 ON). 근거 — Debug 제외=로컬 외부인프라 의존 제거, LoadTest 제외=부하측정 오염·관측자 오버헤드 차단. RateLimiter `#if !LOADTEST`·인증우회 `#if DEBUG||LOADTEST`와 별개.
+  - **[함정] 자기참조 루프**: APM 에이전트가 ES sink의 HttpClient를 자동 계측 → transport 진단(`*DiagnosticsListener`)을 Information 로깅 → 그 로그가 다시 ES sink로 → 무한 되먹임. 무트래픽에도 ~1k→7.5k건 폭주 실측. **차단(이중)**: Program.cs `MinimumLevel.Override("Elastic.Apm", Warning)` + appsettings `ElasticApm:LogLevel:Error`. 향후 APM/ES 동시 사용 시 재발 주의.
+  - **APM 등록**: `builder.Services.AddAllElasticApm()` (deprecated `app.UseAllElasticApm` 미채택 — CS0618). `Log.Logger`가 `builder`보다 먼저 생성돼 ES URL은 부트스트랩 `ConfigurationBuilder`로 별도 로드(하드코딩 금지).
+  - **ES 보관(ILM)**: 정책 `framework-api-30d`(생성 30일 후 인덱스 삭제, 로컬 File sink 30파일과 등가 목적). docker-compose `es-init` 1회성 서비스가 멱등 적용 → **`down -v`로 esdata 삭제해도 다음 `up`에 자동 복구**(코드 무관, ES 클러스터 상태). 미적용 시 무한 누적 → ES 90% 워터마크에서 인덱스 read-only(로깅 중단). APM 데이터스트림은 자체 기본 ILM 별도.
+  - **환경 분리(12-Factor)**: VS=appsettings 기본 `localhost`, 도커 api=docker-compose env(`Serilog__Elasticsearch__Url`, `ElasticApm__ServerUrl`)가 덮어씀(컨테이너 내 localhost≠ES/APM 컨테이너). 코드 동일, 설정만 환경별. 도커 api 실제 기동엔 `.env` 시크릿 별도 필요(로그/APM과 무관한 배포 선행조건).
+  - ⚠️ `xpack.security.enabled=false`·ES 힙 512MB는 **로컬 학습 전용** — 운영 시 보안 활성·자원 재산정 필수.
+  - **후속(선택)**: `ElasticApm:Environment` 하드코딩 `production` → 환경변수화(현재 dev VS도 APM은 production 라벨, 로그는 Development로 불일치).
 
 - **K8s 적용 버전 / 미적용 버전 병행 지원** [학습+상용 겸용] — 프레임워크로서 두 배포 방식 동시 제공. **코어 코드 변경 최소, 배포 매니페스트만 분리** (12-Factor App). 단일 노트북에서 K8s 학습·부하테스트 가능, 동일 코드가 클라우드 K8s로 그대로 이전 가능.
 
