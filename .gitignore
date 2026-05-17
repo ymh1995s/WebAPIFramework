@@ -23,6 +23,9 @@ secrets/
 # Claude Code 에이전트 메모리 (로컬 전용)
 .claude/agent-memory/
 
+# Claude Code 개인 로컬 설정 (settings.json 공용 규칙은 추적 유지)
+.claude/settings.local.json
+
 # 테스트 산출물
 **/TestResults/
 **/coverage.cobertura.xml
