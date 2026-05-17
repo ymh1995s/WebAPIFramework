@@ -8,6 +8,21 @@
 
 ---
 
+## 0. 빠른 시작 (6단계)
+
+> 최초 기동 흐름만. 각 단계의 상세·운영 항목은 아래 본문(레퍼런스) 참조.
+
+1. **Docker Desktop 설치** (호스트 요건 §1.1)
+2. **Git 레포 클론** — 소스가 있어야 `서버시작.bat`이 api 이미지를 빌드
+3. **`.env` 작성** — `.env.example` 복사 후 시크릿 채움 (상세 §2, Admin §3)
+4. **`appsettings` 운영값 교체** — IAP RTDN 도메인 등 placeholder 점검 (§11 체크리스트 / IAP 쓸 때 §4)
+5. **`서버시작.bat` 실행** — db/api/caddy/ELK 기동 + 마이그레이션 자동 + 매일 백업 등록 (전 컨테이너화 1-커맨드, §1.2)
+6. **(필요 시) 서버 콘텐츠 추가** — Admin(`http://localhost:5001`)에서 SystemConfig·보상 등 설정 (§7)
+
+> 인터넷 연결 필수(이미지/패키지 pull). HTTPS는 DNS `api.overture.io.kr`→호스트 + 80·443 개방 시 자동(§5.4 Caddy 전제).
+
+---
+
 ## 1. 신규 환경 셋업 체크리스트
 
 ### 1.1 사전 요건
@@ -17,6 +32,13 @@
 - EF Core 도구: `dotnet tool install --global dotnet-ef`
 
 ### 1.2 첫 실행 절차
+
+> **[권장] 전 컨테이너화 1-커맨드 기동** — 소스·인터넷·Docker Desktop이 있는 호스트에서
+> `.env` 작성(§2/§3) 후 루트의 **`서버시작.bat`** 하나 실행 → `docker compose up -d --build`로
+> db(`framework-postgres`)·api·caddy·ELK 전체 기동, DB 스키마는 api 컨테이너가 부팅 시
+> 마이그레이션 자동 적용(재시도 내장), 매일 백업 작업(`PostgreSQL_Daily_Backup`) 자동 등록.
+> 아래 수동 절차는 SDK 설치된 개발/디버그 환경용으로 유지한다.
+
 ```
 1. git clone + cd WebAPIFramework
 2. .env 파일 작성 (.env.example 복사 후 시크릿 채우기 — §2 참조)
@@ -74,7 +96,9 @@ dotnet run --project Framework.Admin -- --hash "임시비밀번호"
 
 ---
 
-## 4. [필수] Google Play 연동 준비 사항
+## 4. [조건부] Google Play 연동 준비 사항
+
+> [조건부] Google Play IAP / Google OAuth 로그인을 쓸 때만 필수. 미사용 시 건너뛰어도 기동에 무관.
 
 라이브 배포 전 Google Cloud / Play Console 설정.
 
@@ -87,7 +111,7 @@ dotnet run --project Framework.Admin -- --hash "임시비밀번호"
 
 ---
 
-## 5. 마이그레이션 운영
+## 5. DB 운영 (마이그레이션 · 백업 · 복원)
 
 ### 5.1 표준 절차
 ```
@@ -100,7 +124,9 @@ dotnet ef database update --project Framework/Framework.Infrastructure --startup
 > - 또는 `--connection "운영 DSN"` 인자 명시
 > - 임시로 `AppDbContextFactory.cs` 수정 시 **커밋 금지** (개발 머신 영향)
 
-### 5.2 xmin 동시성 토큰 마이그레이션 — **수동 절차 필수**
+### 5.2 [엣지] xmin 동시성 토큰 마이그레이션 — **수동 절차 필수**
+
+> [엣지] 새 엔티티에 xmin 동시성 토큰을 *추가할 때만* 해당. 일반 마이그레이션·기동과 무관.
 
 `PlayerItem.Quantity` / `Mail.IsClaimed` / `IapPurchase.Status` 등 xmin 토큰을 새 엔티티에 추가할 때:
 
@@ -118,10 +144,42 @@ dotnet ef database update --project Framework/Framework.Infrastructure --startup
 > 일반 마이그레이션 파일 수동 수정은 안티패턴이지만 xmin은 EF Core/Npgsql 공식 가이드의 알려진 예외. 다른 엔티티에 동시성 토큰 추가 시에도 위 절차 그대로.
 
 ### 5.3 운영 환경 적용 체크리스트
-- [ ] 백업 확인 (pg_dump 또는 볼륨 스냅샷)
+- [ ] 백업 확인 — §5.4 (`PostgreSQL_Daily_Backup` 작업 등록 + 최근 `.dump` 존재 확인)
 - [ ] 점검 모드 ON 권장 (다운타임 동반 마이그레이션 시)
 - [ ] `dotnet ef migrations script` 로 SQL 사전 검토 가능
 - [ ] 적용 후 `/health` 200 확인
+
+### 5.4 DB 백업
+
+- **대상**: `framework_db` 데이터베이스 (이 시스템의 사실상 전체 데이터. 클러스터 전역 롤·전역설정까지는 `pg_dumpall --globals-only` 별도)
+- **주기/보존**: 운영 1일 1회 03:00 / 30일. 실습 1분 / 30분
+- **방식**: `pg_dump -Fc`(커스텀 압축, 산출물 `.dump`). 실행 중 컨테이너에서 안전한 일관 스냅샷 — 데이터 디렉토리 파일복사는 깨지므로 금지
+- **2중 보호**: 산출물을 `C:\Users\user\OneDrive\DB_Backup`에 저장 → 로컬 디스크 + OneDrive 클라우드 동기화(단일 폴더 + 동기화 구조. 동기화 꺼지면 로컬만)
+- **스크립트 위치**: 레포 `DBBackup\` — `backup-daily.ps1`(운영, `-U framework_user`), `backup-practice.ps1`(실습, 로컬 ad-hoc 컨테이너 `-U postgres`). 스크립트는 이동하지 않음(산출 `.dump`만 OneDrive)
+- **등록**: `서버시작.bat`이 `PostgreSQL_Daily_Backup` 작업을 자동 등록(매일 03:00). 실습 단독 등록은 `DBBackup\register-practice.bat`
+- **컨테이너명 의존**: 백업은 `framework-postgres` 이름으로 `docker exec`. 변경 시 docker-compose `container_name` + `backup-daily.ps1` + `backup-practice.ps1` 3곳 동시 수정 필수(한 곳만 바꾸면 무에러 실패)
+
+### 5.5 DB 복원
+
+> 전제: 백업은 `-Fc` 포맷이므로 복원은 `psql -f`가 아니라 **`pg_restore`** 를 쓴다.
+> 접속 롤은 환경별 — 배포(compose)=`framework_user`, 현재 로컬 ad-hoc 컨테이너=`postgres`.
+
+1. 복원할 `.dump` 준비 (로컬/OneDrive)
+2. API 종료 — 쓰기 차단 (compose: `docker compose stop api`)
+3. 컨테이너로 복사:
+   ```powershell
+   docker cp "C:\Users\user\OneDrive\DB_Backup\framework_db_20260514.dump" framework-postgres:/tmp/restore.dump
+   ```
+4. DB 초기화 후 `pg_restore` (배포=`framework_user` / 로컬 실습=`postgres`로 치환):
+   ```powershell
+   docker exec framework-postgres psql -U framework_user -d postgres -c "DROP DATABASE IF EXISTS framework_db WITH (FORCE);"
+   docker exec framework-postgres psql -U framework_user -d postgres -c "CREATE DATABASE framework_db;"
+   docker exec framework-postgres pg_restore -U framework_user -d framework_db /tmp/restore.dump
+   ```
+5. 임시 파일 삭제: `docker exec framework-postgres rm /tmp/restore.dump`
+6. API 재기동 (compose: `docker compose start api`)
+
+> 롤/소유권 경고가 무해하면 `pg_restore`에 `--no-owner` 추가. DB를 통째 drop/create 대신 비우려면 `pg_restore -d framework_db --clean --if-exists /tmp/restore.dump`.
 
 ---
 
@@ -234,6 +292,8 @@ dotnet ef database update --project Framework/Framework.Infrastructure --startup
 
 ## 10. Test 프로젝트 가이드
 
+> [이관 후보] 이 절은 서버 운영이 아니라 **개발자/기여자용 테스트 작성 규칙**이다. 별도 개발 문서(CONTRIB/DEVNOTES)로 분리 예정 — 운영자는 건너뛰어도 무방.
+
 ### 10.1 위치
 - `Framework/Framework.Tests/` — 단일 테스트 프로젝트
 - `Infrastructure/` — 테스트 공용 헬퍼
@@ -305,7 +365,7 @@ dotnet ef database update --project Framework/Framework.Infrastructure --startup
 - [ ] **Unity 클라이언트 스토어 URL 점검** — 강제 업데이트 다이얼로그(`CLIENT_GUIDE.md §2`)의 Play Store / App Store 패키지 URL이 placeholder가 아닌 실제 마켓 URL인지 확인. iOS 미출시 시 Apple URL은 placeholder 유지 가능
 - [ ] `secrets/google-play-service-account.json` 서버에 존재 확인 (Docker 볼륨 마운트 대상 — Git에 없으므로 수동 배치 필수)
 - [ ] Google Play Console 설정 완료 (§4)
-- [ ] DB 백업 정책 설정 (pg_dump 또는 볼륨 스냅샷, 최소 1일 1회 / 30일 보관)
+- [ ] DB 백업 정책 — §5.4 구현됨(`서버시작.bat`이 `PostgreSQL_Daily_Backup` 자동 등록). DNS·OneDrive 동기화 활성만 확인
 - [ ] 마이그레이션 운영 DB 적용 완료 (§5)
 - [ ] `/health` 200 확인
 - [ ] Admin 로그인 동작 (PasswordHash 운영용으로 갱신)

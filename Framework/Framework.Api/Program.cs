@@ -6,6 +6,7 @@ using Framework.Application.BackgroundServices;
 using Framework.Application.Features.SystemConfig;
 using Framework.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Elastic.Apm.NetCoreAll;
@@ -148,6 +149,19 @@ builder.Services.AddQuestServices();         // 퀘스트 시스템 (일일/주�
 builder.Services.AddTutorialRepositories();  // 튜토리얼 진행 저장소
 builder.Services.AddTutorialServices();       // 튜토리얼 진행 서비스
 
+// ── ForwardedHeaders 옵션 등록 ────────────────────────────────
+// Caddy 단독 프론트 전제라 동적 프록시 IP 전부 신뢰, KnownProxies/Networks를 비워 제한 해제
+// KnownNetworks.Clear() + KnownProxies.Clear() 는 실제 컬렉션을 비우는 메서드 호출이므로
+// 기존 루프백(127.0.0.1/::1) 기본값까지 제거되어 Docker bridge(172.x)/K8s Pod(10.x) 대역도 허용된다.
+// (object/collection initializer의 KnownIPNetworks = {} 는 Clear가 아니라 Add 0회 — no-op임에 주의)
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // 루프백 기본값까지 포함한 모든 제한 제거 — 내부 Ingress 경유 전제
+    o.KnownIPNetworks.Clear();
+    o.KnownProxies.Clear();
+});
+
 // ── 인증 / 보안 ───────────────────────────────────────────────
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddRateLimitingServices(builder.Configuration);
@@ -197,21 +211,59 @@ var app = builder.Build();
 app.Lifetime.ApplicationStopped.Register(() => Log.CloseAndFlush());
 
 // ─────────────────────────────────────────────────────────────
-// DB 마이그레이션 자동 적용
+// DB 마이그레이션 자동 적용 (유한 재시도)
 //
 // [목적]
 // Docker 컨테이너가 시작될 때 대기 중인 EF Core 마이그레이션을
 // 자동으로 DB에 반영한다. 최초 기동 시 테이블이 생성되고
 // 이후 마이그레이션이 추가될 때마다 재기동만으로 스키마가 최신화된다.
 //
+// [재시도 정책]
+// Docker Compose / K8s 환경에서 DB 컨테이너가 API보다 늦게 Ready 되는 경우,
+// 단순 Migrate() 1회 호출은 즉시 예외로 앱이 종료된다.
+// 최대 10회(3초 간격 = 최대 30초)까지 재시도하여 기동 경합을 흡수한다.
+// 10회 초과 시 명확한 로그를 남기고 예외를 그대로 throw해 컨테이너를 재시작시킨다.
+//
 // [주의]
 // 소규모 운영 기준의 편의 기능이다. 유저가 크게 늘어나면
 // 무중단 배포 전략과 충돌할 수 있으므로 수동 적용으로 전환 고려.
 // ─────────────────────────────────────────────────────────────
+const int MigrateMaxRetry = 10;
+const int MigrateRetryDelaySeconds = 3;
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
+
+    for (var attempt = 1; attempt <= MigrateMaxRetry; attempt++)
+    {
+        try
+        {
+            db.Database.Migrate();
+            // 마이그레이션 성공 — 루프 종료
+            Log.Information("DB 마이그레이션 완료 (시도 {Attempt}/{Max})", attempt, MigrateMaxRetry);
+            break;
+        }
+        catch (Exception ex) when (attempt < MigrateMaxRetry)
+        {
+            // DB가 아직 준비되지 않은 경우(컨테이너 기동 경합) — 대기 후 재시도
+            Log.Warning(
+                ex,
+                "DB 마이그레이션 실패, 재시도 중... ({Attempt}/{Max}) — {Message}",
+                attempt, MigrateMaxRetry, ex.Message);
+            await Task.Delay(TimeSpan.FromSeconds(MigrateRetryDelaySeconds));
+        }
+        catch (Exception ex)
+        {
+            // 최대 재시도 초과 — 명확한 로그 후 컨테이너 재시작 유도
+            Log.Fatal(
+                ex,
+                "DB 마이그레이션 최대 재시도({Max}회) 초과. 앱을 종료합니다.",
+                MigrateMaxRetry);
+            Log.CloseAndFlush();
+            throw;
+        }
+    }
 }
 
 // 개발 환경에서만 OpenAPI 엔드포인트 활성화
@@ -219,6 +271,24 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
+
+// ─────────────────────────────────────────────────────────────
+// ForwardedHeaders 미들웨어 — UseHttpsRedirection보다 반드시 앞에 위치
+//
+// [목적]
+// Caddy(TLS 종단) → 내부 HTTP 전달 구조에서 X-Forwarded-For/-Proto 를
+//   HttpContext.Connection.RemoteIpAddress / Request.Scheme 으로 덮어써야
+//   Rate Limiter·감사 로그·HTTPS 리다이렉트 판단이 올바르게 동작한다.
+//
+// [순서 중요]
+// UseHttpsRedirection 이 먼저 실행되면 scheme=http 상태로 리다이렉트 루프가 발생한다.
+// ForwardedHeaders 를 앞에 두어 scheme=https 로 복원한 뒤 리다이렉트 판단이 이루어지게 한다.
+//
+// [옵션은 위 Configure<ForwardedHeadersOptions>에서 설정]
+// KnownIPNetworks/KnownProxies 를 Clear() 하여 Docker bridge(172.x)/K8s Pod(10.x) 포함
+// 모든 내부 프록시 IP를 신뢰한다. 인터넷 직접 노출 없이 Caddy만 프론트엔드인 전제.
+// ─────────────────────────────────────────────────────────────
+app.UseForwardedHeaders();
 
 // 개발 환경에서는 모바일 테스트를 위해 HTTPS 리다이렉트 비활성화
 if (!app.Environment.IsDevelopment())

@@ -77,6 +77,15 @@ Admin 백색화면 수정 과정에서 인증 모델 재정립. 핵심:
 
 ## [설계 결정]
 
+### DB 백업/복원 + Caddy 프록시 도입 (2026-05-17)
+
+- **백업 포맷 `pg_dump -Fc`**: 평문 `.sql`(무압축, `psql -f` 복원) 대비 압축 + `pg_restore` 선택적/병렬 복원. 30개 보관(로컬+OneDrive)에서 용량·복원 유연성 우위. 트레이드오프: 바이너리라 사람이 직접 못 열고 복원은 `psql`이 아닌 `pg_restore` 강제.
+- **2중 보호 = 단일 폴더 + OneDrive 동기화**: 독립 2경로가 아니라 `OneDrive\DB_Backup` 한 폴더에 산출 → 동기화로 클라우드 사본. 동기화 비활성 시 로컬만(인지된 한계, 1인 운영 수용).
+- **`서버시작.bat` 통합**: 별도 register-prod.bat 폐기, 서버 풀기동 bat이 `PostgreSQL_Daily_Backup` 작업 등록까지 담당(단일 진입점). 실습(1분/30분)만 `register-practice.bat` 분리.
+- **`container_name: framework-postgres` 고정**: 백업이 컨테이너명으로 `docker exec`. 미고정 시 compose가 `webapiframework-db-1` 생성 → 무에러 백업 실패. 변경 시 3곳(compose/backup-daily/backup-practice) 동시 수정 규약.
+- **접속 롤 환경 분기**: 배포(compose)=`framework_user`(POSTGRES_USER), 로컬 ad-hoc 컨테이너=`postgres`. backup-daily/practice가 각각 대응.
+- **Caddy 리버스 프록시 컨테이너화**: 호스트 설치(`C:\caddy`) 폐기 → docker-compose `caddy` 서비스 + `Caddyfile`(`api.overture.io.kr`→`api:8080`, Let's Encrypt 자동). "Docker만 있는 호스트 + 1커맨드" 목표상 필연. 절차는 `SERVER_GUIDE.md §5.4–5.5`.
+
 ### 상점 N개 구매 — 한도 집계 의미 전환 및 overflow 방어 (2026-05-12)
 
 | 결정 | 내용 |
@@ -234,7 +243,7 @@ Feature마다 산재하던 Result 패턴·예외 계층을 단일 지점으로 �
 | 인증 PlayerId | 분당 30회 | `RateLimiting:AuthPlayerPermitLimit` | refresh/logout 정상 사용 보장 |
 
 - **선택 근거**: 단일 글로벌 limiter(C-2 발견 당시)는 모든 IP·유저 합산 분당 60회 → 단일 공격자가 정상 사용자 인증 차단 가능. 파티션 분기로 격리.
-- **잔여 추적**: ForwardedHeaders / docker bridge IP 보존 — Caddy 도입 시점에 별도 라운드.
+- **잔여 추적**: ForwardedHeaders / docker bridge IP 보존 — [해소 2026-05-17] Caddy 컨테이너 도입과 함께 `Program.cs`에 `UseForwardedHeaders`(KnownProxies/Networks Clear, HttpsRedirection 앞 배치) 적용. 설계 근거는 [설계 결정] DB 백업/복원 + Caddy 항목 참조.
 
 ### RefreshToken — DB 평문 저장 금지, SHA-256 해시 (round_20260503, H-6)
 

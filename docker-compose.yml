@@ -17,6 +17,15 @@
 services:
   db:
     image: postgres:16
+    # 백업 스크립트(DBBackup/backup-*.ps1)가 'framework-postgres' 이름으로
+    # docker exec 하므로 컨테이너명을 고정한다. 미지정 시 compose가
+    # 'webapiframework-db-1'로 생성 → 백업 대상 불일치 발생.
+    # [네이밍 주의] 이 이름을 바꾸려면 반드시 3곳을 동시에 수정할 것:
+    #   ① 여기 container_name
+    #   ② DBBackup/backup-daily.ps1   $ContainerName
+    #   ③ DBBackup/backup-practice.ps1 $ContainerName
+    # 한 곳만 바꾸면 백업이 조용히 실패한다(에러 없이 대상 불일치).
+    container_name: framework-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: framework_db
@@ -63,8 +72,34 @@ services:
       - ./secrets:/app/secrets:ro
     ports:
       # 호스트 5000 → 컨테이너 8080
-      # 초기 테스트용. 최종적으로는 Caddy(443)가 이 포트를 프록시한다
+      # 초기 테스트/디버그용. 외부 트래픽은 caddy(443)가 프록시한다.
       - "5000:8080"
+
+  # ───────────────────────────────────────────────────────────
+  # Caddy — 리버스 프록시 / 자동 HTTPS
+  #
+  # [역할] api.overture.io.kr 로 들어오는 외부 요청을 받아 내부
+  #        api 컨테이너(8080)로 전달. Let's Encrypt 인증서를
+  #        도메인 기준 자동 발급/갱신(ACME).
+  # [전제] 공인 DNS api.overture.io.kr → 이 호스트, 80/443 개방.
+  #        (미충족 시 인증서 발급만 실패, 내부 동작은 무관)
+  # [상태] caddy_data 볼륨에 발급 인증서 영속 — 재시작해도 재발급 안 함.
+  # ───────────────────────────────────────────────────────────
+  caddy:
+    image: caddy:2
+    container_name: framework-caddy
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Caddyfile 은 읽기 전용 마운트 (호스트가 단일 진실원)
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # 발급 인증서/ACME 계정 영속 (재시작 시 재발급 방지)
+      - caddy_data:/data
+      - caddy_config:/config
 
   # ───────────────────────────────────────────────────────────
   # 관측 스택 (M1) — Elasticsearch + Kibana + APM Server
@@ -168,3 +203,7 @@ volumes:
   pgdata:
   # Elasticsearch 인덱스(로그/APM) 영속 볼륨
   esdata:
+  # Caddy 발급 인증서/ACME 계정 (재시작 시 재발급 방지)
+  caddy_data:
+  # Caddy 자동 생성 설정 캐시
+  caddy_config:
